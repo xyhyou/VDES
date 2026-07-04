@@ -1,0 +1,58 @@
+CompileFlags:
+  CompilationDatabase: out/build/x86-debug
+  Add: [-Wno-deprecated-declarations]
+  Remove: [-fsanitize=address]
+
+Index:
+  # 启用后台索引 - 对跳转功能很重要
+  Background: Build
+  # 标准库索引
+  StandardLibrary: Yes
+
+Completion:
+  # 启用补全功能
+  AllScopes: Yes
+  
+Hover:
+  # 显示悬停信息
+  ShowAKA: Yes
+
+InlayHints:
+  # 禁用内联提示 - 减少视觉干扰
+  Enabled: No
+  ParameterNames: No
+  DeducedTypes: No
+
+Diagnostics:
+  # 启用错误和警告诊断
+  # Suppress: "*"  # 注释掉这行以启用诊断
+  # 只禁用一些不重要的警告
+  Suppress: 
+    - "unused-parameter"
+    - "unused-variable"
+    - "unused-includes"  # 禁用未使用头文件警告 
+    - "unused-but-set-variable"
+  # 启用部分有用的clang-tidy检查
+  ClangTidy:
+    Add: 
+      - "readability-*"
+    Remove: 
+      - "readability-redundant-string-cstr"
+      - "readability-isolate-declaration"
+      - "readability-magic-numbers"
+      - "readability-redundant-access-specifiers"  # 禁用重复访问说明符警告
+      - "readability-function-cognitive-complexity"  # 禁用函数认知复杂度警告
+      - "readability-convert-member-functions-to-static"  # 禁用成员函数转静态函数建议
+      - "readability-qualified-auto"  # 禁用auto类型限定符建议
+      - "readability-implicit-bool-conversion"  # 禁用隐式bool转换警告
+      - "readability-avoid-const-params-in-decls"  # 禁用函数声明中const参数警告
+      - "readability-identifier-length"  # 禁用标识符长度检查
+      - "modernize-*"  # 禁用所有modernize检查，包括redundant-void-arg
+      - "readability-misleading-indentation"
+      - "readability-else-after-return"
+      - "readability-make-member-function-const"
+      - "readability-math-missing-parentheses"
+      - "readability-avoid-unconditional-preprocessor-if"
+      - "readability-simplify-boolean-expr"
+      - "readability-delete-null-pointer"
+      - "readability-container-data-pointer"
