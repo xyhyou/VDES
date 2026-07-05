@@ -1,4 +1,14 @@
 #include "VDES.h"
+
+#include <map>
+#include <array>
+#include <mutex>
+#include <string>
+#include <vector>
+#include <cstdio>
+#include <functional>
+#include <algorithm>
+
 #include "VDESConfigure.h"
 #include "AISBitsManager.h"
 #include "UtilityInterface.h"
@@ -9,15 +19,6 @@
 #include "spdlog/spdlog.h"
 #include "SQLiteCpp/SQLiteCpp.h"
 #include "TimerManager.h"
-
-#include <map>
-#include <array>
-#include <mutex>
-#include <string>
-#include <vector>
-#include <cstdio>
-#include <functional>
-#include <algorithm>
 
 namespace VDES
 {
@@ -217,30 +218,44 @@ namespace VDES
         void SaveVTSReply(const VTSReply &reply, const uint16_t sequenceNo);
 
         void SaveRouteRecommendationResponse(const RouteRecommendationResponse &response);
+        
         void InitializeRouteRecommendationResponseTable(void);
+        
         void LoadRouteRecommendationResponseFromQueryResult(RouteRecommendationResponse &response, const SQLite::Statement &query);
 
         void SaveHydrometeorologyResponse(const HydrometeorologyResponse &response);
+        
         void InitializeHydrometeorologyResponseTable(void);
+        
         void LoadHydrometeorologyResponseFromQueryResult(HydrometeorologyResponse &response, const SQLite::Statement &query);
 
         void SaveHydrometeorologyRequest(const HydrometeorologyRequest &request, uint32_t seqNo);
         void InitializeHydrometeorologyRequestTable(void);
 
         void InitializeRouteRecommendationRequestTable(void);
+        
         void SaveRouteRecommendationRequest(const RouteRecommendationRequest &request, uint32_t seqNo);
 
         void ParseAMK(const std::string &sentence);
+        
         void UpdateAABRequestStatus(uint32_t seqNo, uint8_t ackType);
 
         void InitializeOwnExtendedVesselInfoTable(void);
+        
         void InitializeOtherVesselExtendedInfoTable(void);
+        
         void SaveOwnExtendedVesselInfo(const ExtendedVesselInfo &info);
+        
         void SaveOtherVesselExtendedInfoPartA(const ASM_DAC_412_FI_50 &partA);
+        
         void SaveOtherVesselExtendedInfoPartB(const ASM_DAC_412_FI_51 &partB);
+        
         void LoadOtherVesselExtendedInfoFromQueryResult(OtherVesselExtendedInfo &info, const SQLite::Statement &query);
+        
         void SendExtendedVesselInfoPartA(void);
+        
         void SendExtendedVesselInfoPartB(void);
+        
         void BroadcastExtendedVesselInfo(void);
 
         void ParseOneLineData(const std::string &sentence);
@@ -2163,7 +2178,8 @@ namespace VDES
         {
             bitPosStart = 100;
         }
-        else if ((DAC == 413 && FI == 1) || (DAC == 413 && FI == 2))
+        else if ((DAC == 413 && FI == 1) || (DAC == 413 && FI == 2) || 
+                 (DAC == 413 && FI == 3) || (DAC == 413 && FI == 4))
         {
             bitPosStart = 88;
         }
@@ -2205,11 +2221,11 @@ namespace VDES
         {
             //return;
         }
-        SPDLOG_DEBUG("ParseAISMessage8: {}", bitsNum);
         auto DAC = manager.DecodeToNumerical(40, 10);
         auto FI = manager.DecodeToNumerical(50, 6);
 
-        if ((DAC == 1 && FI == 0) || (DAC == 413 && FI == 1))
+        if ((DAC == 1 && FI == 0) || (DAC == 413 && FI == 1) || 
+            (DAC == 413 && FI == 3) || (DAC == 413 && FI == 4))
         {
             auto bitPosStart = 0U;
 
@@ -2247,9 +2263,9 @@ namespace VDES
         }
         else if (DAC == 412 || DAC == 413 || DAC == 414)
         {
-            SPDLOG_DEBUG("ParseAISMessage8: {}", manager.GetEncodedVDMPayload());
-            manager.RemoveBits(0, 40);  
-            m_asmManager.ParsePayload(manager.GetEncodedVDMPayload(), manager.GetFillBitsNumberToEncode());
+            //SPDLOG_DEBUG("ParseAISMessage8: {}", manager.GetEncodedVDMPayload());
+            //manager.RemoveBits(0, 40);  
+            //m_asmManager.ParsePayload(manager.GetEncodedVDMPayload(), manager.GetFillBitsNumberToEncode());
         }
     }
 
@@ -4961,6 +4977,14 @@ namespace VDES
                     auto                   timeZone = UtilityInterface::GetTimeZone();
                     auto                   timestampDayBegin = timestampNow - (timestampNow % (24 * 3600)) - timeZone;
 
+                    if (info->hourPublish < 24)
+                    {
+                        int currentHour = static_cast<int>(((timestampNow + timeZone) % 86400) / 3600);
+                        if (info->hourPublish > currentHour)
+                        {
+                            timestampDayBegin -= 24 * 3600;
+                        }
+                    }
                     timestampDayBegin += info->hourPublish * 3600;
 
                     for (auto i = 0U; i < info->locationInfos.size(); i++)
@@ -5000,6 +5024,14 @@ namespace VDES
                     auto timeZone          = UtilityInterface::GetTimeZone();
                     auto timestampDayBegin = timestampNow - (timestampNow % (24 * 3600)) - timeZone;
 
+                    if (info->hourPublish < 24)
+                    {
+                        int currentHour = static_cast<int>(((timestampNow + timeZone) % 86400) / 3600);
+                        if (info->hourPublish > currentHour)
+                        {
+                            timestampDayBegin -= 24 * 3600;
+                        }
+                    }
                     timestampDayBegin += info->hourPublish * 3600;
                     for (const auto &seaAreaInfo : info->seaAreaInfos)
                     {
@@ -5033,6 +5065,14 @@ namespace VDES
                     auto timeZone          = UtilityInterface::GetTimeZone();
                     auto timestampDayBegin = timestampNow - (timestampNow % (24 * 3600)) - timeZone;
 
+                    if (info->hourPublish < 24)
+                    {
+                        int currentHour = static_cast<int>(((timestampNow + timeZone) % 86400) / 3600);
+                        if (info->hourPublish > currentHour)
+                        {
+                            timestampDayBegin -= 24 * 3600;
+                        }
+                    }
                     timestampDayBegin += info->hourPublish * 3600;
 
                     for (const auto &locationInfo : info->locationInfos)
@@ -5068,6 +5108,14 @@ namespace VDES
                     auto timeZone          = UtilityInterface::GetTimeZone();
                     auto timestampDayBegin = timestampNow - (timestampNow % (24 * 3600)) - timeZone;
 
+                    if (info->hourPublish < 24)
+                    {
+                        int currentHour = static_cast<int>(((timestampNow + timeZone) % 86400) / 3600);
+                        if (info->hourPublish > currentHour)
+                        {
+                            timestampDayBegin -= 24 * 3600;
+                        }
+                    }
                     timestampDayBegin += info->hourPublish * 3600;
 
                     for (const auto &seaAreaInfo : info->seaAreaInfos)
@@ -5104,6 +5152,14 @@ namespace VDES
                     auto timeZone          = UtilityInterface::GetTimeZone();
                     auto timestampDayBegin = timestampNow - (timestampNow % (24 * 3600)) - timeZone;
 
+                    if (info->hourPublish < 24)
+                    {
+                        int currentHour = static_cast<int>(((timestampNow + timeZone) % 86400) / 3600);
+                        if (info->hourPublish > currentHour)
+                        {
+                            timestampDayBegin -= 24 * 3600;
+                        }
+                    }
                     timestampDayBegin += info->hourPublish * 3600;
 
                     for (const auto &waterAreaInfo : info->waterAreaInfos)

@@ -1,4 +1,8 @@
 #include "ASMManager.h"
+
+#include <map>
+#include <cstdlib>
+
 #include "ASMDTD.h"
 #include "Coordinate.h"
 #include "VDES.h"
@@ -6,9 +10,6 @@
 #include "VDESConfigure.h"
 #include "UtilityInterface.h"
 #include "spdlog.h"
-
-#include <map>
-#include <cstdlib>
 
 namespace VDES
 {
@@ -83,8 +84,8 @@ namespace VDES
         double DecodeCoordinate(const AISBitsManager &manager, const uint32_t startBitPos, const uint32_t bitsNum);
 
     public:
-        using ParseFunction = std::function<void(const AISBitsManager &manager)>;
-        using ASMParserMap = std::map<uint32_t, ParseFunction>;
+        using ParseFunction   = std::function<void(const AISBitsManager &manager)>;
+        using ASMParserMap    = std::map<uint32_t, ParseFunction>;
         using MessageParseMap = std::map<uint8_t, ParseFunction>;
 
         ASMManager      *m_parent;

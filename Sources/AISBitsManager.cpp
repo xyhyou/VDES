@@ -393,8 +393,9 @@ namespace VDES
 				}
 				return text;
 			}
-			else if (DAC == 413 && FI == 1) // 14 bits code with chinese
+			else if ((DAC == 413 && FI == 1) || (DAC == 413 && FI == 3)) 
 			{
+				// 14 bits code with chinese
 				uint32_t index = startBitPos;
 				int		 bitNumTemp = bitNum;
 				auto	 surplusBitsNum = bitNum % 7;
@@ -452,7 +453,7 @@ namespace VDES
 				}
 				return text;
 			}
-			else if (DAC == 413 && FI == 2) // 13 bits code with chinese
+			else if ((DAC == 413 && FI == 2) || (DAC == 413 && FI == 4)) // 13 bits code with chinese
 			{
 				uint32_t    index = startBitPos;
 				int			bitNumTemp = bitNum;
