@@ -1590,10 +1590,10 @@ namespace VDES
                     "Forecast_ID             INTEGER   NOT NULL,"
                     "Longitude               DOUBLE    NOT NULL DEFAULT 181.0,"
                     "Latitude                DOUBLE    NOT NULL DEFAULT 91.0,"
-                    "[Tidal Datum]           DOUBLE    NOT NULL DEFAULT 0.0,"
-                    "[Tide High]             DOUBLE    NOT NULL DEFAULT 0.0,"
+                    "[Tidal Datum]           INT       NOT NULL DEFAULT 0,"
+                    "[Tide High]             INT       NOT NULL DEFAULT 0,"
                     "[Timestamp Tide High]   INTEGER   NOT NULL DEFAULT 0,"
-                    "[Tide Low]              DOUBLE    NOT NULL DEFAULT 0.0,"
+                    "[Tide Low]              INT       NOT NULL DEFAULT 0,"
                     "[Timestamp Tide Low]    INTEGER   NOT NULL DEFAULT 0,"
                     "FOREIGN KEY(Forecast_ID) REFERENCES TideForecast(ID) ON DELETE CASCADE)");
                 m_database->exec(sql);
@@ -2370,9 +2370,9 @@ namespace VDES
         }
         else if (DAC == 412 || DAC == 413 || DAC == 414)
         {
-            //SPDLOG_DEBUG("ParseAISMessage8: {}", manager.GetEncodedVDMPayload());
-            //manager.RemoveBits(0, 40);  
-            //m_asmManager.ParsePayload(manager.GetEncodedVDMPayload(), manager.GetFillBitsNumberToEncode());
+            SPDLOG_DEBUG("ParseAISMessage8: {}", manager.GetEncodedVDMPayload());
+            manager.RemoveBits(0, 40);  
+            m_asmManager.ParsePayload(manager.GetEncodedVDMPayload(), manager.GetFillBitsNumberToEncode());
         }
     }
 
@@ -4473,10 +4473,10 @@ namespace VDES
             TideForecast::TideStation station;
             station.coordinate.SetLongitude(queryStation.getColumn("Longitude").getDouble());
             station.coordinate.SetLatitude(queryStation.getColumn("Latitude").getDouble());
-            station.tidalDatum = queryStation.getColumn("Tidal Datum").getDouble();
-            station.tideHigh = queryStation.getColumn("Tide High").getDouble();
+            station.tidalDatum = static_cast<uint16_t>(queryStation.getColumn("Tidal Datum").getInt());
+            station.tideHigh = static_cast<uint16_t>(queryStation.getColumn("Tide High").getInt());
             station.timestampTideHigh = queryStation.getColumn("Timestamp Tide High").getInt64();
-            station.tideLow = queryStation.getColumn("Tide Low").getDouble();
+            station.tideLow = static_cast<uint16_t>(queryStation.getColumn("Tide Low").getInt());
             station.timestampTideLow = queryStation.getColumn("Timestamp Tide Low").getInt64();
             forecast.stations.emplace_back(station);
         }
@@ -5555,11 +5555,11 @@ namespace VDES
 
                     if (info->geometryType == 0)
                     {
-                        obstacle.range = info->range * 0.00054; // meters to nm
+                        obstacle.range = info->range;
                     }
                     else if (info->geometryType == 1)
                     {
-                        obstacle.range = info->sector.range; // already in nm
+                        obstacle.range = info->sector.range;
                         obstacle.sectorStartAngle = info->sector.startAngle;
                         obstacle.sectorEndAngle = info->sector.endAngle;
                     }

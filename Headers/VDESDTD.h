@@ -879,11 +879,11 @@ namespace VDES
         struct TideStation
         {
             Coordinate coordinate;
-            double     tidalDatum        = 0.0;
-            double     tideHigh          = 0.0;
-            uint64_t   timestampTideHigh = 0;
-            double     tideLow           = 0.0;
-            uint64_t   timestampTideLow  = 0;
+            uint16_t   tidalDatum        = 0;   // 9 bits, resolution: 1cm, base: -500cm
+            uint16_t   tideHigh          = 0;   // 10 bits, resolution: 1cm, base: -100cm
+            uint64_t   timestampTideHigh = 0;   // 16 bits
+            uint16_t   tideLow           = 0;   // 9 bits, resolution: 1cm, base: -100cm
+            uint64_t   timestampTideLow  = 0;   // 16 bits
         };
 
         uint8_t                  hourPublish = 24;

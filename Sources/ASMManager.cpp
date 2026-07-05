@@ -561,16 +561,16 @@ namespace VDES
         tideInfo.coordinate.SetLatitude(latitude / 60.0);
 
         value = manager.DecodeToNumerical(50, 9);
-        tideInfo.tidalDatum = (static_cast<double>(value) - 500.0) / 100.0;
+        tideInfo.tidalDatum = static_cast<uint16_t>(value);
 
         tideInfo.timestampTideHigh = DecodeTime(manager, 59, 16);
 
         value = manager.DecodeToNumerical(75, 10);
-        tideInfo.tideHigh = (static_cast<double>(value) - 100.0) / 100.0;
+        tideInfo.tideHigh = static_cast<uint16_t>(value);
 
         tideInfo.timestampTideLow = DecodeTime(manager, 85, 16);
         value = manager.DecodeToNumerical(101, 9);
-        tideInfo.tideLow = (static_cast<double>(value) - 100.0) / 100.0;
+        tideInfo.tideLow = static_cast<uint16_t>(value);
 
         asmInfo.tideInfos.push_back(tideInfo);
 
@@ -593,15 +593,15 @@ namespace VDES
             tideInfo.coordinate = coordinate;
 
             value = manager.DecodeToNumerical(index + 14, 9);
-            tideInfo.tidalDatum = (static_cast<double>(value) - 500.0) / 100.0;
+            tideInfo.tidalDatum = static_cast<uint16_t>(value);
 
             tideInfo.timestampTideHigh = DecodeTime(manager, index + 23, 16);
             value = manager.DecodeToNumerical(index + 39, 10);
-            tideInfo.tideHigh = (static_cast<double>(value) - 100.0) / 100.0;
+            tideInfo.tideHigh = static_cast<uint16_t>(value);
 
             tideInfo.timestampTideLow = DecodeTime(manager, index + 49, 16);
             value = manager.DecodeToNumerical(index + 65, 9);
-            tideInfo.tideLow = (static_cast<double>(value) - 100.0) / 100.0;
+            tideInfo.tideLow = static_cast<uint16_t>(value);
 
             asmInfo.tideInfos.push_back(tideInfo);
             index += 74;
@@ -632,7 +632,7 @@ namespace VDES
             auto latVal = manager.DecodeToNumerical(70, 27);
             asmInfo.coordinate.SetLongitude(UtilityInterface::ConvertComplementCodeToInteger(lonVal, 28) / 600000.0);
             asmInfo.coordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(latVal, 27) / 600000.0);
-            asmInfo.range = manager.DecodeToNumerical(97, 7) * 100.0;
+            asmInfo.range = static_cast<uint8_t>(manager.DecodeToNumerical(97, 7));
             index = 104;
         }
         else if (asmInfo.geometryType == 1)
@@ -643,7 +643,7 @@ namespace VDES
             asmInfo.coordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(latVal, 27) / 600000.0);
             asmInfo.sector.startAngle = static_cast<uint16_t>(manager.DecodeToNumerical(97, 9));
             asmInfo.sector.endAngle = static_cast<uint16_t>(manager.DecodeToNumerical(106, 9));
-            asmInfo.sector.range = manager.DecodeToNumerical(115, 7) * 0.1; // radius in nm
+            asmInfo.sector.range = static_cast<uint8_t>(manager.DecodeToNumerical(115, 7));
             index = 122;
         }
         else if (asmInfo.geometryType == 2 || asmInfo.geometryType == 3)

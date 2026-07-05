@@ -1729,7 +1729,7 @@ int main(void)
 	VDES::ConfigureManager::GetInstance().SetStoragePath(".");
 	vdesManager.Initialize();
 	vdesManager.EmptyDatabase();
-
+#if 1
 	// Parse new standard early warning messages (FI=31)
 	std::cout << "\n=== Testing DAC=412, FI=31 (Warnings) ===" << std::endl;
 	for (uint8_t type : {1, 2, 5, 6})
@@ -1782,6 +1782,66 @@ int main(void)
 		}
 	}
 	std::cout << "=========================================\n" << std::endl;
+
+	// Parse tide forecast messages (FI=32)
+	std::cout << "\n=== Testing DAC=412, FI=32 (Tides) ===" << std::endl;
+	auto tideSentences = GenerateDAC_412_FI_32();
+	for (const auto &vdm : tideSentences)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Query from Database and print
+	auto tides = vdesManager.GetTideForecasts(0, 100);
+	std::cout << "Successfully retrieved " << tides.size() << " tide forecasts from DB:" << std::endl;
+	for (const auto &tide : tides)
+	{
+		std::cout << "  Tide ID: " << tide.dataID
+				  << ", Hour Publish: " << (int)tide.hourPublish
+				  << ", Info Source: " << (int)tide.infoSource
+				  << ", Stations count: " << tide.stations.size() << std::endl;
+		for (size_t i = 0; i < tide.stations.size(); ++i)
+		{
+			const auto &station = tide.stations[i];
+			std::cout << "    Station " << i << ": Lat: " << station.coordinate.GetLatitude()
+					  << ", Lon: " << station.coordinate.GetLongitude()
+					  << ", Tidal Datum: " << station.tidalDatum << " cm"
+					  << ", Tide High: " << station.tideHigh << " cm at " << station.timestampTideHigh
+					  << ", Tide Low: " << station.tideLow << " cm at " << station.timestampTideLow << std::endl;
+		}
+	}
+	std::cout << "========================================\n" << std::endl;
+
+	// Parse obstacle messages (FI=35)
+	std::cout << "\n=== Testing DAC=412, FI=35 (Obstacles) ===" << std::endl;
+	for (uint8_t geomType : {0, 1})
+	{
+		auto obsSentences = GenerateDAC_412_FI_35(geomType);
+		for (const auto &vdm : obsSentences)
+		{
+			vdesManager.Parse(vdm.c_str(), vdm.length());
+		}
+	}
+
+	// Query from Database and print
+	auto obstacles = vdesManager.GetObstacles(0, 100);
+	std::cout << "Successfully retrieved " << obstacles.size() << " obstacles from DB:" << std::endl;
+	for (const auto &obs : obstacles)
+	{
+		std::cout << "  Obstacle ID: " << obs.dataID
+				  << ", Type: " << (int)obs.type
+				  << ", GeometryType: " << (int)obs.geometryType
+				  << ", Lat: " << obs.coordinate.GetLatitude()
+				  << ", Lon: " << obs.coordinate.GetLongitude()
+				  << ", Range/Radius: " << obs.range << std::endl;
+		if (obs.geometryType == 1)
+		{
+			std::cout << "    Sector Angles: Start=" << obs.sectorStartAngle
+					  << ", End=" << obs.sectorEndAngle << std::endl;
+		}
+	}
+	std::cout << "========================================\n" << std::endl;
+#endif
 
 #if 0 
 	std::cout << "\n==============================================" << std::endl;
@@ -2023,8 +2083,8 @@ int main(void)
 		//"$AIASM,1782890623,1,1,,1,2,0,666666666,,Iibwv`0000?5WBiT7l@,2*5C\r\n",
 		//"$AIASM,1782890651,1,1,,1,2,0,666666666,,Iia1Sqjn0005W7=T2Qt0t0FLLn@:30,4*2D\r\n",
 		// 海洋气象预报海区 DAC = 412, FI = 27
-		"$AIASM,1783221328,1,1,,2,2,0,666666666,,Iid1R7FkQ><5L0DVQ62lVEE82lVEI0,4*1A\r\n",
-		"$AIASM,1783219666,1,1,,2,2,0,666666666,,Iid1Qeu3P?AP,0*35\r\n",
+		//"$AIASM,1783221328,1,1,,2,2,0,666666666,,Iid1R7FkQ><5L0DVQ62lVEE82lVEI0,4*1A\r\n",
+		//"$AIASM,1783219666,1,1,,2,2,0,666666666,,Iid1Qeu3P?AP,0*35\r\n",
 		//"$AIASM,1782890679,1,1,,1,2,0,666666666,,Iid1Qeu3P?AP,0*32\r\n",
 		//"$AIASM,1782890701,1,1,,2,2,0,666666666,,Iid1R7FkP?B9FkP?B;FkP?B=FkP?B?FkP?BAFkP?BCFkP?BEFkP?A0,4*26\r\n",
 		//"$AIASM,1782890721,1,1,,2,2,0,666666666,,Iie1P213U>PP,0*3B\r\n",
@@ -2045,6 +2105,9 @@ int main(void)
 		//"$AIASM,1782891146,1,1,,1,2,0,666666666,,Iiq1P1wpt52Uhg9H37Pj80,4*2D\r\n",
 		//"$AIASM,1782891172,1,1,,1,2,0,666666666,,Iiq1P1bVB52Uhg9H37Pj80,4*2F\r\n",
 		// 潮汐预报 DAC = 412, FI = 32
+		//"$AIASM,1783252387,2,1,6,2,2,0,666666666,,Ij0Qk87wP0Da805DB0?c7r5:Eu1E5O@GcviBawDEBOnUrgbDbWlUFauFgcsU,0*5A\r\n",
+		//"$AIASM,,2,2,6,2,,0,666666666,,:`B9E:8L00j1BbOFEBWo80,4*22\r\n",
+
 		//"$AIASM,1782977822,1,1,,2,2,0,666666666,,Ij01jn0001r07lG2t060,0*49\r\n",
 		//"$AIASM,1782977845,2,1,3,1,2,0,666666666,,Ij2qjnpv?auwJFOP1u03krOOnUWp0O@0tvWouaIv07l0??auwJFOP1u03krO,0*39\r\n",
 		//"$AIASM,,2,2,3,1,,0,666666666,,OnUWp0OA00,4*26\r\n",
@@ -2057,10 +2120,13 @@ int main(void)
 		//"$AIASM,1782978051,1,1,,1,2,0,666666666,,IlBNC2`TQrE9r?saRjIwc9dwHCum<Vt?Aw9N?ed,2*2C\r\n",
 		//"$AIASM,1782978054,2,1,8,2,2,0,666666666,,Ij42JB816qTH>@<8Ma2P2>38hLG0@s3`04LrAPq0hPe3N08r<S00gQ3NfL0A,0*4D\r\n",
 		//"$AIASM,,2,2,8,2,,0,666666666,,nI601O26t8P0Shj<02v4=q`Ph0,4*3D\r\n",
+		// 碍航物 DAC = 412, FI = 35
+		"$AIASM,1783254079,1,1,,2,2,0,666666666,,Ij<=@HL@pcB0d?cFOo4A5<0,2*1A\r\n",
+		"$AIASM,1783253640,1,1,,2,2,0,666666666,,Ij<=@b6:kDdLDu06hww`0HOw6Os4ww?wTh06f8R:80,4*44\r\n",
 		// 中文短信 DAC = 413, FI = 04
 		//"$AIASM,1782977984,1,1,,1,2,0,666666666,,IlBNC2`TQrE9r?saRjIwc9w43O?=bMtVssgmTSV5Ad>WtI>LHVvsnn0,2*0A\r\n",
 		// 前端提示文字 DAC = 413, FI = 5
-		"$AIASM,1783063312,1,1,,1,2,0,666666666,,IlD9Hs2rMSdqJrgoa=HwRWj0,0*62\r\n",
+		//"$AIASM,1783063312,1,1,,1,2,0,666666666,,IlD9Hs2rMSdqJrgoa=HwRWj0,0*62\r\n",
 
 		//"$AIASM,1782890906,1,1,,1,2,0,666666666,,Iii00003`Wv`L0drb08Wv`L0drb08Wv`L0drb80,2*15\r\n",
 		//"$AIASM,1782890930,1,1,,1,2,0,666666666,,IijqPqK00008L0dp0<0,2*76\r\n",
@@ -2526,9 +2592,9 @@ int main(void)
 		{
 			std::cout << "    Station: Lat: " << station.coordinate.GetLatitude()
 					  << ", Lon: " << station.coordinate.GetLongitude()
-					  << ", Tidal Datum: " << station.tidalDatum << " m"
-					  << ", Tide High: " << station.tideHigh << " m at " << station.timestampTideHigh
-					  << ", Tide Low: " << station.tideLow << " m at " << station.timestampTideLow << std::endl;
+					  << ", Tidal Datum: " << station.tidalDatum << " cm"
+					  << ", Tide High: " << station.tideHigh << " cm at " << station.timestampTideHigh
+					  << ", Tide Low: " << station.tideLow << " cm at " << station.timestampTideLow << std::endl;
 		}
 	}
 

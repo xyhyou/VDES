@@ -372,11 +372,11 @@ namespace VDES
         struct TideInfo
         {
             Coordinate coordinate;
-            double     tideHigh;
-            uint64_t   timestampTideHigh;
-            double     tideLow;
-            uint64_t   timestampTideLow;
-            double     tidalDatum;
+            uint16_t   tideHigh;          // 10 bits, resolution: 1cm, base: -100cm
+            uint64_t   timestampTideHigh; // 16 bits
+            uint16_t   tideLow;           // 9 bits, resolution: 1cm, base: -100cm
+            uint64_t   timestampTideLow;  // 16 bits
+            uint16_t   tidalDatum;        // 9 bits, resolution: 1cm, base: -500cm
         };
 
         uint8_t hourPublish = 24;
@@ -471,7 +471,7 @@ namespace VDES
         {
             uint16_t startAngle = 0;
             uint16_t endAngle = 0;
-            double   range = 0.0; // nm
+            uint8_t  range = 0; // radius in unit of 0.1nm, value range: 0-127
         };
 
         uint32_t                MRN = 0;
@@ -480,7 +480,7 @@ namespace VDES
         uint8_t                 geometryType = 0; // 0: 点/圆形, 1: 扇形, 2: 多边形, 3: 折线
         
         Coordinate              coordinate;
-        double                  range = 0.0; // meters (点/圆形半径)
+        uint8_t                 range = 0; // radius in unit of 100m, value range: 0-127
         Sector                  sector;
         std::vector<Coordinate> polygon;
 
