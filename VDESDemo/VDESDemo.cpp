@@ -1336,16 +1336,22 @@ static std::vector<std::string> GenerateDAC_412_FI_31(uint8_t warningType)
 	// FI	
 	bitsManager.Encode(31, 6);
 
-	// MRN
-	bitsManager.Encode(100, 17);
-	// Fragment
-	bitsManager.Encode(0, 2);
 	// Warning Type
 	bitsManager.Encode(warningType, 4);
 
 	if (warningType == 1)
 	{
-		// Cyclone
+		// Cyclone MRN
+		bitsManager.Encode(100, 17);
+		// Fragment
+		bitsManager.Encode(0, 2);
+
+		// Path Point 1
+		// Time (day:5, hour:5, minute:6)
+		bitsManager.Encode(23, 5);
+		bitsManager.Encode(10, 5);
+		bitsManager.Encode(30, 6);
+		// Coordinates
 		bitsManager.Encode(static_cast<uint32_t>(118.5432 * 6000), 22);
 		bitsManager.Encode(static_cast<uint32_t>(24.3210 * 6000), 21);
 		bitsManager.Encode(2, 3); // Cyclone type
@@ -1355,15 +1361,34 @@ static std::vector<std::string> GenerateDAC_412_FI_31(uint8_t warningType)
 		bitsManager.Encode(25, 6); // Move speed
 		bitsManager.Encode(180, 9); // Move direction
 		bitsManager.Encode(12, 5); // Max wind scale
-		bitsManager.Encode(160, 9); // Center pressure (raw 960 hPa = 160 + 800)
+		bitsManager.Encode(160, 9); // Center pressure
+
+		// Path Point 2
+		// Time
+		bitsManager.Encode(23, 5);
+		bitsManager.Encode(16, 5);
+		bitsManager.Encode(0, 6);
+		// Coordinates
+		bitsManager.Encode(static_cast<uint32_t>(119.1234 * 6000), 22);
+		bitsManager.Encode(static_cast<uint32_t>(25.0123 * 6000), 21);
+		bitsManager.Encode(2, 3); // Cyclone type
+		bitsManager.Encode(160, 10); // Radius wind 7
+		bitsManager.Encode(90, 8); // Radius wind 10
+		bitsManager.Encode(45, 7); // Radius wind 12
+		bitsManager.Encode(30, 6); // Move speed
+		bitsManager.Encode(190, 9); // Move direction
+		bitsManager.Encode(13, 5); // Max wind scale
+		bitsManager.Encode(150, 9); // Center pressure
 	}
 	else if (warningType == 2 || warningType == 3 || warningType == 4)
 	{
 		// General Warnings
 		// Element 1
+		bitsManager.Encode(201, 17); // MRN
 		bitsManager.Encode(5, 7); // Sea Area Code
 		bitsManager.Encode(2, 2); // Warning Level
 		// Element 2
+		bitsManager.Encode(202, 17); // MRN
 		bitsManager.Encode(12, 7); // Sea Area Code
 		bitsManager.Encode(3, 2); // Warning Level
 	}
@@ -1371,10 +1396,12 @@ static std::vector<std::string> GenerateDAC_412_FI_31(uint8_t warningType)
 	{
 		// Storm Surge
 		// Element 1
+		bitsManager.Encode(301, 17); // MRN
 		bitsManager.Encode(15, 6); // City Code
 		bitsManager.Encode(25, 5); // Surge Height (raw 25 * 0.1 = 2.5m)
 		bitsManager.Encode(1, 2); // Warning Level
 		// Element 2
+		bitsManager.Encode(302, 17); // MRN
 		bitsManager.Encode(32, 6); // City Code
 		bitsManager.Encode(12, 5); // Surge Height (raw 12 * 0.1 = 1.2m)
 		bitsManager.Encode(3, 2); // Warning Level
@@ -1382,9 +1409,10 @@ static std::vector<std::string> GenerateDAC_412_FI_31(uint8_t warningType)
 	else if (warningType == 6)
 	{
 		// Ice Warning
+		bitsManager.Encode(401, 17); // MRN
 		bitsManager.Encode(4, 7); // Region Code
 		bitsManager.Encode(2, 2); // Warning Level
-		bitsManager.Encode(0, 3); // Spare (3 bits)
+		bitsManager.Encode(0, 5); // Spare (5 bits)
 	}
 
 	// Publish Time (month:4, day:5, hour:5, minute:6 = 20 bits)
@@ -1701,6 +1729,59 @@ int main(void)
 	VDES::ConfigureManager::GetInstance().SetStoragePath(".");
 	vdesManager.Initialize();
 	vdesManager.EmptyDatabase();
+
+	// Parse new standard early warning messages (FI=31)
+	std::cout << "\n=== Testing DAC=412, FI=31 (Warnings) ===" << std::endl;
+	for (uint8_t type : {1, 2, 5, 6})
+	{
+		auto sentences = GenerateDAC_412_FI_31(type);
+		for (const auto &vdm : sentences)
+		{
+			vdesManager.Parse(vdm.c_str(), vdm.length());
+		}
+	}
+
+	// Query from Database and print
+	auto ews = vdesManager.GetMarineMeteorologyEWs(0, 100);
+	std::cout << "Successfully retrieved " << ews.size() << " early warnings from DB:" << std::endl;
+	for (const auto &ew : ews)
+	{
+		std::cout << "  Warning ID: " << ew.dataID
+				  << ", MRN: " << ew.MRN
+				  << ", Warning Type: " << (int)ew.warningType
+				  << ", Published: " << ew.timestampPublished
+				  << ", Start: " << ew.timestampStart
+				  << ", End: " << ew.timestampEnd
+				  << ", Duration: " << (int)ew.warningDuration
+				  << ", Info Source: " << (int)ew.infoSource << std::endl;
+
+		if (ew.warningType == 1)
+		{
+			std::cout << "    Cyclone path points count: " << ew.cyclonePathPoints.size() << std::endl;
+			for (size_t i = 0; i < ew.cyclonePathPoints.size(); ++i)
+			{
+				const auto &pt = ew.cyclonePathPoints[i];
+				std::cout << "      Pt " << i << ": TS: " << pt.timestamp
+						  << ", Lat: " << pt.centerLatitude
+						  << ", Lon: " << pt.centerLongitude
+						  << ", Type: " << (int)pt.cycloneType
+						  << ", Wind Scale Max: " << (int)pt.maxWindScale
+						  << ", Pressure: " << pt.centerPressure << std::endl;
+			}
+		}
+		else
+		{
+			std::cout << "    Elements: " << ew.elements.size() << std::endl;
+			for (const auto &elem : ew.elements)
+			{
+				std::cout << "      Element MRN: " << elem.MRN
+						  << ", Area/City/Region Code: " << (int)elem.areaCode
+						  << ", Level: " << (int)elem.warningLevel
+						  << ", Surge Height: " << elem.surgeHeight << std::endl;
+			}
+		}
+	}
+	std::cout << "=========================================\n" << std::endl;
 
 #if 0 
 	std::cout << "\n==============================================" << std::endl;

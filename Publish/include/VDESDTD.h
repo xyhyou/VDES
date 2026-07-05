@@ -836,27 +836,32 @@ namespace VDES
     {
         struct WarningElement
         {
+            uint32_t MRN         = 0;
             uint8_t areaCode     = 0;     // seaAreaCode, cityCode, or regionCode
             uint8_t warningLevel = 0;     // warningLevel
             double  surgeHeight  = 0.0;   // surge height in meters (only for Storm Surge)
+        };
+
+        struct TropicalCyclonePathPoint
+        {
+            uint64_t timestamp         = 0;
+            double   centerLongitude   = 181.0;
+            double   centerLatitude    = 91.0;
+            uint8_t  cycloneType       = 0;
+            uint16_t radiusWindScale7  = 0;
+            uint16_t radiusWindScale10 = 0;
+            uint16_t radiusWindScale12 = 0;
+            uint8_t  moveSpeed         = 0;
+            uint16_t moveDirection     = 360;
+            uint8_t  maxWindScale      = 20;
+            uint16_t centerPressure    = 403;
         };
 
         uint32_t MRN         = 0;
         uint8_t  fragment    = 0;
         uint8_t  warningType = 0;   // 1: Cyclone, 2: Wind, 3: Wave, 4: Sea Fog, 5: Storm Surge, 6: Ice
 
-        // Tropical Cyclone Specifics (warningType = 1)
-        double   centerLongitude   = 181.0;
-        double   centerLatitude    = 91.0;
-        uint8_t  cycloneType       = 0;
-        uint16_t radiusWindScale7  = 0;
-        uint16_t radiusWindScale10 = 0;
-        uint16_t radiusWindScale12 = 0;
-        uint8_t  moveSpeed         = 0;
-        uint16_t moveDirection     = 360;
-        uint8_t  maxWindScale      = 20;
-        uint16_t centerPressure    = 403;
-
+        std::vector<TropicalCyclonePathPoint> cyclonePathPoints;
         std::vector<WarningElement> elements;   // For types 2, 3, 4, 5, 6
 
         uint64_t timestampPublished = 0;

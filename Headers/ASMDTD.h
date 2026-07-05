@@ -303,8 +303,9 @@ namespace VDES
     struct ASM_DAC_412_FI_31 : ASM_DAC_FI
     {
         // Tropical Cyclone element (warningType = 1)
-        struct TropicalCyclone
+        struct TropicalCyclonePathPoint
         {
+            uint64_t timestamp = 0;           // 16 bits
             double   centerLongitude = 181.0; // 22 bits, 0.01' resolution
             double   centerLatitude = 91.0;   // 21 bits, 0.01' resolution
             uint8_t  cycloneType = 0;         // 3 bits
@@ -317,9 +318,17 @@ namespace VDES
             uint16_t centerPressure = 403;    // 9 bits, base 800hPa, 1hPa step
         };
 
+        struct TropicalCycloneElement
+        {
+            uint32_t MRN = 0;                 // 17 bits
+            uint8_t  fragment = 0;            // 2 bits
+            std::vector<TropicalCyclonePathPoint> pathPoints;
+        };
+
         // General warning element for wind/wave/sea fog (warningType = 2, 3, 4)
         struct GeneralWarningElement
         {
+            uint32_t MRN = 0;          // 17 bits
             uint8_t seaAreaCode = 0;   // 7 bits
             uint8_t warningLevel = 0;  // 2 bits
         };
@@ -327,6 +336,7 @@ namespace VDES
         // Storm surge element (warningType = 5)
         struct StormSurgeElement
         {
+            uint32_t MRN = 0;          // 17 bits
             uint8_t cityCode = 0;      // 6 bits
             double  surgeHeight = 0.0; // 5 bits, 10cm step
             uint8_t warningLevel = 0;  // 2 bits
@@ -335,15 +345,14 @@ namespace VDES
         // Ice warning element (warningType = 6)
         struct IceWarningElement
         {
+            uint32_t MRN = 0;          // 17 bits
             uint8_t regionCode = 0;    // 7 bits
             uint8_t warningLevel = 0;  // 2 bits
         };
 
-        uint32_t MRN = 0;             // 17 bits
-        uint8_t  fragment = 0;        // 2 bits
         uint8_t  warningType = 0;     // 4 bits
 
-        TropicalCyclone                    cyclone;
+        TropicalCycloneElement             cyclone;
         std::vector<GeneralWarningElement> generalWarnings;
         std::vector<StormSurgeElement>     stormSurges;
         IceWarningElement                  iceWarning;

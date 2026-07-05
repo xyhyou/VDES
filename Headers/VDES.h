@@ -791,7 +791,7 @@ namespace VDES
         void DeleteVTSRequests(const std::vector<uint32_t> &dataIDs);
 
         /***********************************************************************
-        * ASM - Marine Meteorological Forecast
+         * ASM - Marine Meteorological Forecast (DAC = 412, FI = 26)
         ***********************************************************************/
         using MarineMeteorologyFCSTs = std::vector<MarineMeteorologyFCST>;
        
@@ -845,7 +845,7 @@ namespace VDES
         bool DeleteMarineMeteorologyFCSTs(const std::vector<uint32_t> &dataIDs);
 
         /***********************************************************************
-        * ASM - Marine Environment Forecast
+        * ASM - Marine Environment Forecast (DAC = 412, FI = 28)
         ***********************************************************************/
         using MarineEnvironmentFCSTs = std::vector<MarineEnvironmentFCST>;
 
@@ -898,20 +898,23 @@ namespace VDES
 
 
         /***********************************************************************
-        * ASM - Marine Meteorology Forecast (Sea area)
+        * ASM - Marine Meteorology Forecast (Sea area) (DAC = 412, FI = 27)
         ***********************************************************************/
         using MarineMeteorologyFCSTAreas = std::vector<MarineMeteorologyFCSTArea>;
         
         MarineMeteorologyFCSTAreas GetMarineMeteorologyFCSTAreas(const uint32_t index = 0, const size_t number = -1);
 
         /***********************************************************************
-        * ASM - Marine Environment Forecast (Sea area)
+        * ASM - Marine Environment Forecast (Sea area) (DAC = 412, FI = 29)
         ***********************************************************************/
         using MarineEnvironmentFCSTAreas = std::vector<MarineEnvironmentFCSTArea>;
 
         MarineEnvironmentFCSTAreas GetMarineEnvironmentFCSTAreas(const uint32_t index = 0, const size_t number = -1);
 
-
+        
+        /***********************************************************************
+        * ASM - Marine Environment Forecast (Shore) (DAC = 412, FI = 30)
+        ***********************************************************************/
         using MarineEnvironmentFCSTAlongshores = std::vector<MarineEnvironmentFCSTAlongshore>;
 
         MarineEnvironmentFCSTAlongshores GetMarineEnvironmentFCSTAlongshores(const uint32_t index = 0, const size_t number = -1);

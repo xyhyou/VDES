@@ -1519,7 +1519,9 @@ namespace VDES
             if (!m_database->tableExists("EW_TropicalCyclone"))
             {
                 auto sql = fmt::format("CREATE TABLE EW_TropicalCyclone ("
-                    "Warning_ID              INTEGER   PRIMARY KEY,"
+                    "ID                      INTEGER   PRIMARY KEY AUTOINCREMENT,"
+                    "Warning_ID              INTEGER   NOT NULL,"
+                    "Timestamp               INTEGER   NOT NULL DEFAULT 0,"
                     "[Center Lon]            DOUBLE    NOT NULL DEFAULT 181.0,"
                     "[Center Lat]            DOUBLE    NOT NULL DEFAULT 91.0,"
                     "[Cyclone Type]          INT       NOT NULL DEFAULT 0,"
@@ -1532,12 +1534,18 @@ namespace VDES
                     "[Center Pressure]       INT       NOT NULL DEFAULT 403,"
                     "FOREIGN KEY(Warning_ID) REFERENCES MarineMeteorologyEW(ID) ON DELETE CASCADE)");
                 m_database->exec(sql);
+
+                if (!m_database->indexExists("EWCycloneWarningIDIndex", "EW_TropicalCyclone"))
+                {
+                    m_database->exec("CREATE INDEX EWCycloneWarningIDIndex ON EW_TropicalCyclone (Warning_ID)");
+                }
             }
 
             if (!m_database->tableExists("EW_WarningElement"))
             {
                 auto sql = fmt::format("CREATE TABLE EW_WarningElement ("
                     "Warning_ID              INTEGER   NOT NULL,"
+                    "MRN                     INT       NOT NULL DEFAULT 0,"
                     "[Area Code]             INT       NOT NULL DEFAULT 0,"
                     "[Warning Level]         INT       NOT NULL DEFAULT 0,"
                     "[Surge Height]          DOUBLE    NOT NULL DEFAULT 0.0,"
@@ -4316,27 +4324,32 @@ namespace VDES
 
                 if (ew.warningType == 1)
                 {
-                    sql = fmt::format("INSERT INTO EW_TropicalCyclone VALUES ({WarningID}, {CenterLon}, {CenterLat}, {CycloneType}, "
-                        "{Wind7Radius}, {Wind10Radius}, {Wind12Radius}, {MoveSpeed}, {MoveDirection}, {MaxWindScale}, {CenterPressure})",
-                        fmt::arg("WarningID", rowID),
-                        fmt::arg("CenterLon", ew.centerLongitude),
-                        fmt::arg("CenterLat", ew.centerLatitude),
-                        fmt::arg("CycloneType", ew.cycloneType),
-                        fmt::arg("Wind7Radius", ew.radiusWindScale7),
-                        fmt::arg("Wind10Radius", ew.radiusWindScale10),
-                        fmt::arg("Wind12Radius", ew.radiusWindScale12),
-                        fmt::arg("MoveSpeed", ew.moveSpeed),
-                        fmt::arg("MoveDirection", ew.moveDirection),
-                        fmt::arg("MaxWindScale", ew.maxWindScale),
-                        fmt::arg("CenterPressure", ew.centerPressure));
-                    m_database->exec(sql);
+                    for (const auto &pt : ew.cyclonePathPoints)
+                    {
+                        sql = fmt::format("INSERT INTO EW_TropicalCyclone VALUES (NULL, {WarningID}, {Timestamp}, {CenterLon}, {CenterLat}, {CycloneType}, "
+                            "{Wind7Radius}, {Wind10Radius}, {Wind12Radius}, {MoveSpeed}, {MoveDirection}, {MaxWindScale}, {CenterPressure})",
+                            fmt::arg("WarningID", rowID),
+                            fmt::arg("Timestamp", pt.timestamp),
+                            fmt::arg("CenterLon", pt.centerLongitude),
+                            fmt::arg("CenterLat", pt.centerLatitude),
+                            fmt::arg("CycloneType", pt.cycloneType),
+                            fmt::arg("Wind7Radius", pt.radiusWindScale7),
+                            fmt::arg("Wind10Radius", pt.radiusWindScale10),
+                            fmt::arg("Wind12Radius", pt.radiusWindScale12),
+                            fmt::arg("MoveSpeed", pt.moveSpeed),
+                            fmt::arg("MoveDirection", pt.moveDirection),
+                            fmt::arg("MaxWindScale", pt.maxWindScale),
+                            fmt::arg("CenterPressure", pt.centerPressure));
+                        m_database->exec(sql);
+                    }
                 }
                 else
                 {
                     for (const auto &elem : ew.elements)
                     {
-                        sql = fmt::format("INSERT INTO EW_WarningElement VALUES ({WarningID}, {AreaCode}, {WarningLevel}, {SurgeHeight})",
+                        sql = fmt::format("INSERT INTO EW_WarningElement VALUES ({WarningID}, {MRN}, {AreaCode}, {WarningLevel}, {SurgeHeight})",
                             fmt::arg("WarningID", rowID),
+                            fmt::arg("MRN", elem.MRN),
                             fmt::arg("AreaCode", elem.areaCode),
                             fmt::arg("WarningLevel", elem.warningLevel),
                             fmt::arg("SurgeHeight", elem.surgeHeight));
@@ -4372,18 +4385,21 @@ namespace VDES
         {
             auto sql = fmt::format("SELECT * FROM EW_TropicalCyclone WHERE Warning_ID = {};", ID);
             SQLite::Statement queryTC(*m_database.get(), sql);
-            if (queryTC.executeStep())
+            while (queryTC.executeStep())
             {
-                ew.centerLongitude = queryTC.getColumn("Center Lon").getDouble();
-                ew.centerLatitude = queryTC.getColumn("Center Lat").getDouble();
-                ew.cycloneType = static_cast<uint8_t>(queryTC.getColumn("Cyclone Type").getInt());
-                ew.radiusWindScale7 = static_cast<uint16_t>(queryTC.getColumn("Wind 7 Radius").getInt());
-                ew.radiusWindScale10 = static_cast<uint16_t>(queryTC.getColumn("Wind 10 Radius").getInt());
-                ew.radiusWindScale12 = static_cast<uint16_t>(queryTC.getColumn("Wind 12 Radius").getInt());
-                ew.moveSpeed = static_cast<uint8_t>(queryTC.getColumn("Move Speed").getInt());
-                ew.moveDirection = static_cast<uint16_t>(queryTC.getColumn("Move Direction").getInt());
-                ew.maxWindScale = static_cast<uint8_t>(queryTC.getColumn("Max Wind Scale").getInt());
-                ew.centerPressure = static_cast<uint16_t>(queryTC.getColumn("Center Pressure").getInt());
+                MarineMeteorologyEW::TropicalCyclonePathPoint pt;
+                pt.timestamp = queryTC.getColumn("Timestamp").getInt64();
+                pt.centerLongitude = queryTC.getColumn("Center Lon").getDouble();
+                pt.centerLatitude = queryTC.getColumn("Center Lat").getDouble();
+                pt.cycloneType = static_cast<uint8_t>(queryTC.getColumn("Cyclone Type").getInt());
+                pt.radiusWindScale7 = static_cast<uint16_t>(queryTC.getColumn("Wind 7 Radius").getInt());
+                pt.radiusWindScale10 = static_cast<uint16_t>(queryTC.getColumn("Wind 10 Radius").getInt());
+                pt.radiusWindScale12 = static_cast<uint16_t>(queryTC.getColumn("Wind 12 Radius").getInt());
+                pt.moveSpeed = static_cast<uint8_t>(queryTC.getColumn("Move Speed").getInt());
+                pt.moveDirection = static_cast<uint16_t>(queryTC.getColumn("Move Direction").getInt());
+                pt.maxWindScale = static_cast<uint8_t>(queryTC.getColumn("Max Wind Scale").getInt());
+                pt.centerPressure = static_cast<uint16_t>(queryTC.getColumn("Center Pressure").getInt());
+                ew.cyclonePathPoints.push_back(pt);
             }
         }
         else
@@ -4393,6 +4409,7 @@ namespace VDES
             while (queryWE.executeStep())
             {
                 MarineMeteorologyEW::WarningElement elem;
+                elem.MRN = static_cast<uint32_t>(queryWE.getColumn("MRN").getInt());
                 elem.areaCode = static_cast<uint8_t>(queryWE.getColumn("Area Code").getInt());
                 elem.warningLevel = static_cast<uint8_t>(queryWE.getColumn("Warning Level").getInt());
                 elem.surgeHeight = queryWE.getColumn("Surge Height").getDouble();
@@ -5932,28 +5949,35 @@ namespace VDES
                     MarineMeteorologyEW ew;
                     ew.DAC = info->DAC;
                     ew.FI = info->FI;
-                    ew.MRN = info->MRN;
-                    ew.fragment = info->fragment;
                     ew.warningType = info->warningType;
 
                     if (info->warningType == 1)
                     {
-                        ew.centerLongitude = info->cyclone.centerLongitude;
-                        ew.centerLatitude = info->cyclone.centerLatitude;
-                        ew.cycloneType = info->cyclone.cycloneType;
-                        ew.radiusWindScale7 = info->cyclone.radiusWindScale7;
-                        ew.radiusWindScale10 = info->cyclone.radiusWindScale10;
-                        ew.radiusWindScale12 = info->cyclone.radiusWindScale12;
-                        ew.moveSpeed = info->cyclone.moveSpeed;
-                        ew.moveDirection = info->cyclone.moveDirection;
-                        ew.maxWindScale = info->cyclone.maxWindScale;
-                        ew.centerPressure = info->cyclone.centerPressure;
+                        ew.MRN = info->cyclone.MRN;
+                        ew.fragment = info->cyclone.fragment;
+                        for (const auto &pt : info->cyclone.pathPoints)
+                        {
+                            MarineMeteorologyEW::TropicalCyclonePathPoint dbPt;
+                            dbPt.timestamp = pt.timestamp;
+                            dbPt.centerLongitude = pt.centerLongitude;
+                            dbPt.centerLatitude = pt.centerLatitude;
+                            dbPt.cycloneType = pt.cycloneType;
+                            dbPt.radiusWindScale7 = pt.radiusWindScale7;
+                            dbPt.radiusWindScale10 = pt.radiusWindScale10;
+                            dbPt.radiusWindScale12 = pt.radiusWindScale12;
+                            dbPt.moveSpeed = pt.moveSpeed;
+                            dbPt.moveDirection = pt.moveDirection;
+                            dbPt.maxWindScale = pt.maxWindScale;
+                            dbPt.centerPressure = pt.centerPressure;
+                            ew.cyclonePathPoints.push_back(dbPt);
+                        }
                     }
                     else if (info->warningType >= 2 && info->warningType <= 4)
                     {
                         for (const auto &elem : info->generalWarnings)
                         {
                             MarineMeteorologyEW::WarningElement we;
+                            we.MRN = elem.MRN;
                             we.areaCode = elem.seaAreaCode;
                             we.warningLevel = elem.warningLevel;
                             we.surgeHeight = 0.0;
@@ -5965,6 +5989,7 @@ namespace VDES
                         for (const auto &elem : info->stormSurges)
                         {
                             MarineMeteorologyEW::WarningElement we;
+                            we.MRN = elem.MRN;
                             we.areaCode = elem.cityCode;
                             we.warningLevel = elem.warningLevel;
                             we.surgeHeight = elem.surgeHeight;
@@ -5974,6 +5999,7 @@ namespace VDES
                     else if (info->warningType == 6)
                     {
                         MarineMeteorologyEW::WarningElement we;
+                        we.MRN = info->iceWarning.MRN;
                         we.areaCode = info->iceWarning.regionCode;
                         we.warningLevel = info->iceWarning.warningLevel;
                         we.surgeHeight = 0.0;

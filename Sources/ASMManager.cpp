@@ -755,64 +755,81 @@ namespace VDES
         asmInfo.DAC = 412;
         asmInfo.FI = 31;
 
-        asmInfo.MRN = manager.DecodeToNumerical(16, 17);
-        asmInfo.fragment = static_cast<uint8_t>(manager.DecodeToNumerical(33, 2));
-        asmInfo.warningType = static_cast<uint8_t>(manager.DecodeToNumerical(35, 4));
+        asmInfo.warningType = static_cast<uint8_t>(manager.DecodeToNumerical(16, 4));
 
-        uint32_t index = 39;
+        uint32_t index = 20;
         if (asmInfo.warningType == 1)
         {
-            auto lonVal = manager.DecodeToNumerical(39, 22);
-            auto lonInt = UtilityInterface::ConvertComplementCodeToInteger(lonVal, 22);
-            asmInfo.cyclone.centerLongitude = lonInt / 6000.0;
+            auto totalBitsNum = manager.GetBitsNumberToDecode();
+            if (totalBitsNum >= 224)
+            {
+                asmInfo.cyclone.MRN = manager.DecodeToNumerical(index, 17);
+                asmInfo.cyclone.fragment = static_cast<uint8_t>(manager.DecodeToNumerical(index + 17, 2));
+                index += 19;
 
-            auto latVal = manager.DecodeToNumerical(61, 21);
-            auto latInt = UtilityInterface::ConvertComplementCodeToInteger(latVal, 21);
-            asmInfo.cyclone.centerLatitude = latInt / 6000.0;
+                auto numPoints = (totalBitsNum - 224) / 116 + 1;
+                for (auto i = 0U; i < numPoints; i++)
+                {
+                    ASM_DAC_412_FI_31::TropicalCyclonePathPoint pt;
+                    pt.timestamp = DecodeTime(manager, index, 16);
 
-            asmInfo.cyclone.cycloneType = static_cast<uint8_t>(manager.DecodeToNumerical(82, 3));
-            asmInfo.cyclone.radiusWindScale7 = static_cast<uint16_t>(manager.DecodeToNumerical(85, 10));
-            asmInfo.cyclone.radiusWindScale10 = static_cast<uint16_t>(manager.DecodeToNumerical(95, 8));
-            asmInfo.cyclone.radiusWindScale12 = static_cast<uint16_t>(manager.DecodeToNumerical(103, 7));
-            asmInfo.cyclone.moveSpeed = static_cast<uint8_t>(manager.DecodeToNumerical(110, 6));
-            asmInfo.cyclone.moveDirection = static_cast<uint16_t>(manager.DecodeToNumerical(116, 9));
-            asmInfo.cyclone.maxWindScale = static_cast<uint8_t>(manager.DecodeToNumerical(125, 5));
-            asmInfo.cyclone.centerPressure = static_cast<uint16_t>(manager.DecodeToNumerical(130, 9));
+                    auto lonVal = manager.DecodeToNumerical(index + 16, 22);
+                    auto lonInt = UtilityInterface::ConvertComplementCodeToInteger(lonVal, 22);
+                    pt.centerLongitude = lonInt / 6000.0;
 
-            index = 139;
+                    auto latVal = manager.DecodeToNumerical(index + 38, 21);
+                    auto latInt = UtilityInterface::ConvertComplementCodeToInteger(latVal, 21);
+                    pt.centerLatitude = latInt / 6000.0;
+
+                    pt.cycloneType = static_cast<uint8_t>(manager.DecodeToNumerical(index + 59, 3));
+                    pt.radiusWindScale7 = static_cast<uint16_t>(manager.DecodeToNumerical(index + 62, 10));
+                    pt.radiusWindScale10 = static_cast<uint16_t>(manager.DecodeToNumerical(index + 72, 8));
+                    pt.radiusWindScale12 = static_cast<uint16_t>(manager.DecodeToNumerical(index + 80, 7));
+                    pt.moveSpeed = static_cast<uint8_t>(manager.DecodeToNumerical(index + 87, 6));
+                    pt.moveDirection = static_cast<uint16_t>(manager.DecodeToNumerical(index + 93, 9));
+                    pt.maxWindScale = static_cast<uint8_t>(manager.DecodeToNumerical(index + 102, 5));
+                    pt.centerPressure = static_cast<uint16_t>(manager.DecodeToNumerical(index + 107, 9));
+
+                    asmInfo.cyclone.pathPoints.push_back(pt);
+                    index += 116;
+                }
+            }
         }
         else if (asmInfo.warningType >= 2 && asmInfo.warningType <= 4)
         {
             auto totalBitsNum = manager.GetBitsNumberToDecode();
-            auto numElements = (totalBitsNum - 108) / 9;
+            auto numElements = (totalBitsNum - 89) / 26;
             for (auto i = 0U; i < numElements; i++)
             {
                 ASM_DAC_412_FI_31::GeneralWarningElement elem;
-                elem.seaAreaCode = static_cast<uint8_t>(manager.DecodeToNumerical(index, 7));
-                elem.warningLevel = static_cast<uint8_t>(manager.DecodeToNumerical(index + 7, 2));
+                elem.MRN = manager.DecodeToNumerical(index, 17);
+                elem.seaAreaCode = static_cast<uint8_t>(manager.DecodeToNumerical(index + 17, 7));
+                elem.warningLevel = static_cast<uint8_t>(manager.DecodeToNumerical(index + 24, 2));
                 asmInfo.generalWarnings.push_back(elem);
-                index += 9;
+                index += 26;
             }
         }
         else if (asmInfo.warningType == 5)
         {
             auto totalBitsNum = manager.GetBitsNumberToDecode();
-            auto numElements = (totalBitsNum - 108) / 13;
+            auto numElements = (totalBitsNum - 89) / 30;
             for (auto i = 0U; i < numElements; i++)
             {
                 ASM_DAC_412_FI_31::StormSurgeElement elem;
-                elem.cityCode = static_cast<uint8_t>(manager.DecodeToNumerical(index, 6));
-                elem.surgeHeight = manager.DecodeToNumerical(index + 6, 5) * 0.1;
-                elem.warningLevel = static_cast<uint8_t>(manager.DecodeToNumerical(index + 11, 2));
+                elem.MRN = manager.DecodeToNumerical(index, 17);
+                elem.cityCode = static_cast<uint8_t>(manager.DecodeToNumerical(index + 17, 6));
+                elem.surgeHeight = manager.DecodeToNumerical(index + 23, 5) * 0.1;
+                elem.warningLevel = static_cast<uint8_t>(manager.DecodeToNumerical(index + 28, 2));
                 asmInfo.stormSurges.push_back(elem);
-                index += 13;
+                index += 30;
             }
         }
         else if (asmInfo.warningType == 6)
         {
-            asmInfo.iceWarning.regionCode = static_cast<uint8_t>(manager.DecodeToNumerical(39, 7));
-            asmInfo.iceWarning.warningLevel = static_cast<uint8_t>(manager.DecodeToNumerical(46, 2));
-            index = 51; // 39 + 7 + 2 + 3 spare
+            asmInfo.iceWarning.MRN = manager.DecodeToNumerical(20, 17);
+            asmInfo.iceWarning.regionCode = static_cast<uint8_t>(manager.DecodeToNumerical(37, 7));
+            asmInfo.iceWarning.warningLevel = static_cast<uint8_t>(manager.DecodeToNumerical(44, 2));
+            index = 51; // 20 + 31 bits
         }
 
         asmInfo.publishTime = DecodeTime(manager, index, 20);
