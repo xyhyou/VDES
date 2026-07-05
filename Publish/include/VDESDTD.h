@@ -585,22 +585,25 @@ namespace VDES
         uint16_t windDirection = 360;
 
         /*
-        * valid range : [(-60) - 60]℃
-        * unit : %
+        * temperature: raw 11-bit complement integer.
+        * Resolution: 0.1 °C.
+        * Special values: 602 (default / not available)
         */
-        double temperature = 100.0F;
+        int16_t temperature = 602;
 
         /*
-        * valid range : [800 - 1200]hPa
-        * unit : %
+        * airPressure: raw 10-bit integer.
+        * Resolution: 0.5 hPa, offset: 800 hPa.
+        * Special values: 803 (default / not available)
         */
-        uint16_t airPressure = 0;
+        uint16_t airPressure = 803;
 
         /*
-        * valid range : [0.1 - 25.0] km
-        * unit : %
+        * visibility: raw 8-bit integer.
+        * For location #1: resolution 0.1 km. Special values: 252 (default / not available)
+        * For incremental records: resolution 0.1 nmile. Special values: 252 (default / not available)
         */
-        double visibility = -1.0F;
+        uint8_t visibility = 252;
 
         /*
         * valid range : [1 - 3]
@@ -680,10 +683,11 @@ namespace VDES
         uint16_t flowDirection = 360;
 
         /*
-        * valid range : [0.0 - 25.0] nm
-        * -1.0 = not available
+        * waveHeight: raw 8-bit integer.
+        * Resolution: 0.1 m.
+        * Special values: 252 (default / not available)
         */
-        double waveHeight;
+        uint8_t waveHeight = 252;
 
         /*
         * valid range : [0° - 359°]
@@ -692,10 +696,11 @@ namespace VDES
         uint16_t waveDirection = 360;
 
         /*
-        * valid range : [(-10.0)℃ - 60.0℃]
-        * 100 = not available
+        * temperature: raw 10-bit integer.
+        * Resolution: 0.1 °C, offset: -10.0 °C.
+        * Special values: 703 (default / not available)
         */
-        double temperature = 100.0F;
+        uint16_t temperature = 703;
 
         /*
         * valid range : [1 - 3]
@@ -714,21 +719,21 @@ namespace VDES
     {
         uint8_t areaCode;
 
-        double temperatureLow;
+        uint16_t temperatureLow = 511;
 
-        double temperatureHigh;
+        uint8_t temperatureHigh = 202;
 
-        uint32_t flowDirectionAvg;
+        uint32_t flowDirectionAvg = 360;
 
-        uint32_t flowDirctionMax;
+        uint32_t flowDirctionMax = 360;
 
-        double flowVelocityAvg;
+        uint8_t flowVelocityAvg = 252;
 
-        double flowVelocityMax;
+        uint8_t flowVelocityMax = 252;
 
-        double waveHeight;
+        uint8_t waveHeight = 252;
 
-        double swellHeight;
+        uint8_t swellHeight = 252;
 
         uint8_t infoSource = 0;
 
@@ -742,19 +747,19 @@ namespace VDES
     {
         uint8_t areaCode;
 
-        double temperatureLow;
+        uint16_t temperatureLow = 511;
 
-        double temperatureHigh;
+        uint8_t temperatureHigh = 202;
 
-        double waveHeightLow;
+        uint8_t waveHeightLow = 252;
 
-        double waveHeightHigh;
+        uint8_t waveHeightHigh = 252;
 
-        double tideHigh;
+        uint16_t tideHigh = 1003;
 
         uint64_t timestampTideHigh;
 
-        double tideLow;
+        uint16_t tideLow = 503;
 
         uint64_t timestampTideLow;
 

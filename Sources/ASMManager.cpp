@@ -320,12 +320,12 @@ namespace VDES
         location.windSpeed = static_cast<uint8_t>(manager.DecodeToNumerical(index + 34, 7));
         location.windDirection = static_cast<uint16_t>(manager.DecodeToNumerical(index + 41, 9));
         value = manager.DecodeToNumerical(index + 50, 11);
-        location.temperature = UtilityInterface::ConvertComplementCodeToInteger(value, 11) / 10.0;
+        location.temperature = static_cast<int16_t>(UtilityInterface::ConvertComplementCodeToInteger(value, 11));
         
         value = manager.DecodeToNumerical(index + 61, 10);
-        location.airPressure = value * 0.5 + 800.0;
+        location.airPressure = static_cast<uint16_t>(value);
 
-        location.visibility = manager.DecodeToNumerical(index + 71, 8) / 10.0;
+        location.visibility = static_cast<uint8_t>(manager.DecodeToNumerical(index + 71, 8));
         asmInfo.locationInfos.push_back(location);
 
         index = 107;
@@ -348,11 +348,11 @@ namespace VDES
             location.windSpeed = static_cast<uint8_t>(manager.DecodeToNumerical(index + 19, 7));
             location.windDirection = static_cast<uint16_t>(manager.DecodeToNumerical(index + 26, 9));
             value = manager.DecodeToNumerical(index + 35, 11);
-            location.temperature = UtilityInterface::ConvertComplementCodeToInteger(value, 11) / 10.0;
+            location.temperature = static_cast<int16_t>(UtilityInterface::ConvertComplementCodeToInteger(value, 11));
 
             value = manager.DecodeToNumerical(index + 46, 10);
-            location.airPressure = value * 0.5 + 800.0;
-            location.visibility = manager.DecodeToNumerical(index + 56, 8) / 10.0;
+            location.airPressure = static_cast<uint16_t>(value);
+            location.visibility = static_cast<uint8_t>(manager.DecodeToNumerical(index + 56, 8));
             asmInfo.locationInfos.push_back(location);
             index += 64;
         }
@@ -431,9 +431,9 @@ namespace VDES
         location.flowVelocity = manager.DecodeToNumerical(index + 29, 10);
         location.flowDirection = static_cast<uint16_t>(manager.DecodeToNumerical(index + 39, 9));
         
-        location.waveHeight = manager.DecodeToNumerical(index + 48, 8) / 10.0;
+        location.waveHeight = static_cast<uint8_t>(manager.DecodeToNumerical(index + 48, 8));
         location.waveDirection = static_cast<uint16_t>(manager.DecodeToNumerical(index + 56, 9));
-        location.temperature = manager.DecodeToNumerical(index + 65, 10) / 10.0 - 10.0;
+        location.temperature = static_cast<uint16_t>(manager.DecodeToNumerical(index + 65, 10));
 
         asmInfo.locationInfos.push_back(location);
 
@@ -457,9 +457,9 @@ namespace VDES
             location.flowVelocity = manager.DecodeToNumerical(index + 14, 10);
             location.flowDirection = static_cast<uint16_t>(manager.DecodeToNumerical(index + 24, 9));
 
-            location.waveHeight = manager.DecodeToNumerical(index + 33, 8) / 10.0;
+            location.waveHeight = static_cast<uint8_t>(manager.DecodeToNumerical(index + 33, 8));
             location.waveDirection = static_cast<uint16_t>(manager.DecodeToNumerical(index + 41, 9));
-            location.temperature = manager.DecodeToNumerical(index + 50, 10) / 10.0 - 10.0;
+            location.temperature = static_cast<uint16_t>(manager.DecodeToNumerical(index + 50, 10));
 
             asmInfo.locationInfos.push_back(location);
 
@@ -488,15 +488,14 @@ namespace VDES
         for (auto i = 0U; i < areaNum; i++)
         {
             areaInfo.areaCode = static_cast<uint8_t>(manager.DecodeToNumerical(index, 5));
-            areaInfo.temperatureLow = manager.DecodeToNumerical(index + 5, 9) / 10.0 - 10.0;
-            auto value = manager.DecodeToNumerical(index + 14, 8) / 10.0;
-            areaInfo.temperatureHigh = value + areaInfo.temperatureLow;
-            areaInfo.flowDirectionAvg = manager.DecodeToNumerical(index + 22, 9);
-            areaInfo.flowDirctionMax = manager.DecodeToNumerical(index + 31, 9);
-            areaInfo.flowVelocityAvg = manager.DecodeToNumerical(index + 40, 8) / 10.0;
-            areaInfo.flowVelocityMax = manager.DecodeToNumerical(index + 48, 8) / 10.0;
-            areaInfo.waveHeight = manager.DecodeToNumerical(index + 56, 8) / 10.0;
-            areaInfo.swellHeight = manager.DecodeToNumerical(index + 64, 8) / 10.0;
+            areaInfo.temperatureLow = static_cast<uint16_t>(manager.DecodeToNumerical(index + 5, 9));
+            areaInfo.temperatureHigh = static_cast<uint8_t>(manager.DecodeToNumerical(index + 14, 8));
+            areaInfo.flowDirectionAvg = static_cast<uint32_t>(manager.DecodeToNumerical(index + 22, 9));
+            areaInfo.flowDirctionMax = static_cast<uint32_t>(manager.DecodeToNumerical(index + 31, 9));
+            areaInfo.flowVelocityAvg = static_cast<uint8_t>(manager.DecodeToNumerical(index + 40, 8));
+            areaInfo.flowVelocityMax = static_cast<uint8_t>(manager.DecodeToNumerical(index + 48, 8));
+            areaInfo.waveHeight = static_cast<uint8_t>(manager.DecodeToNumerical(index + 56, 8));
+            areaInfo.swellHeight = static_cast<uint8_t>(manager.DecodeToNumerical(index + 64, 8));
             asmInfo.seaAreaInfos.push_back(areaInfo);
             index += 72;
         }
@@ -524,19 +523,16 @@ namespace VDES
         for (auto i = 0U; i < areaNum; i++)
         {
             areaInfo.areaCode = static_cast<uint8_t>(manager.DecodeToNumerical(index, 8));
-            areaInfo.temperatureLow = manager.DecodeToNumerical(index + 8, 9) / 10.0 - 10.0;
-            auto value = manager.DecodeToNumerical(index + 17, 8) / 10.0;
-            areaInfo.temperatureHigh = value + areaInfo.temperatureLow;
-            areaInfo.waveHeightLow = manager.DecodeToNumerical(index + 25, 8) / 10.0;
-            areaInfo.waveHeightHigh = manager.DecodeToNumerical(index + 33, 8) / 10.0;
+            areaInfo.temperatureLow = static_cast<uint16_t>(manager.DecodeToNumerical(index + 8, 9));
+            areaInfo.temperatureHigh = static_cast<uint8_t>(manager.DecodeToNumerical(index + 17, 8));
+            areaInfo.waveHeightLow = static_cast<uint8_t>(manager.DecodeToNumerical(index + 25, 8));
+            areaInfo.waveHeightHigh = static_cast<uint8_t>(manager.DecodeToNumerical(index + 33, 8));
 
             areaInfo.timestampTideHigh = DecodeTime(manager, index + 41, 16);
-            value = manager.DecodeToNumerical(index + 57, 10);
-            areaInfo.tideHigh = (static_cast<int>(value) - 100) / 100.0;
+            areaInfo.tideHigh = static_cast<uint16_t>(manager.DecodeToNumerical(index + 57, 10));
             
             areaInfo.timestampTideLow = DecodeTime(manager, index + 67, 16);
-            value = manager.DecodeToNumerical(index + 83, 9);
-            areaInfo.tideLow = (static_cast<int>(value) - 100) / 100.0;
+            areaInfo.tideLow = static_cast<uint16_t>(manager.DecodeToNumerical(index + 83, 9));
             asmInfo.waterAreaInfos.push_back(areaInfo);
             index += 92;
         }

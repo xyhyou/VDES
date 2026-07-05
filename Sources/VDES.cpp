@@ -1442,14 +1442,14 @@ namespace VDES
             {
                 auto sql = fmt::format("CREATE TABLE MarineEnvironmentFCSTArea("
                     "[Area Code]          INT       PRIMARY KEY,"
-                    "[Temperature Low]    DOUBLE    NOT NULL DEFAULT -100.0,"
-                    "[Temperature High]   DOUBLE    NOT NULL DEFAULT -100.0,"
+                    "[Temperature Low]    INT       NOT NULL DEFAULT 511,"
+                    "[Temperature High]   INT       NOT NULL DEFAULT 202,"
                     "[Flow Direction Avg] INT       NOT NULL DEFAULT 360,"
                     "[Flow Direction Max] INT       NOT NULL DEFAULT 360,"
-                    "[Flow Velocity Avg]  DOUBLE    NOT NULL DEFAULT -1.0,"
-                    "[Flow Velocity Max]  DOUBLE    NOT NULL DEFAULT -1.0,"
-                    "[Wave Height]        DOUBLE    NOT NULL DEFAULT -1.0,"
-                    "[Swell Height]       DOUBLE    NOT NULL DEFAULT -1.0,"
+                    "[Flow Velocity Avg]  INT       NOT NULL DEFAULT 252,"
+                    "[Flow Velocity Max]  INT       NOT NULL DEFAULT 252,"
+                    "[Wave Height]        INT       NOT NULL DEFAULT 252,"
+                    "[Swell Height]       INT       NOT NULL DEFAULT 252,"
                     "[Info Source]        INT       NOT NULL DEFAULT 0,"
                     "[Timestamp Forecast] INTEGER   NOT NULL DEFAULT 0,"
                     "[Timestamp Receive]  INTEGER   NOT NULL DEFAULT 0)");
@@ -1470,13 +1470,13 @@ namespace VDES
             {
                 auto sql = fmt::format("CREATE TABLE MarineEnvironmentFCSTAlongshore("
                     "[Area Code]          INT       PRIMARY KEY,"
-                    "[Temperature Low]    DOUBLE    NOT NULL DEFAULT -100.0,"
-                    "[Temperature High]   DOUBLE    NOT NULL DEFAULT -100.0,"
-                    "[Wave Height Low]    DOUBLE    NOT NULL DEFAULT -1.0,"
-                    "[Wave Height High]   DOUBLE    NOT NULL DEFAULT -1.0,"
-                    "[Tide High]          DOUBLE    NOT NULL DEFAULT -100.0,"
+                    "[Temperature Low]    INT       NOT NULL DEFAULT 511,"
+                    "[Temperature High]   INT       NOT NULL DEFAULT 202,"
+                    "[Wave Height Low]    INT       NOT NULL DEFAULT 252,"
+                    "[Wave Height High]   INT       NOT NULL DEFAULT 252,"
+                    "[Tide High]          INT       NOT NULL DEFAULT 1003,"
                     "[Timestamp Tide High] INTEGER  NOT NULL DEFAULT 0,"
-                    "[Tide Low]           DOUBLE    NOT NULL DEFAULT -100.0,"
+                    "[Tide Low]           INT       NOT NULL DEFAULT 503,"
                     "[Timestamp Tide Low]  INTEGER  NOT NULL DEFAULT 0,"
                     "[Info Source]        INT       NOT NULL DEFAULT 0,"
                     "[Timestamp Forecast] INTEGER   NOT NULL DEFAULT 0,"
@@ -3081,9 +3081,9 @@ namespace VDES
         fcst.coordinate.SetLongitude(query.getColumn("Longitude").getDouble());
         fcst.windSpeed = static_cast<uint8_t>(query.getColumn("Wind Speed").getInt());
         fcst.windDirection = static_cast<uint16_t>(query.getColumn("Wind Direction").getInt());
-        fcst.temperature = query.getColumn("Temperature").getDouble();
+        fcst.temperature = static_cast<int16_t>(query.getColumn("Temperature").getInt());
         fcst.airPressure = static_cast<uint16_t>(query.getColumn("Air Pressure").getInt());
-        fcst.visibility = query.getColumn("Visibility").getDouble();
+        fcst.visibility = static_cast<uint8_t>(query.getColumn("Visibility").getInt());
         fcst.infoSource = static_cast<uint8_t>(query.getColumn("Info Source").getInt());
         fcst.timestampFCST = static_cast<uint64_t>(query.getColumn("Timestamp Forecast").getInt64());
         fcst.timestamp = static_cast<uint64_t>(query.getColumn("Timestamp Receive").getInt64());
@@ -3098,9 +3098,9 @@ namespace VDES
         fcst.coordinate.SetLongitude(query.getColumn("Longitude").getDouble());
         fcst.flowVelocity = query.getColumn("Flow Velocity").getDouble();
         fcst.flowDirection = static_cast<uint16_t>(query.getColumn("Flow Direction").getInt());
-        fcst.waveHeight = query.getColumn("Wave Height").getDouble();
+        fcst.waveHeight = static_cast<uint8_t>(query.getColumn("Wave Height").getInt());
         fcst.waveDirection = static_cast<uint16_t>(query.getColumn("Wave Direction").getInt());
-        fcst.temperature = query.getColumn("Temperature").getDouble();
+        fcst.temperature = static_cast<uint16_t>(query.getColumn("Temperature").getInt());
         fcst.infoSource = static_cast<uint8_t>(query.getColumn("Info Source").getInt());
         fcst.timestampFCST = static_cast<uint64_t>(query.getColumn("Timestamp Forecast").getInt64());
         fcst.timestamp = static_cast<uint64_t>(query.getColumn("Timestamp Receive").getInt64());
@@ -4214,14 +4214,14 @@ namespace VDES
     void VDESManager::Impl::LoadMarineEnvironmentFCSTAreaFromQueryResult(MarineEnvironmentFCSTArea &area, const SQLite::Statement &query)
     {
         area.areaCode = static_cast<uint8_t>(query.getColumn("Area Code").getInt());
-        area.temperatureLow = query.getColumn("Temperature Low").getDouble();
-        area.temperatureHigh = query.getColumn("Temperature High").getDouble();
+        area.temperatureLow = static_cast<uint16_t>(query.getColumn("Temperature Low").getInt());
+        area.temperatureHigh = static_cast<uint8_t>(query.getColumn("Temperature High").getInt());
         area.flowDirectionAvg = static_cast<uint32_t>(query.getColumn("Flow Direction Avg").getInt64());
         area.flowDirctionMax = static_cast<uint32_t>(query.getColumn("Flow Direction Max").getInt64());
-        area.flowVelocityAvg = query.getColumn("Flow Velocity Avg").getDouble();
-        area.flowVelocityMax = query.getColumn("Flow Velocity Max").getDouble();
-        area.waveHeight = query.getColumn("Wave Height").getDouble();
-        area.swellHeight = query.getColumn("Swell Height").getDouble();
+        area.flowVelocityAvg = static_cast<uint8_t>(query.getColumn("Flow Velocity Avg").getInt());
+        area.flowVelocityMax = static_cast<uint8_t>(query.getColumn("Flow Velocity Max").getInt());
+        area.waveHeight = static_cast<uint8_t>(query.getColumn("Wave Height").getInt());
+        area.swellHeight = static_cast<uint8_t>(query.getColumn("Swell Height").getInt());
         area.infoSource = static_cast<uint8_t>(query.getColumn("Info Source").getInt());
         area.timestampFCST = query.getColumn("Timestamp Forecast").getInt64();
         area.timestamp = query.getColumn("Timestamp Receive").getInt64();
@@ -4278,13 +4278,13 @@ namespace VDES
     void VDESManager::Impl::LoadMarineEnvironmentFCSTAlongshoreFromQueryResult(MarineEnvironmentFCSTAlongshore &area, const SQLite::Statement &query)
     {
         area.areaCode = static_cast<uint8_t>(query.getColumn("Area Code").getInt());
-        area.temperatureLow = query.getColumn("Temperature Low").getDouble();
-        area.temperatureHigh = query.getColumn("Temperature High").getDouble();
-        area.waveHeightLow = query.getColumn("Wave Height Low").getDouble();
-        area.waveHeightHigh = query.getColumn("Wave Height High").getDouble();
-        area.tideHigh = query.getColumn("Tide High").getDouble();
+        area.temperatureLow = static_cast<uint16_t>(query.getColumn("Temperature Low").getInt());
+        area.temperatureHigh = static_cast<uint8_t>(query.getColumn("Temperature High").getInt());
+        area.waveHeightLow = static_cast<uint8_t>(query.getColumn("Wave Height Low").getInt());
+        area.waveHeightHigh = static_cast<uint8_t>(query.getColumn("Wave Height High").getInt());
+        area.tideHigh = static_cast<uint16_t>(query.getColumn("Tide High").getInt());
         area.timestampTideHigh = query.getColumn("Timestamp Tide High").getInt64();
-        area.tideLow = query.getColumn("Tide Low").getDouble();
+        area.tideLow = static_cast<uint16_t>(query.getColumn("Tide Low").getInt());
         area.timestampTideLow = query.getColumn("Timestamp Tide Low").getInt64();
         area.infoSource = static_cast<uint8_t>(query.getColumn("Info Source").getInt());
         area.timestampFCST = query.getColumn("Timestamp Forecast").getInt64();
