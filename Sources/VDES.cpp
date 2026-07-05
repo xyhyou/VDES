@@ -258,6 +258,18 @@ namespace VDES
         
         void BroadcastExtendedVesselInfo(void);
 
+        void SaveMarineMeteorologyFCSTArea(const MarineMeteorologyFCSTAreas &container);
+        void InitializeMarineMeteorologyFCSTAreaTable(void);
+        void LoadMarineMeteorologyFCSTAreaFromQueryResult(MarineMeteorologyFCSTArea &area, const SQLite::Statement &query);
+
+        void SaveMarineEnvironmentFCSTArea(const MarineEnvironmentFCSTAreas &container);
+        void InitializeMarineEnvironmentFCSTAreaTable(void);
+        void LoadMarineEnvironmentFCSTAreaFromQueryResult(MarineEnvironmentFCSTArea &area, const SQLite::Statement &query);
+
+        void SaveMarineEnvironmentFCSTAlongshore(const MarineEnvironmentFCSTAlongshores &container);
+        void InitializeMarineEnvironmentFCSTAlongshoreTable(void);
+        void LoadMarineEnvironmentFCSTAlongshoreFromQueryResult(MarineEnvironmentFCSTAlongshore &area, const SQLite::Statement &query);
+
         void ParseOneLineData(const std::string &sentence);
 
         void ParseVDOVDM(const std::string &sentence);
@@ -416,6 +428,9 @@ namespace VDES
         std::mutex              m_mutexHydrometeorologyResponse;
         std::mutex              m_mutexOwnExtendedVesselInfo;
         std::mutex              m_mutexOtherVesselExtendedInfo;
+        std::mutex              m_mutexMarineMeteorologyFCSTArea;
+        std::mutex              m_mutexMarineEnvironmentFCSTArea;
+        std::mutex              m_mutexMarineEnvironmentFCSTAlongshore;
 
         uint32_t                m_timerSendMessage;
         uint32_t                m_dataIDLastSentMessage;
@@ -1394,6 +1409,87 @@ namespace VDES
         }
     }
 
+    void VDESManager::Impl::InitializeMarineMeteorologyFCSTAreaTable(void)
+    {
+        try
+        {
+            if (!m_database->tableExists("MarineMeteorologyFCSTArea"))
+            {
+                auto sql = fmt::format("CREATE TABLE MarineMeteorologyFCSTArea("
+                    "[Area Code]          INT       PRIMARY KEY,"
+                    "[Weather Code]       INT       NOT NULL DEFAULT 0,"
+                    "[Wind Direction]     INT       NOT NULL DEFAULT 360,"
+                    "[Wind Scale Low]     INT       NOT NULL DEFAULT 20,"
+                    "[Wind Scale High]    INT       NOT NULL DEFAULT 20,"
+                    "Visibility           INT       NOT NULL DEFAULT 22,"
+                    "[Info Source]        INT       NOT NULL DEFAULT 0,"
+                    "[Timestamp Forecast] INTEGER   NOT NULL DEFAULT 0,"
+                    "[Timestamp Receive]  INTEGER   NOT NULL DEFAULT 0)");
+                m_database->exec(sql);
+            }
+        }
+        catch (const SQLite::Exception &execption)
+        {
+            DatabaseErrorProcess(execption, "InitializeMarineMeteorologyFCSTAreaTable");
+        }
+    }
+
+    void VDESManager::Impl::InitializeMarineEnvironmentFCSTAreaTable(void)
+    {
+        try
+        {
+            if (!m_database->tableExists("MarineEnvironmentFCSTArea"))
+            {
+                auto sql = fmt::format("CREATE TABLE MarineEnvironmentFCSTArea("
+                    "[Area Code]          INT       PRIMARY KEY,"
+                    "[Temperature Low]    DOUBLE    NOT NULL DEFAULT -100.0,"
+                    "[Temperature High]   DOUBLE    NOT NULL DEFAULT -100.0,"
+                    "[Flow Direction Avg] INT       NOT NULL DEFAULT 360,"
+                    "[Flow Direction Max] INT       NOT NULL DEFAULT 360,"
+                    "[Flow Velocity Avg]  DOUBLE    NOT NULL DEFAULT -1.0,"
+                    "[Flow Velocity Max]  DOUBLE    NOT NULL DEFAULT -1.0,"
+                    "[Wave Height]        DOUBLE    NOT NULL DEFAULT -1.0,"
+                    "[Swell Height]       DOUBLE    NOT NULL DEFAULT -1.0,"
+                    "[Info Source]        INT       NOT NULL DEFAULT 0,"
+                    "[Timestamp Forecast] INTEGER   NOT NULL DEFAULT 0,"
+                    "[Timestamp Receive]  INTEGER   NOT NULL DEFAULT 0)");
+                m_database->exec(sql);
+            }
+        }
+        catch (const SQLite::Exception &execption)
+        {
+            DatabaseErrorProcess(execption, "InitializeMarineEnvironmentFCSTAreaTable");
+        }
+    }
+
+    void VDESManager::Impl::InitializeMarineEnvironmentFCSTAlongshoreTable(void)
+    {
+        try
+        {
+            if (!m_database->tableExists("MarineEnvironmentFCSTAlongshore"))
+            {
+                auto sql = fmt::format("CREATE TABLE MarineEnvironmentFCSTAlongshore("
+                    "[Area Code]          INT       PRIMARY KEY,"
+                    "[Temperature Low]    DOUBLE    NOT NULL DEFAULT -100.0,"
+                    "[Temperature High]   DOUBLE    NOT NULL DEFAULT -100.0,"
+                    "[Wave Height Low]    DOUBLE    NOT NULL DEFAULT -1.0,"
+                    "[Wave Height High]   DOUBLE    NOT NULL DEFAULT -1.0,"
+                    "[Tide High]          DOUBLE    NOT NULL DEFAULT -100.0,"
+                    "[Timestamp Tide High] INTEGER  NOT NULL DEFAULT 0,"
+                    "[Tide Low]           DOUBLE    NOT NULL DEFAULT -100.0,"
+                    "[Timestamp Tide Low]  INTEGER  NOT NULL DEFAULT 0,"
+                    "[Info Source]        INT       NOT NULL DEFAULT 0,"
+                    "[Timestamp Forecast] INTEGER   NOT NULL DEFAULT 0,"
+                    "[Timestamp Receive]  INTEGER   NOT NULL DEFAULT 0)");
+                m_database->exec(sql);
+            }
+        }
+        catch (const SQLite::Exception &execption)
+        {
+            DatabaseErrorProcess(execption, "InitializeMarineEnvironmentFCSTAlongshoreTable");
+        }
+    }
+
     void VDESManager::Impl::InitializeMarineMeteorologyEWTable(void)
     {
         try
@@ -1722,6 +1818,9 @@ namespace VDES
             InitializeRouteRecommendationRequestTable();
             InitializeOwnExtendedVesselInfoTable();
             InitializeOtherVesselExtendedInfoTable();
+            InitializeMarineMeteorologyFCSTAreaTable();
+            InitializeMarineEnvironmentFCSTAreaTable();
+            InitializeMarineEnvironmentFCSTAlongshoreTable();
         }
     }
 
@@ -3877,7 +3976,19 @@ namespace VDES
                     auto longitude = fcstInfo.coordinate.GetLongitude();
                     auto latitude = fcstInfo.coordinate.GetLatitude();
 
-                    if (fcstInfo.dataID != 0)
+                    int64_t dataID = 0;
+                    auto sqlCheck = fmt::format("SELECT ID FROM MarineMeteorologyFCST WHERE ABS(Latitude - {}) < 0.00001 AND ABS(Longitude - {}) < 0.00001;", latitude, longitude);
+                    SQLite::Statement queryCheck(*m_database.get(), sqlCheck);
+                    if (queryCheck.executeStep())
+                    {
+                        dataID = queryCheck.getColumn(0).getInt64();
+                    }
+
+                    if (dataID != 0)
+                    {
+                        stmtUpdateInfo.bind("@ID", dataID);
+                    }
+                    else if (fcstInfo.dataID != 0)
                     {
                         stmtUpdateInfo.bind("@ID", fcstInfo.dataID);
                     }
@@ -3897,8 +4008,8 @@ namespace VDES
                     stmtUpdateInfo.reset();
 
                     // Update the bounding box
-                    auto dataID = m_database->getLastInsertRowid();
-                    stmtUpdateBBox.bind("@ID", dataID);
+                    auto lastRowID = m_database->getLastInsertRowid();
+                    stmtUpdateBBox.bind("@ID", lastRowID);
                     stmtUpdateBBox.bind("@Left", longitude);
                     stmtUpdateBBox.bind("@Right", longitude);
                     stmtUpdateBBox.bind("@Bottom", latitude);
@@ -3945,7 +4056,19 @@ namespace VDES
                     auto longitude = fcstInfo.coordinate.GetLongitude();
                     auto latitude = fcstInfo.coordinate.GetLatitude();
 
-                    if (fcstInfo.dataID != 0)
+                    int64_t dataID = 0;
+                    auto sqlCheck = fmt::format("SELECT ID FROM MarineEnvironmentFCST WHERE ABS(Latitude - {}) < 0.00001 AND ABS(Longitude - {}) < 0.00001;", latitude, longitude);
+                    SQLite::Statement queryCheck(*m_database.get(), sqlCheck);
+                    if (queryCheck.executeStep())
+                    {
+                        dataID = queryCheck.getColumn(0).getInt64();
+                    }
+
+                    if (dataID != 0)
+                    {
+                        stmtUpdateInfo.bind("@ID", dataID);
+                    }
+                    else if (fcstInfo.dataID != 0)
                     {
                         stmtUpdateInfo.bind("@ID", fcstInfo.dataID);
                     }
@@ -3964,8 +4087,8 @@ namespace VDES
                     stmtUpdateInfo.reset(); 
 
                     // Update the bounding box
-                    auto dataID = m_database->getLastInsertRowid();
-                    stmtUpdateBBox.bind("@ID", dataID);
+                    auto lastRowID = m_database->getLastInsertRowid();
+                    stmtUpdateBBox.bind("@ID", lastRowID);
                     stmtUpdateBBox.bind("@Left", longitude);
                     stmtUpdateBBox.bind("@Right", longitude);
                     stmtUpdateBBox.bind("@Bottom", latitude);
@@ -3980,6 +4103,192 @@ namespace VDES
                 DatabaseErrorProcess(execption, "SaveMarineEnvironmentFCST");
             }
         }
+    }
+
+    void VDESManager::Impl::SaveMarineMeteorologyFCSTArea(const MarineMeteorologyFCSTAreas &container)
+    {
+        if (m_database)
+        {
+            try
+            {
+                SQLite::Transaction transaction(*m_database.get());
+
+                // Delete data from three days ago.
+                auto timeZone = UtilityInterface::GetTimeZone();
+                auto timestampNow = UtilityInterface::GetCurrentTimeStamp();
+                auto timestampDayBegin = timestampNow - (timestampNow % (24 * 3600)) - timeZone;
+                auto timestampThreeDaysAgo = timestampDayBegin - 3 * 24 * 3600;
+                auto sql = fmt::format("DELETE FROM MarineMeteorologyFCSTArea WHERE [Timestamp Forecast] <= {}",
+                                       timestampThreeDaysAgo);
+                m_database->exec(sql);
+
+                auto sqlInfo = "REPLACE INTO MarineMeteorologyFCSTArea VALUES (@AreaCode, @WeatherCode, "
+                    "@WindDirection, @WindScaleLow, @WindScaleHigh, @Visibility, @InfoSource, @TimestampFCST, "
+                    "@TimestampRcv)";
+                auto stmtUpdateInfo = m_database->buildStatement(sqlInfo);
+
+                for (auto &area : container)
+                {
+                    stmtUpdateInfo.bind("@AreaCode", area.areaCode);
+                    stmtUpdateInfo.bind("@WeatherCode", area.weatherCode);
+                    stmtUpdateInfo.bind("@WindDirection", area.windDirection);
+                    stmtUpdateInfo.bind("@WindScaleLow", area.windScaleLow);
+                    stmtUpdateInfo.bind("@WindScaleHigh", area.windScaleHigh);
+                    stmtUpdateInfo.bind("@Visibility", area.visibility);
+                    stmtUpdateInfo.bind("@InfoSource", area.infoSource);
+                    stmtUpdateInfo.bind("@TimestampFCST", area.timestampFCST);
+                    stmtUpdateInfo.bind("@TimestampRcv", area.timestamp);
+                    stmtUpdateInfo.exec();
+                    stmtUpdateInfo.reset();
+                }
+                transaction.commit();
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                DatabaseErrorProcess(execption, "SaveMarineMeteorologyFCSTArea");
+            }
+        }
+    }
+
+    void VDESManager::Impl::LoadMarineMeteorologyFCSTAreaFromQueryResult(MarineMeteorologyFCSTArea &area, const SQLite::Statement &query)
+    {
+        area.areaCode = static_cast<uint8_t>(query.getColumn("Area Code").getInt());
+        area.weatherCode = static_cast<uint8_t>(query.getColumn("Weather Code").getInt());
+        area.windDirection = static_cast<uint16_t>(query.getColumn("Wind Direction").getInt());
+        area.windScaleLow = static_cast<uint8_t>(query.getColumn("Wind Scale Low").getInt());
+        area.windScaleHigh = static_cast<uint8_t>(query.getColumn("Wind Scale High").getInt());
+        area.visibility = static_cast<uint8_t>(query.getColumn("Visibility").getInt());
+        area.infoSource = static_cast<uint8_t>(query.getColumn("Info Source").getInt());
+        area.timestampFCST = query.getColumn("Timestamp Forecast").getInt64();
+        area.timestamp = query.getColumn("Timestamp Receive").getInt64();
+    }
+
+    void VDESManager::Impl::SaveMarineEnvironmentFCSTArea(const MarineEnvironmentFCSTAreas &container)
+    {
+        if (m_database)
+        {
+            try
+            {
+                SQLite::Transaction transaction(*m_database.get());
+
+                // Delete data from three days ago.
+                auto timeZone = UtilityInterface::GetTimeZone();
+                auto timestampNow = UtilityInterface::GetCurrentTimeStamp();
+                auto timestampDayBegin = timestampNow - (timestampNow % (24 * 3600)) - timeZone;
+                auto timestampThreeDaysAgo = timestampDayBegin - 3 * 24 * 3600;
+                auto sql = fmt::format("DELETE FROM MarineEnvironmentFCSTArea WHERE [Timestamp Forecast] <= {}",
+                                       timestampThreeDaysAgo);
+                m_database->exec(sql);
+
+                auto sqlInfo = "REPLACE INTO MarineEnvironmentFCSTArea VALUES (@AreaCode, @TemperatureLow, "
+                    "@TemperatureHigh, @FlowDirectionAvg, @FlowDirectionMax, @FlowVelocityAvg, @FlowVelocityMax, "
+                    "@WaveHeight, @SwellHeight, @InfoSource, @TimestampFCST, @TimestampRcv)";
+                auto stmtUpdateInfo = m_database->buildStatement(sqlInfo);
+
+                for (auto &area : container)
+                {
+                    stmtUpdateInfo.bind("@AreaCode", area.areaCode);
+                    stmtUpdateInfo.bind("@TemperatureLow", area.temperatureLow);
+                    stmtUpdateInfo.bind("@TemperatureHigh", area.temperatureHigh);
+                    stmtUpdateInfo.bind("@FlowDirectionAvg", area.flowDirectionAvg);
+                    stmtUpdateInfo.bind("@FlowDirectionMax", area.flowDirctionMax);
+                    stmtUpdateInfo.bind("@FlowVelocityAvg", area.flowVelocityAvg);
+                    stmtUpdateInfo.bind("@FlowVelocityMax", area.flowVelocityMax);
+                    stmtUpdateInfo.bind("@WaveHeight", area.waveHeight);
+                    stmtUpdateInfo.bind("@SwellHeight", area.swellHeight);
+                    stmtUpdateInfo.bind("@InfoSource", area.infoSource);
+                    stmtUpdateInfo.bind("@TimestampFCST", area.timestampFCST);
+                    stmtUpdateInfo.bind("@TimestampRcv", area.timestamp);
+                    stmtUpdateInfo.exec();
+                    stmtUpdateInfo.reset();
+                }
+                transaction.commit();
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                DatabaseErrorProcess(execption, "SaveMarineEnvironmentFCSTArea");
+            }
+        }
+    }
+
+    void VDESManager::Impl::LoadMarineEnvironmentFCSTAreaFromQueryResult(MarineEnvironmentFCSTArea &area, const SQLite::Statement &query)
+    {
+        area.areaCode = static_cast<uint8_t>(query.getColumn("Area Code").getInt());
+        area.temperatureLow = query.getColumn("Temperature Low").getDouble();
+        area.temperatureHigh = query.getColumn("Temperature High").getDouble();
+        area.flowDirectionAvg = static_cast<uint32_t>(query.getColumn("Flow Direction Avg").getInt64());
+        area.flowDirctionMax = static_cast<uint32_t>(query.getColumn("Flow Direction Max").getInt64());
+        area.flowVelocityAvg = query.getColumn("Flow Velocity Avg").getDouble();
+        area.flowVelocityMax = query.getColumn("Flow Velocity Max").getDouble();
+        area.waveHeight = query.getColumn("Wave Height").getDouble();
+        area.swellHeight = query.getColumn("Swell Height").getDouble();
+        area.infoSource = static_cast<uint8_t>(query.getColumn("Info Source").getInt());
+        area.timestampFCST = query.getColumn("Timestamp Forecast").getInt64();
+        area.timestamp = query.getColumn("Timestamp Receive").getInt64();
+    }
+
+    void VDESManager::Impl::SaveMarineEnvironmentFCSTAlongshore(const MarineEnvironmentFCSTAlongshores &container)
+    {
+        if (m_database)
+        {
+            try
+            {
+                SQLite::Transaction transaction(*m_database.get());
+
+                // Delete data from three days ago.
+                auto timeZone = UtilityInterface::GetTimeZone();
+                auto timestampNow = UtilityInterface::GetCurrentTimeStamp();
+                auto timestampDayBegin = timestampNow - (timestampNow % (24 * 3600)) - timeZone;
+                auto timestampThreeDaysAgo = timestampDayBegin - 3 * 24 * 3600;
+                auto sql = fmt::format("DELETE FROM MarineEnvironmentFCSTAlongshore WHERE [Timestamp Forecast] <= {}",
+                                       timestampThreeDaysAgo);
+                m_database->exec(sql);
+
+                auto sqlInfo = "REPLACE INTO MarineEnvironmentFCSTAlongshore VALUES (@AreaCode, @TemperatureLow, "
+                    "@TemperatureHigh, @WaveHeightLow, @WaveHeightHigh, @TideHigh, @TimestampTideHigh, "
+                    "@TideLow, @TimestampTideLow, @InfoSource, @TimestampFCST, @TimestampRcv)";
+                auto stmtUpdateInfo = m_database->buildStatement(sqlInfo);
+
+                for (auto &area : container)
+                {
+                    stmtUpdateInfo.bind("@AreaCode", area.areaCode);
+                    stmtUpdateInfo.bind("@TemperatureLow", area.temperatureLow);
+                    stmtUpdateInfo.bind("@TemperatureHigh", area.temperatureHigh);
+                    stmtUpdateInfo.bind("@WaveHeightLow", area.waveHeightLow);
+                    stmtUpdateInfo.bind("@WaveHeightHigh", area.waveHeightHigh);
+                    stmtUpdateInfo.bind("@TideHigh", area.tideHigh);
+                    stmtUpdateInfo.bind("@TimestampTideHigh", static_cast<int64_t>(area.timestampTideHigh));
+                    stmtUpdateInfo.bind("@TideLow", area.tideLow);
+                    stmtUpdateInfo.bind("@TimestampTideLow", static_cast<int64_t>(area.timestampTideLow));
+                    stmtUpdateInfo.bind("@InfoSource", area.infoSource);
+                    stmtUpdateInfo.bind("@TimestampFCST", area.timestampFCST);
+                    stmtUpdateInfo.bind("@TimestampRcv", area.timestamp);
+                    stmtUpdateInfo.exec();
+                    stmtUpdateInfo.reset();
+                }
+                transaction.commit();
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                DatabaseErrorProcess(execption, "SaveMarineEnvironmentFCSTAlongshore");
+            }
+        }
+    }
+
+    void VDESManager::Impl::LoadMarineEnvironmentFCSTAlongshoreFromQueryResult(MarineEnvironmentFCSTAlongshore &area, const SQLite::Statement &query)
+    {
+        area.areaCode = static_cast<uint8_t>(query.getColumn("Area Code").getInt());
+        area.temperatureLow = query.getColumn("Temperature Low").getDouble();
+        area.temperatureHigh = query.getColumn("Temperature High").getDouble();
+        area.waveHeightLow = query.getColumn("Wave Height Low").getDouble();
+        area.waveHeightHigh = query.getColumn("Wave Height High").getDouble();
+        area.tideHigh = query.getColumn("Tide High").getDouble();
+        area.timestampTideHigh = query.getColumn("Timestamp Tide High").getInt64();
+        area.tideLow = query.getColumn("Tide Low").getDouble();
+        area.timestampTideLow = query.getColumn("Timestamp Tide Low").getInt64();
+        area.infoSource = static_cast<uint8_t>(query.getColumn("Info Source").getInt());
+        area.timestampFCST = query.getColumn("Timestamp Forecast").getInt64();
+        area.timestamp = query.getColumn("Timestamp Receive").getInt64();
     }
 
     void VDESManager::Impl::SaveMarineMeteorologyEW(const MarineMeteorologyEW &ew)
@@ -5018,7 +5327,7 @@ namespace VDES
                 auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_27>(asmData);
                 if (info)
                 {
-                    MarineMeteorologyFCSTArea area;
+                    MarineMeteorologyFCSTAreas container;
 
                     auto timestampNow      = UtilityInterface::GetCurrentTimeStamp();
                     auto timeZone          = UtilityInterface::GetTimeZone();
@@ -5035,6 +5344,7 @@ namespace VDES
                     timestampDayBegin += info->hourPublish * 3600;
                     for (const auto &seaAreaInfo : info->seaAreaInfos)
                     {
+                        MarineMeteorologyFCSTArea area;
                         area.areaCode = seaAreaInfo.areaCode;
                         area.weatherCode = seaAreaInfo.weatherCode;
                         area.windDirection = seaAreaInfo.windDirection;
@@ -5044,11 +5354,14 @@ namespace VDES
                         area.infoSource = info->infoSource;
                         area.timestampFCST = timestampDayBegin + info->hoursOffsetFCST * 3600;
                         area.timestamp = timestampDayBegin;
-                        m_meteorologyAreas.emplace_back(area);
+                        container.emplace_back(area);
                     }
 
-                    if (!info->seaAreaInfos.empty())
+                    if (!container.empty())
                     {
+                        std::unique_lock<std::mutex> lock(m_mutexMarineMeteorologyFCSTArea);
+                        SaveMarineMeteorologyFCSTArea(container);
+                        lock.unlock();
                         m_parent->notifyEvent(EventType::ASM_MARINE_METEOROLOGY_FCST_AREA, 0);
                     }
                 }
@@ -5104,6 +5417,8 @@ namespace VDES
                 auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_29>(asmData);
                 if (info)
                 {
+                    MarineEnvironmentFCSTAreas container;
+
                     auto timestampNow      = UtilityInterface::GetCurrentTimeStamp();
                     auto timeZone          = UtilityInterface::GetTimeZone();
                     auto timestampDayBegin = timestampNow - (timestampNow % (24 * 3600)) - timeZone;
@@ -5133,11 +5448,14 @@ namespace VDES
                         area.infoSource = info->infoSource;
                         area.timestampFCST = timestampDayBegin + info->hoursOffsetFCST * 3600;
                         area.timestamp = timestampDayBegin;
-                        m_environmentAreas.emplace_back(area);
+                        container.emplace_back(area);
                     }
 
-                    if (!info->seaAreaInfos.empty())
+                    if (!container.empty())
                     {
+                        std::unique_lock<std::mutex> lock(m_mutexMarineEnvironmentFCSTArea);
+                        SaveMarineEnvironmentFCSTArea(container);
+                        lock.unlock();
                         m_parent->notifyEvent(EventType::ASM_MARINE_ENVIRONMENT_FCST_AREA, 0);
                     }
                 }
@@ -5148,6 +5466,8 @@ namespace VDES
                 auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_30>(asmData);
                 if (info)
                 {
+                    MarineEnvironmentFCSTAlongshores container;
+
                     auto timestampNow      = UtilityInterface::GetCurrentTimeStamp();
                     auto timeZone          = UtilityInterface::GetTimeZone();
                     auto timestampDayBegin = timestampNow - (timestampNow % (24 * 3600)) - timeZone;
@@ -5177,11 +5497,14 @@ namespace VDES
                         area.infoSource = info->infoSource;
                         area.timestampFCST = timestampDayBegin + info->hoursOffsetFCST * 3600;
                         area.timestamp = timestampDayBegin;
-                        m_environmentAlongshores.emplace_back(area);
+                        container.emplace_back(area);
                     }
 
-                    if (!info->waterAreaInfos.empty())
+                    if (!container.empty())
                     {
+                        std::unique_lock<std::mutex> lock(m_mutexMarineEnvironmentFCSTAlongshore);
+                        SaveMarineEnvironmentFCSTAlongshore(container);
+                        lock.unlock();
                         m_parent->notifyEvent(EventType::ASM_MARINE_ENVIRONMENT_FCST_ALONGSHORE, 0);
                     }
                 }
@@ -9307,17 +9630,92 @@ namespace VDES
 
     VDESManager::MarineMeteorologyFCSTAreas VDESManager::GetMarineMeteorologyFCSTAreas(const uint32_t index, const size_t number)
     {
-        return m_impl->m_meteorologyAreas;
+        MarineMeteorologyFCSTAreas container;
+
+        if (m_impl->m_database)
+        {
+            auto sqlCmd = fmt::format("SELECT * FROM MarineMeteorologyFCSTArea ORDER BY [Timestamp Forecast] "
+                "DESC LIMIT {0} OFFSET {1}",
+                (number == -1) ? "-1" : fmt::format("{}", number), index);
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexMarineMeteorologyFCSTArea);
+
+                SQLite::Statement query(*m_impl->m_database.get(), sqlCmd);
+
+                while (query.executeStep())
+                {
+                    MarineMeteorologyFCSTArea info;
+                    m_impl->LoadMarineMeteorologyFCSTAreaFromQueryResult(info, query);
+                    container.emplace_back(info);
+                }
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "GetMarineMeteorologyFCSTAreas");
+            }
+        }
+        return container;
     }
 
     VDESManager::MarineEnvironmentFCSTAreas VDESManager::GetMarineEnvironmentFCSTAreas(const uint32_t index, const size_t number)
     {
-        return m_impl->m_environmentAreas;
+        MarineEnvironmentFCSTAreas container;
+
+        if (m_impl->m_database)
+        {
+            auto sqlCmd = fmt::format("SELECT * FROM MarineEnvironmentFCSTArea ORDER BY [Timestamp Forecast] "
+                "DESC LIMIT {0} OFFSET {1}",
+                (number == -1) ? "-1" : fmt::format("{}", number), index);
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexMarineEnvironmentFCSTArea);
+
+                SQLite::Statement query(*m_impl->m_database.get(), sqlCmd);
+
+                while (query.executeStep())
+                {
+                    MarineEnvironmentFCSTArea info;
+                    m_impl->LoadMarineEnvironmentFCSTAreaFromQueryResult(info, query);
+                    container.emplace_back(info);
+                }
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "GetMarineEnvironmentFCSTAreas");
+            }
+        }
+        return container;
     }
 
     VDESManager::MarineEnvironmentFCSTAlongshores VDESManager::GetMarineEnvironmentFCSTAlongshores(const uint32_t index, const size_t number)
     {
-        return m_impl->m_environmentAlongshores;
+        MarineEnvironmentFCSTAlongshores container;
+
+        if (m_impl->m_database)
+        {
+            auto sqlCmd = fmt::format("SELECT * FROM MarineEnvironmentFCSTAlongshore ORDER BY [Timestamp Forecast] "
+                "DESC LIMIT {0} OFFSET {1}",
+                (number == -1) ? "-1" : fmt::format("{}", number), index);
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexMarineEnvironmentFCSTAlongshore);
+
+                SQLite::Statement query(*m_impl->m_database.get(), sqlCmd);
+
+                while (query.executeStep())
+                {
+                    MarineEnvironmentFCSTAlongshore info;
+                    m_impl->LoadMarineEnvironmentFCSTAlongshoreFromQueryResult(info, query);
+                    container.emplace_back(info);
+                }
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "GetMarineEnvironmentFCSTAlongshores");
+            }
+        }
+        return container;
     }
 
     VDESManager::Bridges VDESManager::GetBridges(const uint32_t index, const size_t number)
