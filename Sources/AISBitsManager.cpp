@@ -141,7 +141,7 @@ namespace VDES
 
 	bool AISBitsManager::Encode(const std::string &text, const int DAC = 1, const int FI = 0)
 	{
-		if (DAC == 1 && FI == 0)
+		if ((DAC == 1 && FI == 0) || (DAC == 412 && FI == 45))
 		{
 			// International function message 0: Text using 6-bit ASCII
 			for (auto &character : text)
@@ -363,7 +363,7 @@ namespace VDES
 		{
 			uint32_t index = startBitPos;
 
-			if (DAC == 1 && FI == 0)
+			if ((DAC == 1 && FI == 0) || (DAC == 412 && FI == 45))
 			{
 				/**
 				* FIXME: the bit number should be the multiple of 6

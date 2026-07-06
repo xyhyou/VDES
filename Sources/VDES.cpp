@@ -1,4 +1,4 @@
-#include "VDES.h"
+﻿#include "VDES.h"
 
 #include <map>
 #include <array>
@@ -350,6 +350,13 @@ namespace VDES
         {
             double latitude;
             double longitude;
+        };
+
+        struct NetInfoStruct
+        {
+            uint32_t MRN;
+            double   latitude;
+            double   longitude;
         };
 
         struct WaypointStruct
@@ -1018,7 +1025,8 @@ namespace VDES
                     "Caution                 INT       NOT NULL DEFAULT 0,"
                     "Certified               BOOLEAN   NOT NULL DEFAULT 0,"
                     "[Timestamp Receive]     INTEGER   NOT NULL DEFAULT 0,"
-                    "Read                    BOOLEAN   NOT NULL DEFAULT 0)");
+                    "Read                    BOOLEAN   NOT NULL DEFAULT 0,"
+                    "[TowingMethod]          INT       NOT NULL DEFAULT 0)");
 
                 m_database->exec(sql);
 
@@ -1036,6 +1044,12 @@ namespace VDES
             if (!m_database->fieldExists("Read", "MSIMaritimeTowing"))
             {
                 auto sql = fmt::format("ALTER TABLE MSIMaritimeTowing ADD Read BOOLEAN NOT NULL DEFAULT 0");
+                m_database->exec(sql);
+            }
+
+            if (!m_database->fieldExists("TowingMethod", "MSIMaritimeTowing"))
+            {
+                auto sql = fmt::format("ALTER TABLE MSIMaritimeTowing ADD [TowingMethod] INT NOT NULL DEFAULT 0");
                 m_database->exec(sql);
             }
         }
@@ -1163,8 +1177,14 @@ namespace VDES
                 "Type INT, "
                 "IsContinous INT, "
                 "Coordinates BLOB, "
-                "[Timestamp Receive] INTEGER"
+                "[Timestamp Receive] INTEGER, "
+                "[Description] TEXT"
                 ")");
+
+            if (m_database && !m_database->fieldExists("[Description]", "NetSounder"))
+            {
+                m_database->exec("ALTER TABLE NetSounder ADD [Description] TEXT");
+            }
         }
         catch (const SQLite::Exception &execption)
         {
@@ -2899,6 +2919,15 @@ namespace VDES
         towing.isCertified = query.getColumn("Certified").getInt() == 1;
         towing.timestamp = query.getColumn("Timestamp Receive").getInt64();
         towing.read = query.getColumn("Read").getInt() == 1;
+
+        try
+        {
+            towing.towingMethod = static_cast<uint8_t>(query.getColumn("TowingMethod").getInt());
+        }
+        catch (...)
+        {
+            towing.towingMethod = 0;
+        }
     }
 
     void VDESManager::Impl::LoadMSIDesignatedAreaFromQueryResult(MSIDesignatedArea &area, 
@@ -3012,16 +3041,45 @@ namespace VDES
         netSounder.isContinous = query.getColumn("IsContinous").getUInt() != 0;
         netSounder.timestamp = query.getColumn("Timestamp Receive").getInt64();
 
+        try
+        {
+            netSounder.description = query.getColumn("Description").getText();
+        }
+        catch (...)
+        {
+            netSounder.description = "";
+        }
+
         SQLite::Column column = query.getColumn("Coordinates");
         auto size = column.getBytes();
         if (size > 0)
         {
-            auto ptr = (const CoordinateStruct *)column.getBlob();
-            auto count = size / sizeof(CoordinateStruct);
-            netSounder.coordinates.clear();
-            for (auto i = 0U; i < count; i++)
+            netSounder.nets.clear();
+            if (size % sizeof(NetInfoStruct) == 0)
             {
-                netSounder.coordinates.push_back(Coordinate(ptr[i].latitude, ptr[i].longitude));
+                auto ptr = (const NetInfoStruct *)column.getBlob();
+                auto count = size / sizeof(NetInfoStruct);
+                for (auto i = 0U; i < count; i++)
+                {
+                    NetSounder::NetInfo net;
+                    net.MRN = ptr[i].MRN;
+                    net.latitude = ptr[i].latitude;
+                    net.longitude = ptr[i].longitude;
+                    netSounder.nets.push_back(net);
+                }
+            }
+            else if (size % sizeof(CoordinateStruct) == 0)
+            {
+                auto ptr = (const CoordinateStruct *)column.getBlob();
+                auto count = size / sizeof(CoordinateStruct);
+                for (auto i = 0U; i < count; i++)
+                {
+                    NetSounder::NetInfo net;
+                    net.MRN = netSounder.MRN;
+                    net.latitude = ptr[i].latitude;
+                    net.longitude = ptr[i].longitude;
+                    netSounder.nets.push_back(net);
+                }
             }
         }
     }
@@ -3542,11 +3600,7 @@ namespace VDES
             try
             {
                 SQLite::Transaction transaction(*m_database.get());
-                BoundingBox         bbox;
-
-                auto sql = "REPLACE INTO MSIMaritimeTowing VALUES (@ID, @MMSI, @LatitudeStart, @LongitudeStart, "
-                           "@LatitudeEnd, @LongitudeEnd, @Length, @Width, @Speed, @TimestampStart, @TimestampEnd, "
-                           "@Caution, @Certified, @TimestampRcv, @Read)";
+                BoundingBox         bbox;                 auto sql = "INSERT OR REPLACE INTO MSIMaritimeTowing (ID, MMSI, LatitudeStart, LongitudeStart, LatitudeEnd, LongitudeEnd, Length, Width, Speed, [Timestamp Start], [Timestamp End], Caution, Certified, [Timestamp Receive], Read, TowingMethod) VALUES (@ID, @MMSI, @LatitudeStart, @LongitudeStart, @LatitudeEnd, @LongitudeEnd, @Length, @Width, @Speed, @TimestampStart, @TimestampEnd, @Caution, @Certified, @TimestampRcv, @Read, @TowingMethod)";
                 auto stmt = m_database->buildStatement(sql);
 
                 if (towing.dataID != 0)
@@ -3567,6 +3621,7 @@ namespace VDES
                 stmt.bind("@Certified", towing.isCertified ? 1 : 0);
                 stmt.bind("@TimestampRcv", towing.timestamp);
                 stmt.bind("@Read", towing.read ? 1 : 0);
+                stmt.bind("@TowingMethod", towing.towingMethod);
 
                 stmt.exec();
                 auto lastRowID = m_database->getLastInsertRowid();
@@ -3803,8 +3858,8 @@ namespace VDES
         {
             try
             {
-                auto sql = "INSERT INTO NetSounder (MRN, Fragment, Type, IsContinous, Coordinates, [Timestamp Receive]) "
-                           "VALUES (@MRN, @Fragment, @Type, @IsContinous, @Coordinates, @TimestampRcv)";
+                auto sql = "INSERT INTO NetSounder (MRN, Fragment, Type, IsContinous, Coordinates, [Timestamp Receive], [Description]) "
+                           "VALUES (@MRN, @Fragment, @Type, @IsContinous, @Coordinates, @TimestampRcv, @Description)";
                 auto stmt = m_database->buildStatement(sql);
 
                 stmt.bind("@MRN", netSounder.MRN);
@@ -3812,16 +3867,18 @@ namespace VDES
                 stmt.bind("@Type", netSounder.type);
                 stmt.bind("@IsContinous", netSounder.isContinous ? 1 : 0);
 
-                auto pointsCount = netSounder.coordinates.size();
-                auto size = pointsCount * sizeof(CoordinateStruct);
-                auto blob = std::unique_ptr<CoordinateStruct[]>(new CoordinateStruct[pointsCount]);
+                auto pointsCount = netSounder.nets.size();
+                auto size = pointsCount * sizeof(NetInfoStruct);
+                auto blob = std::unique_ptr<NetInfoStruct[]>(new NetInfoStruct[pointsCount]);
                 for (size_t i = 0; i < pointsCount; ++i)
                 {
-                    blob[i].latitude = netSounder.coordinates[i].GetLatitude();
-                    blob[i].longitude = netSounder.coordinates[i].GetLongitude();
+                    blob[i].MRN = netSounder.nets[i].MRN;
+                    blob[i].latitude = netSounder.nets[i].latitude;
+                    blob[i].longitude = netSounder.nets[i].longitude;
                 }
-                stmt.bind("@Coordinates", blob.get(), size);
+                stmt.bind("@Coordinates", blob.get(), static_cast<int>(size));
                 stmt.bind("@TimestampRcv", netSounder.timestamp);
+                stmt.bind("@Description", netSounder.description);
 
                 stmt.exec();
             }
@@ -5637,6 +5694,7 @@ namespace VDES
                     towing.mmsi = info->mmsi;
                     towing.coordinateStart = info->node1;
                     towing.coordinateEnd = info->node2;
+                    towing.towingMethod = info->towingMethod;
                     towing.length = info->length;
                     towing.width = info->width;
                     towing.speed = info->speed;
@@ -5813,25 +5871,33 @@ namespace VDES
                 }
             }
 
-            if (asmData->DAC == 412 && asmData->FI == 44)
+            if (asmData->DAC == 412 && asmData->FI == 45)
             {
-                auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_44>(asmData);
+                auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_45>(asmData);
                 if (info)
                 {
                     NetSounder netSounder;
-                    netSounder.MRN = info->MRN;
+                    netSounder.MRN = info->nets.empty() ? 0 : info->nets[0].MRN;
                     netSounder.fragment = info->fragment;
                     netSounder.type = info->type;
                     netSounder.isContinous = info->isContinous;
-                    netSounder.coordinates = info->coordinates;
-					netSounder.timestamp = UtilityInterface::GetCurrentTimeStamp();
+                    netSounder.description = info->description;
+                    for (const auto &netInfo : info->nets)
+                    {
+                        NetSounder::NetInfo net;
+                        net.MRN = netInfo.MRN;
+                        net.latitude = netInfo.coordinate.GetLatitude();
+                        net.longitude = netInfo.coordinate.GetLongitude();
+                        netSounder.nets.push_back(net);
+                    }
+                    netSounder.timestamp = UtilityInterface::GetCurrentTimeStamp();
 
                     std::unique_lock<std::mutex> lock(m_mutexNetSounder);
                     try
                     {
                         if (m_database)
                         {
-                            auto sqlDel = fmt::format("DELETE FROM NetSounder WHERE MRN = {}", info->MRN);
+                            auto sqlDel = fmt::format("DELETE FROM NetSounder WHERE MRN = {}", netSounder.MRN);
                             m_database->exec(sqlDel);
                         }
                     }
@@ -5843,7 +5909,7 @@ namespace VDES
                     SaveNetSounder(netSounder);
                     lock.unlock();
 
-                    if (!info->coordinates.empty())
+                    if (!info->nets.empty())
                     {
                         m_parent->notifyEvent(EventType::ASM_NET_SOUNDER, 0);
                     }
@@ -6031,7 +6097,22 @@ namespace VDES
                     forecast.FI = info->FI;
                     forecast.hourPublish = info->hourPublish;
                     forecast.infoSource = info->infoSource;
-                    forecast.timestamp = UtilityInterface::GetCurrentTimeStamp();
+
+                    auto timestampNow      = UtilityInterface::GetCurrentTimeStamp();
+                    auto timeZone          = UtilityInterface::GetTimeZone();
+                    auto timestampDayBegin = timestampNow - (timestampNow % (24 * 3600)) - timeZone;
+
+                    if (info->hourPublish < 24)
+                    {
+                        int currentHour = static_cast<int>(((timestampNow + timeZone) % 86400) / 3600);
+                        if (info->hourPublish > currentHour)
+                        {
+                            timestampDayBegin -= 24 * 3600;
+                        }
+                    }
+                    timestampDayBegin += info->hourPublish * 3600;
+
+                    forecast.timestamp = timestampDayBegin;
 
                     for (const auto &stationInfo : info->tideInfos)
                     {

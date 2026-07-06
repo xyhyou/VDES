@@ -1,4 +1,4 @@
-#include "VDES.h"
+﻿#include "VDES.h"
 #include "BoundingBox.h"
 #include "VDESConfigure.h"
 #include "UtilityInterface.h"
@@ -1269,8 +1269,7 @@ static std::vector<std::string> GenerateDAC_412_FI_41(void)
 	return results;
 }
 
-// 网位仪
-static void GenerateDAC_412_FI_44(void)
+static std::vector<std::string> GenerateDAC_412_FI_45(void)
 {
 	VDES::AISBitsManager bitsManager;
 	// Message ID
@@ -1284,28 +1283,33 @@ static void GenerateDAC_412_FI_44(void)
 	// DAC
 	bitsManager.Encode(412, 10);
 	// FI	
-	bitsManager.Encode(44, 6);
+	bitsManager.Encode(45, 6);
 
-	// MRN
-	bitsManager.Encode(2, 17);
-	// 片段描述
-	bitsManager.Encode(0, 2);
-	// 网位仪类型
+	// 渔网标识类型
 	bitsManager.Encode(3, 4);
 	// 关联
 	bitsManager.Encode(1, 1);
+
+	// MRN #1
+	bitsManager.Encode(100001, 20);
 	// 经度 1
-	bitsManager.Encode(118.539901 * 600000, 28);
+	bitsManager.Encode(static_cast<int64_t>(118.5399 * 60000), 25);
 	// 纬度 1
-	bitsManager.Encode(24.418675 * 600000, 27);
+	bitsManager.Encode(static_cast<int64_t>(24.4186 * 60000), 24);
+
+	// MRN #2
+	bitsManager.Encode(100002, 20);
 	// 经度 2
-	bitsManager.Encode(0.12 * 60000, 14);
+	bitsManager.Encode(static_cast<int64_t>(0.12 * 60000), 15);
 	// 纬度 2
-	bitsManager.Encode((0.06) * 60000, 13);
+	bitsManager.Encode(static_cast<int64_t>(0.06 * 60000), 14);
+
+	// MRN #3
+	bitsManager.Encode(100003, 20);
 	// 经度 3
-	bitsManager.Encode((0.05) * 60000, 13);
+	bitsManager.Encode(static_cast<int64_t>(0.05 * 60000), 15);
 	// 纬度 3
-	bitsManager.Encode((0.03) * 60000, 12);
+	bitsManager.Encode(static_cast<int64_t>(0.03 * 60000), 14);
 	
 	auto bitsNum = bitsManager.GetBitsNumberToDecode();
 	auto spareBits = 8 - (bitsNum % 8);
@@ -1314,8 +1318,9 @@ static void GenerateDAC_412_FI_44(void)
 	for (auto &vdm : vdms)
 	{
 		SPDLOG_DEBUG("VDM = {}", vdm);
-		std::cout << "GEN VDM (FI=44 net sounder): " << vdm << std::endl;
+		std::cout << "GEN VDM (FI=45 net sounder): " << vdm << std::endl;
 	}
+	return vdms;
 }
 
 // Marine Meteorology & Environmental Warning (FI = 31)
@@ -1484,6 +1489,9 @@ static std::vector<std::string> GenerateDAC_412_FI_37(void)
 	// Node 2
 	bitsManager.Encode(static_cast<uint32_t>(118.789 * 6000), 22);
 	bitsManager.Encode(static_cast<uint32_t>(24.345 * 6000), 21);
+
+	// Towing Method (2 bits)
+	bitsManager.Encode(1, 2); // 1 = 傍拖 (Side towing)
 
 	// Length
 	bitsManager.Encode(350, 12);
@@ -1729,7 +1737,7 @@ int main(void)
 	VDES::ConfigureManager::GetInstance().SetStoragePath(".");
 	vdesManager.Initialize();
 	vdesManager.EmptyDatabase();
-#if 1
+#if 0
 	// Parse new standard early warning messages (FI=31)
 	std::cout << "\n=== Testing DAC=412, FI=31 (Warnings) ===" << std::endl;
 	for (uint8_t type : {1, 2, 5, 6})
@@ -2077,6 +2085,7 @@ int main(void)
 
 	std::vector<std::string> senteces{
 		// 海洋气象预报坐标 DAC = 412, FI = 26
+		//"$AIASM,1783156663,1,1,,1,2,0,666666666,,Iia1P9hA9CQR77<kRP@,2*1C\r\n",
 		//"$AIASM,1783156881,1,1,,2,2,0,666666666,,Iia1RihW9DgEbe?T81gv:tnu;>AOK0,4*3D\r\n",
 		//"$AIASM,1783152841,1,1,,2,2,0,666666666,,Iia1P9hA9CQR77<kRP@,2*15\r\n",
 		//"$AIASM,1782890582,1,1,,1,2,0,666666666,,Iia1P9jn7A1R77<kRP@,2*53\r\n",
@@ -2100,11 +2109,20 @@ int main(void)
 		//"$AIASM,1782891073,1,1,,2,2,0,666666666,,Iim1P=DjD>UP`?3h`P,4*35\r\n",
 		//"$AIASM,1782891102,1,1,,2,2,0,666666666,,Iip02l080007`00037P0@0,4*33\r\n",
 		// 海洋环境预报近岸 DAC = 412, FI = 30
+		//"$AIASM,1783255188,2,1,8,2,2,0,666666666,,Iirk410;6?9iIpBh37Td1C9TOOnI>?m0iquP0oAWquVESu8<NODTAPDKb1VH,0*56\r\n",
+		//"$AIASM,,2,2,8,2,,0,666666666,,wF37WoH,2*00\r\n",
 		//"$AIASM,1782968761,1,1,,2,2,0,666666666,,Iip02l080007`00037P0@0,4*37\r\n",
 		//"$AIASM,1782968901,1,1,,1,2,0,666666666,,Iip0010>@5OEhgO@37Wl80,4*6E\r\n",
 		//"$AIASM,1782891146,1,1,,1,2,0,666666666,,Iiq1P1wpt52Uhg9H37Pj80,4*2D\r\n",
 		//"$AIASM,1782891172,1,1,,1,2,0,666666666,,Iiq1P1bVB52Uhg9H37Pj80,4*2F\r\n",
+		// 海洋气象环境预警 DAC = 412, FI = 31
+		//"$AIASM,1783256514,1,1,,1,2,0,666666666,,IitD=VQVn5?Lh6@j567=kKeB9HqP0>I@3WD02@,4*5D\r\n",
+		//"$AIASM,1783256597,1,1,,1,2,0,666666666,,IitT=`1E3J8H@nTU4=ag53JP1LjP7>01l>0180,4*45\r\n",
 		// 潮汐预报 DAC = 412, FI = 32
+		"$AIASM,1783320688,2,1,1,1,2,0,666666666,,Ij0Qk87wP0Da805DB0?c7r5:Eu1E5O@GcviBawDEBOnUrgbDbWlUFauFgcsU,0*50\r\n",
+		"$AIASM,,2,2,1,1,,0,666666666,,:`B9E:8L00j1BbOFEBWo80,4*26\r\n",
+		"$AIASM,1783303109,2,1,0,1,2,0,666666666,,Ij0Qk87wP0Da805DB0?c7r5:Eu1E5O@GcviBawDEBOnUrgbDbWlUFauFgcsU,0*5E\r\n",
+		"$AIASM,,2,2,0,1,,0,666666666,,:`B9E:8L00j1BbOFEBWo80,4*27\r\n",
 		//"$AIASM,1783252387,2,1,6,2,2,0,666666666,,Ij0Qk87wP0Da805DB0?c7r5:Eu1E5O@GcviBawDEBOnUrgbDbWlUFauFgcsU,0*5A\r\n",
 		//"$AIASM,,2,2,6,2,,0,666666666,,:`B9E:8L00j1BbOFEBWo80,4*22\r\n",
 
@@ -2121,8 +2139,8 @@ int main(void)
 		//"$AIASM,1782978054,2,1,8,2,2,0,666666666,,Ij42JB816qTH>@<8Ma2P2>38hLG0@s3`04LrAPq0hPe3N08r<S00gQ3NfL0A,0*4D\r\n",
 		//"$AIASM,,2,2,8,2,,0,666666666,,nI601O26t8P0Shj<02v4=q`Ph0,4*3D\r\n",
 		// 碍航物 DAC = 412, FI = 35
-		"$AIASM,1783254079,1,1,,2,2,0,666666666,,Ij<=@HL@pcB0d?cFOo4A5<0,2*1A\r\n",
-		"$AIASM,1783253640,1,1,,2,2,0,666666666,,Ij<=@b6:kDdLDu06hww`0HOw6Os4ww?wTh06f8R:80,4*44\r\n",
+		//"$AIASM,1783254079,1,1,,2,2,0,666666666,,Ij<=@HL@pcB0d?cFOo4A5<0,2*1A\r\n",
+		//"$AIASM,1783253640,1,1,,2,2,0,666666666,,Ij<=@b6:kDdLDu06hww`0HOw6Os4ww?wTh06f8R:80,4*44\r\n",
 		// 中文短信 DAC = 413, FI = 04
 		//"$AIASM,1782977984,1,1,,1,2,0,666666666,,IlBNC2`TQrE9r?saRjIwc9w43O?=bMtVssgmTSV5Ad>WtI>LHVvsnn0,2*0A\r\n",
 		// 前端提示文字 DAC = 413, FI = 5
@@ -2147,6 +2165,24 @@ int main(void)
 	for (const auto &sen : senteces)
 	{
 		vdesManager.Parse(sen.c_str(), sen.length());
+	}
+
+	auto vdm45 = GenerateDAC_412_FI_45();
+	for (const auto &vdm : vdm45)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	auto vdm32 = GenerateDAC_412_FI_32();
+	for (const auto &vdm : vdm32)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	auto vdm37 = GenerateDAC_412_FI_37();
+	for (const auto &vdm : vdm37)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
 	}
 
 	int a;
@@ -2497,20 +2533,22 @@ int main(void)
 				  << ", Caution: " << (int)towing.cautionCode << std::endl;
 	}
 
-	// --- Net Sounders (FI = 44) ---
+	// --- Net Sounders (FI = 45) ---
 	auto netSounders = vdesManager.GetNetSounders(0, 100);
-	std::cout << "Parsed " << netSounders.size() << " net sounders (FI=44):" << std::endl;
+	std::cout << "Parsed " << netSounders.size() << " net sounders (FI=45):" << std::endl;
 	for (const auto &ns : netSounders)
 	{
 		std::cout << "  MRN: " << ns.MRN
 				  << ", Fragment: " << (int)ns.fragment
 				  << ", Type: " << (int)ns.type
 				  << ", Continous: " << (int)ns.isContinous
-				  << ", Coordinate Count: " << ns.coordinates.size() << std::endl;
-		for (size_t i = 0; i < ns.coordinates.size(); ++i)
+				  << ", Nets Count: " << ns.nets.size()
+				  << ", Description: " << ns.description << std::endl;
+		for (size_t i = 0; i < ns.nets.size(); ++i)
 		{
-			std::cout << "    Pt " << i << ": Lat=" << ns.coordinates[i].GetLatitude()
-					  << ", Lon=" << ns.coordinates[i].GetLongitude() << std::endl;
+			std::cout << "    Net " << i << ": MRN=" << ns.nets[i].MRN
+					  << ", Lat=" << ns.nets[i].latitude
+					  << ", Lon=" << ns.nets[i].longitude << std::endl;
 		}
 	}
 
@@ -2786,9 +2824,67 @@ int main(void)
 	vdesManager.SendInformation(413123456, 412123567, "TEST");*/
 	//instance.EmptyDatabase();
 #endif
-	while (1)
-	{
-		nullptr;
-	}
 #endif
+
+	// Verify NetSounder (FI=45) from database
+	std::cout << "\n=== Verification: Querying Net Sounders (FI=45) from DB ===" << std::endl;
+	auto netSounders = vdesManager.GetNetSounders(0, 100);
+	std::cout << "Parsed and saved Net Sounders count: " << netSounders.size() << std::endl;
+	for (const auto &ns : netSounders)
+	{
+		std::cout << "  MRN (First): " << ns.MRN
+				  << ", Type: " << (int)ns.type
+				  << ", Continuous: " << (int)ns.isContinous
+				  << ", Nets Count: " << ns.nets.size()
+				  << ", Description: " << ns.description << std::endl;
+		for (size_t i = 0; i < ns.nets.size(); ++i)
+		{
+			std::cout << "    Net " << i << ": MRN=" << ns.nets[i].MRN
+					  << ", Lat=" << ns.nets[i].latitude
+					  << ", Lon=" << ns.nets[i].longitude << std::endl;
+		}
+	}
+	std::cout << "=========================================================\n" << std::endl;
+
+	// Verify Tide Forecast (FI=32) from database
+	std::cout << "\n=== Verification: Querying Tide Forecasts (FI=32) from DB ===" << std::endl;
+	auto tides = vdesManager.GetTideForecasts(0, 100);
+	std::cout << "Parsed and saved Tide Forecasts count: " << tides.size() << std::endl;
+	for (const auto &t : tides)
+	{
+		std::cout << "  Hour Publish: " << (int)t.hourPublish
+				  << ", Info Source: " << (int)t.infoSource
+				  << ", Timestamp (Publication): " << t.timestamp
+				  << ", Stations Count: " << t.stations.size() << std::endl;
+		for (size_t i = 0; i < t.stations.size(); ++i)
+		{
+			const auto &station = t.stations[i];
+			std::cout << "    Station " << i << ": Lat=" << station.coordinate.GetLatitude()
+					  << ", Lon=" << station.coordinate.GetLongitude()
+					  << ", Datum=" << station.tidalDatum << " cm"
+					  << ", High Tide: " << station.tideHigh << " cm at " << station.timestampTideHigh
+					  << ", Low Tide: " << station.tideLow << " cm at " << station.timestampTideLow << std::endl;
+		}
+	}
+	std::cout << "===========================================================\n" << std::endl;
+
+	// Verify Maritime Towing (FI=37) from database
+	std::cout << "\n=== Verification: Querying Maritime Towings (FI=37) from DB ===" << std::endl;
+	auto maritimeTowings = vdesManager.GetMaritimeTowings();
+	std::cout << "Parsed and saved Maritime Towings count: " << maritimeTowings.size() << std::endl;
+	for (const auto &t : maritimeTowings)
+	{
+		std::cout << "  MMSI: " << t.mmsi
+				  << ", Towing Method: " << (int)t.towingMethod
+				  << ", Start Coord: Lat: " << t.coordinateStart.GetLatitude() << ", Lon: " << t.coordinateStart.GetLongitude()
+				  << ", End Coord: Lat: " << t.coordinateEnd.GetLatitude() << ", Lon: " << t.coordinateEnd.GetLongitude()
+				  << ", Length: " << t.length << " m, Width: " << (int)t.width << " m"
+				  << ", Speed: " << t.speed << " kn"
+				  << ", Start Time: " << t.timestampStart
+				  << ", End Time: " << t.timestampEnd
+				  << ", Caution: " << (int)t.cautionCode << std::endl;
+	}
+	std::cout << "==============================================================\n" << std::endl;
+
+	return 0;
 }

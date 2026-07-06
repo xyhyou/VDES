@@ -1,4 +1,4 @@
-#ifndef VDES_DTD_H_
+﻿#ifndef VDES_DTD_H_
 #define VDES_DTD_H_
 
 #include "Coordinate.h"
@@ -356,6 +356,7 @@ namespace VDES
         uint32_t   mmsi = 0;               // 被拖带船舶 MMSI
         Coordinate coordinateStart;        // 起始经纬度
         Coordinate coordinateEnd;          // 终止经纬度
+        uint8_t    towingMethod   = 0;     // 拖带方式
         uint32_t   length         = 0;     // 总长 (m)
         uint8_t    width          = 0;     // 总宽 (m)
         double     speed          = 0.0;   // 航速 (kn)
@@ -789,12 +790,19 @@ namespace VDES
 
     struct NetSounder : ASMAttribute
     {
-        uint32_t MRN;
-        uint8_t  fragment;
-        uint8_t  type;
-        bool     isContinous;
+        struct NetInfo
+        {
+            uint32_t MRN = 0;
+            double   latitude = 0.0;
+            double   longitude = 0.0;
+        };
 
-        std::vector<Coordinate> coordinates;
+        uint32_t             MRN = 0;
+        uint8_t              fragment = 0;
+        uint8_t              type = 0;
+        bool                 isContinous = 0;
+        std::vector<NetInfo> nets;
+        std::string          description;
     };
 
     /**
@@ -879,11 +887,11 @@ namespace VDES
         struct TideStation
         {
             Coordinate coordinate;
-            double     tidalDatum        = 0.0;
-            double     tideHigh          = 0.0;
-            uint64_t   timestampTideHigh = 0;
-            double     tideLow           = 0.0;
-            uint64_t   timestampTideLow  = 0;
+            uint16_t   tidalDatum        = 0;   // 9 bits, resolution: 1cm, base: -500cm
+            uint16_t   tideHigh          = 0;   // 10 bits, resolution: 1cm, base: -100cm
+            uint64_t   timestampTideHigh = 0;   // 16 bits
+            uint16_t   tideLow           = 0;   // 9 bits, resolution: 1cm, base: -100cm
+            uint64_t   timestampTideLow  = 0;   // 16 bits
         };
 
         uint8_t                  hourPublish = 24;

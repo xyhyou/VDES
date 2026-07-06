@@ -1,4 +1,4 @@
-#ifndef ASM_DTD_H_
+﻿#ifndef ASM_DTD_H_
 #define ASM_DTD_H_
 
 #include <vector>
@@ -528,6 +528,7 @@ namespace VDES
         uint32_t   mmsi = 0;
         Coordinate node1;
         Coordinate node2;
+        uint8_t    towingMethod = 0;
         uint32_t   length = 0;
         uint8_t    width = 0;
         double     speed = 0.0;
@@ -639,13 +640,19 @@ namespace VDES
     /**
      * @brief : Net Sounder
      */
-    struct ASM_DAC_412_FI_44 : ASM_DAC_FI
+    struct ASM_DAC_412_FI_45 : ASM_DAC_FI
     {
-        uint32_t                MRN         = 0;
-        uint8_t                 fragment    = 0;
-        uint8_t                 type        = 0;
-        bool                    isContinous = 0;
-        std::vector<Coordinate> coordinates;
+        struct NetInfo
+        {
+            uint32_t   MRN = 0;
+            Coordinate coordinate;
+        };
+
+        uint8_t              fragment    = 0;
+        uint8_t              type        = 0;
+        bool                 isContinous = 0;
+        std::vector<NetInfo> nets;
+        std::string          description;
     };
 
     /**

@@ -1,4 +1,4 @@
-#include "ASMManager.h"
+﻿#include "ASMManager.h"
 
 #include <map>
 #include <cstdlib>
@@ -59,7 +59,7 @@ namespace VDES
 
         void ParseASMDAC412FI41(const AISBitsManager &manager);
 
-        void ParseASMDAC412FI44(const AISBitsManager &manager);
+        void ParseASMDAC412FI45(const AISBitsManager &manager);
 
         void ParseASMDAC412FI37(const AISBitsManager &manager);
 
@@ -139,7 +139,7 @@ namespace VDES
 
         m_asmParserMap.insert(std::make_pair(41241, std::bind(&Impl::ParseASMDAC412FI41, this, std::placeholders::_1)));
 
-        m_asmParserMap.insert(std::make_pair(41244, std::bind(&Impl::ParseASMDAC412FI44, this, std::placeholders::_1)));
+        m_asmParserMap.insert(std::make_pair(41245, std::bind(&Impl::ParseASMDAC412FI45, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41237, std::bind(&Impl::ParseASMDAC412FI37, this, std::placeholders::_1)));
 
@@ -868,12 +868,13 @@ namespace VDES
         latitude = UtilityInterface::ConvertComplementCodeToInteger(value, 21);
         asmInfo.node2.SetLatitude(latitude / 6000.0);
 
-        asmInfo.length = manager.DecodeToNumerical(151, 12);
-        asmInfo.width = static_cast<uint8_t>(manager.DecodeToNumerical(163, 7));
-        asmInfo.speed = manager.DecodeToNumerical(170, 8) / 10.0;
-        asmInfo.timestampStart = DecodeTime(manager, 178, 20);
-        asmInfo.timestampEnd = DecodeTime(manager, 198, 20);
-        asmInfo.cautionCode = static_cast<uint8_t>(manager.DecodeToNumerical(218, 4));
+        asmInfo.towingMethod = static_cast<uint8_t>(manager.DecodeToNumerical(151, 2));
+        asmInfo.length = manager.DecodeToNumerical(153, 12);
+        asmInfo.width = static_cast<uint8_t>(manager.DecodeToNumerical(165, 7));
+        asmInfo.speed = manager.DecodeToNumerical(172, 8) / 10.0;
+        asmInfo.timestampStart = DecodeTime(manager, 180, 20);
+        asmInfo.timestampEnd = DecodeTime(manager, 200, 20);
+        asmInfo.cautionCode = static_cast<uint8_t>(manager.DecodeToNumerical(220, 4));
         
         m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_37>(asmInfo));
     }
@@ -1427,64 +1428,62 @@ namespace VDES
         m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_41>(asmInfo));
     }
 
-    void ASMManager::Impl::ParseASMDAC412FI44(const AISBitsManager &manager)
+    void ASMManager::Impl::ParseASMDAC412FI45(const AISBitsManager &manager)
     {
-        ASM_DAC_412_FI_44 asmInfo;
-        Coordinate coordinate;
+        if (manager.GetBitsNumberToDecode() < 90)
+        {
+            SPDLOG_WARN("Payload too short for DAC 412 FI 45: {} bits", manager.GetBitsNumberToDecode());
+            return;
+        }
 
+        ASM_DAC_412_FI_45 asmInfo;
         asmInfo.DAC = 412;
-        asmInfo.FI = 44;
+        asmInfo.FI = 45;
 
-        asmInfo.MRN = manager.DecodeToNumerical(16, 17);
-        asmInfo.fragment = static_cast<uint8_t>(manager.DecodeToNumerical(33, 2));
-        asmInfo.type = static_cast<uint8_t>(manager.DecodeToNumerical(35, 4));
-        asmInfo.isContinous = manager.DecodeToNumerical(39, 1);
+        asmInfo.type = static_cast<uint8_t>(manager.DecodeToNumerical(16, 4));
+        asmInfo.isContinous = manager.DecodeToNumerical(20, 1) != 0;
 
-        // obtain the first and second coordinate
-        auto value = manager.DecodeToNumerical(40, 28);
-        value = UtilityInterface::ConvertComplementCodeToInteger(value, 28);
-        coordinate.SetLongitude(value / 600000.0);
+        auto index = 21;
 
-        value = manager.DecodeToNumerical(68, 27);
-        value = UtilityInterface::ConvertComplementCodeToInteger(value, 27);
-        coordinate.SetLatitude(value / 600000.0);
+        // Decode first point
+        ASM_DAC_412_FI_45::NetInfo firstNet;
+        firstNet.MRN = static_cast<uint32_t>(manager.DecodeToNumerical(index, 20));
 
-        asmInfo.coordinates.push_back(coordinate);
+        auto value = manager.DecodeToNumerical(index + 20, 25);
+        value = UtilityInterface::ConvertComplementCodeToInteger(value, 25);
+        firstNet.coordinate.SetLongitude(value / 60000.0);
 
-		auto &coordinatePrev = asmInfo.coordinates.back();
-        value = manager.DecodeToNumerical(95, 14);
-        value = UtilityInterface::ConvertComplementCodeToInteger(value, 14);
-        auto longitude = value / 60000.0 + coordinatePrev.GetLongitude();
-        coordinate.SetLongitude(longitude);
+        value = manager.DecodeToNumerical(index + 45, 24);
+        value = UtilityInterface::ConvertComplementCodeToInteger(value, 24);
+        firstNet.coordinate.SetLatitude(value / 60000.0);
 
-        value = manager.DecodeToNumerical(109, 13);
-        value = UtilityInterface::ConvertComplementCodeToInteger(value, 13);
-		auto latitude = value / 60000.0 + coordinatePrev.GetLatitude();
-        coordinate.SetLatitude(latitude);
+        asmInfo.nets.push_back(firstNet);
 
-        asmInfo.coordinates.push_back(coordinate);
-
-        auto index = 122;
-
-        auto surplusCoordinateNum = (manager.GetBitsNumberToDecode() - index) / 25;
+        index = 90;
+        auto surplusCoordinateNum = (manager.GetBitsNumberToDecode() - index) / 49;
 
         for (auto i = 0U; i < surplusCoordinateNum; i++)
         {
-            auto &coordinatePrev = asmInfo.coordinates.back();
-            value = manager.DecodeToNumerical(index, 13);
-            value = UtilityInterface::ConvertComplementCodeToInteger(value, 13);
-			longitude = value / 60000.0 + coordinatePrev.GetLongitude();
-            coordinate.SetLongitude(longitude);
+            auto &netPrev = asmInfo.nets.back();
+            ASM_DAC_412_FI_45::NetInfo net;
 
-            value = manager.DecodeToNumerical(index + 13, 12);
-            value = UtilityInterface::ConvertComplementCodeToInteger(value, 12);
-			latitude = value / 60000.0 + coordinatePrev.GetLatitude();
-            coordinate.SetLatitude(latitude);
+            net.MRN = static_cast<uint32_t>(manager.DecodeToNumerical(index, 20));
 
-            asmInfo.coordinates.push_back(coordinate);
-            index += 25;
+            value = manager.DecodeToNumerical(index + 20, 15);
+            value = UtilityInterface::ConvertComplementCodeToInteger(value, 15);
+            auto longitude = value / 60000.0 + netPrev.coordinate.GetLongitude();
+            net.coordinate.SetLongitude(longitude);
+
+            value = manager.DecodeToNumerical(index + 35, 14);
+            value = UtilityInterface::ConvertComplementCodeToInteger(value, 14);
+            auto latitude = value / 60000.0 + netPrev.coordinate.GetLatitude();
+            net.coordinate.SetLatitude(latitude);
+
+            asmInfo.nets.push_back(net);
+            index += 49;
         }
-        m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_44>(asmInfo));
+
+        m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_45>(asmInfo));
     }
 
     void ASMManager::Impl::ParseASMDAC412FI42(const AISBitsManager &manager)
