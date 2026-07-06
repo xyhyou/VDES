@@ -437,7 +437,7 @@ static void GenerateDAC_412_FI_29(void)
 }
 
 
-static void GenerateDAC_412_FI_30(void)
+static std::vector<std::string> GenerateDAC_412_FI_30(void)
 {
 	VDES::AISBitsManager bitsManager;
 	// Message ID
@@ -486,11 +486,15 @@ static void GenerateDAC_412_FI_30(void)
 	auto spareBits = 8 - (bitsNum % 8);
 	bitsManager.Encode(0, spareBits);
 	auto vdms = bitsManager.BuildPacket();
+	std::vector<std::string> results;
 	for (auto &vdm : vdms)
 	{
+		auto sentence = vdm + "\r\n";
+		results.push_back(sentence);
 		SPDLOG_DEBUG("VDM = {}", vdm);
-		std::cout << "GEN VDM (FI=30 along shore): " << vdm << std::endl;
+		std::cout << "GEN VDM (FI=30 along shore): " << sentence;
 	}
+	return results;
 }
 
 // 潮汐
@@ -2185,6 +2189,12 @@ int main(void)
 		vdesManager.Parse(vdm.c_str(), vdm.length());
 	}
 
+	auto vdm30 = GenerateDAC_412_FI_30();
+	for (const auto &vdm : vdm30)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
 	int a;
 	a = 10;
 #if 0
@@ -2885,6 +2895,31 @@ int main(void)
 				  << ", Caution: " << (int)t.cautionCode << std::endl;
 	}
 	std::cout << "==============================================================\n" << std::endl;
+
+	// Verify Alongshore Forecast (FI=30) and deletion from database
+	std::cout << "\n=== Verification: Querying Alongshore Forecasts (FI=30) from DB ===" << std::endl;
+	auto alongshoresBefore = vdesManager.GetMarineEnvironmentFCSTAlongshores(0, 100);
+	std::cout << "Initial Alongshore Forecasts count: " << alongshoresBefore.size() << std::endl;
+	std::vector<uint32_t> idsToDelete;
+	for (const auto &a : alongshoresBefore)
+	{
+		std::cout << "  Area Code: " << (int)a.areaCode
+				  << ", Temp Low: " << a.temperatureLow << " C"
+				  << ", Temp High: " << (int)a.temperatureHigh << " C"
+				  << ", dataID: " << a.dataID << std::endl;
+		idsToDelete.push_back(a.dataID);
+	}
+
+	if (!idsToDelete.empty())
+	{
+		std::cout << "\n--- Testing DeleteMarineEnvironmentFCSTAlongshores by IDs ---" << std::endl;
+		bool success = vdesManager.DeleteMarineEnvironmentFCSTAlongshores(idsToDelete);
+		std::cout << "Deletion result: " << (success ? "SUCCESS" : "FAILED") << std::endl;
+
+		auto alongshoresAfter = vdesManager.GetMarineEnvironmentFCSTAlongshores(0, 100);
+		std::cout << "Post-deletion Alongshore Forecasts count: " << alongshoresAfter.size() << std::endl;
+	}
+	std::cout << "==================================================================\n" << std::endl;
 
 	return 0;
 }

@@ -4343,6 +4343,7 @@ namespace VDES
     void VDESManager::Impl::LoadMarineEnvironmentFCSTAlongshoreFromQueryResult(MarineEnvironmentFCSTAlongshore &area, const SQLite::Statement &query)
     {
         area.areaCode = static_cast<uint8_t>(query.getColumn("Area Code").getInt());
+        area.dataID = area.areaCode;
         area.temperatureLow = static_cast<uint16_t>(query.getColumn("Temperature Low").getInt());
         area.temperatureHigh = static_cast<uint8_t>(query.getColumn("Temperature High").getInt());
         area.waveHeightLow = static_cast<uint8_t>(query.getColumn("Wave Height Low").getInt());
@@ -9823,6 +9824,50 @@ namespace VDES
             }
         }
         return container;
+    }
+
+    bool VDESManager::DeleteMarineEnvironmentFCSTAlongshores(const uint32_t index, const size_t number)
+    {
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexMarineEnvironmentFCSTAlongshore);
+
+                m_impl->m_database->exec("DROP VIEW IF EXISTS AlongshoreDataIDView");
+
+                auto sqlCmd = fmt::format("CREATE VIEW AlongshoreDataIDView AS SELECT [Area Code] FROM MarineEnvironmentFCSTAlongshore ORDER BY "
+                                          "[Timestamp Forecast] DESC LIMIT {} OFFSET {}", number, index);
+                m_impl->m_database->exec(sqlCmd);
+                m_impl->m_database->exec("DELETE FROM MarineEnvironmentFCSTAlongshore WHERE [Area Code] IN AlongshoreDataIDView");
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteMarineEnvironmentFCSTAlongshores");
+            }
+        }
+        return false;
+    }
+
+    bool VDESManager::DeleteMarineEnvironmentFCSTAlongshores(const std::vector<uint32_t> &dataIDs)
+    {
+        if (m_impl->m_database && !dataIDs.empty())
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexMarineEnvironmentFCSTAlongshore);
+
+                auto sqlCmd = fmt::format("DELETE FROM MarineEnvironmentFCSTAlongshore WHERE [Area Code] IN ({})", fmt::join(dataIDs, ", "));
+                m_impl->m_database->exec(sqlCmd);
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteMarineEnvironmentFCSTAlongshores");
+            }
+        }
+        return false;
     }
 
     VDESManager::Bridges VDESManager::GetBridges(const uint32_t index, const size_t number)

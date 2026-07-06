@@ -1,4 +1,4 @@
-#ifndef VDES_H_
+﻿#ifndef VDES_H_
 #define VDES_H_
 
 #include "VDESDTD.h"
@@ -918,6 +918,25 @@ namespace VDES
         using MarineEnvironmentFCSTAlongshores = std::vector<MarineEnvironmentFCSTAlongshore>;
 
         MarineEnvironmentFCSTAlongshores GetMarineEnvironmentFCSTAlongshores(const uint32_t index = 0, const size_t number = -1);
+
+        /*
+        * @brief      Delete the marine environment alongshore forecast information
+        * @param[in]  index   -  the starting position to be deleted
+        * @param[in]  number  -  the maximum number information to be deleted
+        * @param[out] none
+        * @return     true if delete successfully, otherwise false
+        * @note       if the number is -1, delete all forecast after the starting 
+        *             position of index           
+        */
+        bool DeleteMarineEnvironmentFCSTAlongshores(const uint32_t index = 0, const size_t number = -1);
+
+        /*
+        * @brief      Delete the marine environment alongshore forecast information
+        * @param[in]  dataIDs  -  collection of dataIDs to be deleted
+        * @param[out] none
+        * @return     true if delete successfully, otherwise false
+        */
+        bool DeleteMarineEnvironmentFCSTAlongshores(const std::vector<uint32_t> &dataIDs);
 
 
         /***********************************************************************
