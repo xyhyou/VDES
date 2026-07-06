@@ -183,12 +183,14 @@ namespace VDES
         */
         bool SendRouteRecommendationRequest(const RouteRecommendationRequest &request);
 
-        /*
-        * @brief      Send Hydrometeorological Request
-        * @param[in]  request - the hydrometeorological request DTO
-        * @return     true if validation passes and sentence is dispatched, false otherwise
-        */
         bool SendHydrometeorologyRequest(const HydrometeorologyRequest &request);
+
+        /*
+        * @brief      Send Net Sounder Information to Shore Station
+        * @param[in]  netSounder - the net sounder information DTO containing type, continuity, and coordinates.
+        * @return     true if validation passes and the NMEA sentence is successfully built and dispatched, false otherwise
+        */
+        bool SendNetSounder(const NetSounder &netSounder);
 
         /***********************************************************************
         * AtoN

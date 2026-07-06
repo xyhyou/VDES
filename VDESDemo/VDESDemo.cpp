@@ -2921,5 +2921,67 @@ int main(void)
 	}
 	std::cout << "==================================================================\n" << std::endl;
 
+	// Verify SendNetSounder (FI=45) active broadcast
+	std::cout << "\n=== Verification: Sending Net Sounder Broadcast (FI=45) ===" << std::endl;
+	
+	// Temporarily capture sendEvent output
+	std::string capturedNMEA;
+	auto handle = vdesManager.sendEvent.append([&](const VDES::CommunicationType type, const char *data, size_t size) {
+		std::string sentence(data, size);
+		if (sentence.find("AAB") != std::string::npos) {
+			capturedNMEA = sentence;
+		}
+	});
+
+	VDES::NetSounder ownNetSounder;
+	ownNetSounder.MRN = 999991;
+	ownNetSounder.fragment = 0;
+	ownNetSounder.type = 3;
+	ownNetSounder.isContinous = true;
+	ownNetSounder.timestamp = VDES::UtilityInterface::GetCurrentTimeStamp();
+	ownNetSounder.description = "Vessel own active net sounder";
+
+	VDES::NetSounder::NetInfo net1;
+	net1.MRN = 999991;
+	net1.latitude = 24.4186;
+	net1.longitude = 118.54;
+	ownNetSounder.nets.push_back(net1);
+
+	VDES::NetSounder::NetInfo net2;
+	net2.MRN = 999992;
+	net2.latitude = 24.4786;
+	net2.longitude = 118.66;
+	ownNetSounder.nets.push_back(net2);
+
+	bool sendSuccess = vdesManager.SendNetSounder(ownNetSounder);
+	std::cout << "SendNetSounder result: " << (sendSuccess ? "SUCCESS" : "FAILED") << std::endl;
+	if (sendSuccess) {
+		std::cout << "Captured Broadcast NMEA: " << capturedNMEA;
+	}
+
+	// Verify database persistence
+	auto dbNets = vdesManager.GetNetSounders(0, 100);
+	bool found = false;
+	for (const auto &n : dbNets) {
+		if (n.MRN == 999991) {
+			found = true;
+			std::cout << "Persisted Net Sounder found in DB. MRN: " << n.MRN 
+					  << ", Type: " << (int)n.type 
+					  << ", Continuous: " << n.isContinous 
+					  << ", IsOwnShip: " << n.isOwn 
+					  << ", Nets count: " << n.nets.size() 
+					  << ", Desc: " << n.description << std::endl;
+			for (size_t i = 0; i < n.nets.size(); ++i) {
+				std::cout << "    Net " << i << ": MRN=" << n.nets[i].MRN 
+						  << ", Lat=" << n.nets[i].latitude 
+						  << ", Lon=" << n.nets[i].longitude << std::endl;
+			}
+		}
+	}
+	if (!found) {
+		std::cout << "ERROR: Persisted Net Sounder NOT found in database!" << std::endl;
+	}
+	std::cout << "==========================================================\n" << std::endl;
+
 	return 0;
 }

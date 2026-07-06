@@ -1,5 +1,6 @@
 ﻿#include "VDES.h"
 
+#include <cmath>
 #include <map>
 #include <array>
 #include <mutex>
@@ -1178,12 +1179,18 @@ namespace VDES
                 "IsContinous INT, "
                 "Coordinates BLOB, "
                 "[Timestamp Receive] INTEGER, "
-                "[Description] TEXT"
+                "[Description] TEXT, "
+                "[IsOwnShip] INTEGER NOT NULL DEFAULT 0"
                 ")");
 
             if (m_database && !m_database->fieldExists("[Description]", "NetSounder"))
             {
                 m_database->exec("ALTER TABLE NetSounder ADD [Description] TEXT");
+            }
+
+            if (m_database && !m_database->fieldExists("[IsOwnShip]", "NetSounder"))
+            {
+                m_database->exec("ALTER TABLE NetSounder ADD [IsOwnShip] INTEGER NOT NULL DEFAULT 0");
             }
         }
         catch (const SQLite::Exception &execption)
@@ -3050,6 +3057,15 @@ namespace VDES
             netSounder.description = "";
         }
 
+        try
+        {
+            netSounder.isOwn = query.getColumn("IsOwnShip").getUInt() != 0;
+        }
+        catch (...)
+        {
+            netSounder.isOwn = false;
+        }
+
         SQLite::Column column = query.getColumn("Coordinates");
         auto size = column.getBytes();
         if (size > 0)
@@ -3858,8 +3874,8 @@ namespace VDES
         {
             try
             {
-                auto sql = "INSERT INTO NetSounder (MRN, Fragment, Type, IsContinous, Coordinates, [Timestamp Receive], [Description]) "
-                           "VALUES (@MRN, @Fragment, @Type, @IsContinous, @Coordinates, @TimestampRcv, @Description)";
+                auto sql = "INSERT INTO NetSounder (MRN, Fragment, Type, IsContinous, Coordinates, [Timestamp Receive], [Description], [IsOwnShip]) "
+                           "VALUES (@MRN, @Fragment, @Type, @IsContinous, @Coordinates, @TimestampRcv, @Description, @IsOwnShip)";
                 auto stmt = m_database->buildStatement(sql);
 
                 stmt.bind("@MRN", netSounder.MRN);
@@ -3879,6 +3895,7 @@ namespace VDES
                 stmt.bind("@Coordinates", blob.get(), static_cast<int>(size));
                 stmt.bind("@TimestampRcv", netSounder.timestamp);
                 stmt.bind("@Description", netSounder.description);
+                stmt.bind("@IsOwnShip", netSounder.isOwn ? 1 : 0);
 
                 stmt.exec();
             }
@@ -10973,6 +10990,87 @@ namespace VDES
         nmea += "\r\n";
 
         m_impl->SaveHydrometeorologyRequest(request, seqNo);
+
+        sendEvent(CommunicationType::TCP, nmea.c_str(), nmea.length());
+
+        return true;
+    }
+
+    bool VDESManager::SendNetSounder(const NetSounder &netSounder)
+    {
+        if (netSounder.nets.empty())
+        {
+            return false;
+        }
+
+        for (const auto &net : netSounder.nets)
+        {
+            if (net.longitude < -180.0 || net.longitude > 180.0 || net.latitude < -90.0 || net.latitude > 90.0)
+            {
+                return false;
+            }
+        }
+
+        AISBitsManager aisBitsManager;
+        // DAC (10 bits) = 412
+        aisBitsManager.Encode(412, 10);
+        // FI (6 bits) = 45
+        aisBitsManager.Encode(45, 6);
+
+        // type (4 bits)
+        aisBitsManager.Encode(netSounder.type & 0xF, 4);
+        // isContinous (1 bit)
+        aisBitsManager.Encode(netSounder.isContinous ? 1 : 0, 1);
+
+        // First point: MRN (20 bits), Longitude (25 bits), Latitude (24 bits)
+        const auto &firstNet = netSounder.nets[0];
+        aisBitsManager.Encode(firstNet.MRN & 0xFFFFF, 20);
+
+        int32_t firstLon = static_cast<int32_t>(::round(firstNet.longitude * 60000.0));
+        int32_t firstLat = static_cast<int32_t>(::round(firstNet.latitude * 60000.0));
+        aisBitsManager.Encode(UtilityInterface::ConvertIntegerToComplementCode(firstLon, 25), 25);
+        aisBitsManager.Encode(UtilityInterface::ConvertIntegerToComplementCode(firstLat, 24), 24);
+
+        // Subsequent points: MRN (20 bits), Longitude delta (15 bits), Latitude delta (14 bits)
+        for (size_t i = 1; i < netSounder.nets.size(); ++i)
+        {
+            const auto &net = netSounder.nets[i];
+            const auto &prevNet = netSounder.nets[i - 1];
+
+            aisBitsManager.Encode(net.MRN & 0xFFFFF, 20);
+
+            double diffLon = net.longitude - prevNet.longitude;
+            double diffLat = net.latitude - prevNet.latitude;
+
+            int32_t deltaLon = static_cast<int32_t>(::round(diffLon * 60000.0));
+            int32_t deltaLat = static_cast<int32_t>(::round(diffLat * 60000.0));
+
+            aisBitsManager.Encode(UtilityInterface::ConvertIntegerToComplementCode(deltaLon, 15), 15);
+            aisBitsManager.Encode(UtilityInterface::ConvertIntegerToComplementCode(deltaLat, 14), 14);
+        }
+
+        m_impl->m_sequenceNoAAB = (m_impl->m_sequenceNoAAB + 1) % 10;
+        uint32_t seqNo = m_impl->m_sequenceNoAAB;
+
+        auto payload = aisBitsManager.GetEncodedVDMPayload();
+        auto fillBits = aisBitsManager.GetFillBitsNumberToEncode();
+
+        // Broadcast to China Shore Station (MMSI 004129999) using AAB sentence
+        std::string nmea = fmt::format("!AIAAB,1,1,{0},0,,004129999,,{1},{2},{3}", seqNo, 0, payload, fillBits);
+        UtilityInterface::AddChecksum(nmea);
+        nmea += "\r\n";
+
+        NetSounder netToSave = netSounder;
+        netToSave.isOwn = true;
+        if (netToSave.timestamp == 0)
+        {
+            netToSave.timestamp = UtilityInterface::GetCurrentTimeStamp();
+        }
+
+        {
+            std::unique_lock<std::mutex> lock(m_impl->m_mutexNetSounder);
+            m_impl->SaveNetSounder(netToSave);
+        }
 
         sendEvent(CommunicationType::TCP, nmea.c_str(), nmea.length());
 

@@ -804,6 +804,7 @@ namespace VDES
         bool                 isContinous = 0;
         std::vector<NetInfo> nets;
         std::string          description;
+        bool                 isOwn = false;
     };
 
     /**
