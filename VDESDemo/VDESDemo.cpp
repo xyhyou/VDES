@@ -1845,7 +1845,7 @@ int main(void)
 				  << ", GeometryType: " << (int)obs.geometryType
 				  << ", Lat: " << obs.coordinate.GetLatitude()
 				  << ", Lon: " << obs.coordinate.GetLongitude()
-				  << ", Range/Radius: " << obs.range << std::endl;
+				  << ", Range/Radius: " << (int)obs.range << std::endl;
 		if (obs.geometryType == 1)
 		{
 			std::cout << "    Sector Angles: Start=" << obs.sectorStartAngle
@@ -2410,7 +2410,7 @@ int main(void)
 				  << ", GeometryType: " << (int)obs.geometryType
 				  << ", Longitude: " << obs.coordinate.GetLongitude()
 				  << ", Latitude: " << obs.coordinate.GetLatitude()
-				  << ", Range: " << obs.range
+				  << ", Range: " << (int)obs.range
 				  << ", Comment: " << (int)obs.comment
 				  << ", Start: " << obs.timestampStart
 				  << ", End: " << obs.timestampEnd << std::endl;

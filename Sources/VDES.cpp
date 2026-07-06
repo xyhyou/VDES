@@ -2784,7 +2784,7 @@ namespace VDES
         obstacle.type = static_cast<uint8_t>(query.getColumn("Type").getInt());
         obstacle.coordinate.SetLatitude(query.getColumn("Latitude").getDouble());
         obstacle.coordinate.SetLongitude(query.getColumn("Longitude").getDouble());
-        obstacle.range = query.getColumn("Range").getDouble();
+        obstacle.range = static_cast<uint8_t>(query.getColumn("Range").getInt());
         obstacle.timestampStart = query.getColumn("Timestamp Start").getInt64();
         obstacle.timestampEnd = query.getColumn("Timestamp End").getInt64();
         obstacle.comment = static_cast<uint8_t>(query.getColumn("Comment").getInt());
@@ -5014,7 +5014,7 @@ namespace VDES
         obstacle.type = static_cast<uint8_t>(manager.DecodeToNumerical(35, 4));
         obstacle.coordinate.SetLongitude(DecodeCoordinate(manager, 39, 28));
         obstacle.coordinate.SetLatitude(DecodeCoordinate(manager, 67, 27));
-        obstacle.range = manager.DecodeToNumerical(94, 7) / 10.0;
+        obstacle.range = static_cast<uint8_t>(manager.DecodeToNumerical(94, 7));
         obstacle.timestampStart = DecodeTime(manager, 101, 20);
         obstacle.timestampEnd = DecodeTime(manager, 121, 20);
         obstacle.comment = static_cast<uint8_t>(manager.DecodeToNumerical(141, 3));
@@ -5623,7 +5623,7 @@ namespace VDES
                     }
                     else if (info->geometryType == 2 || info->geometryType == 3)
                     {
-                        obstacle.range = 0.0;
+                        obstacle.range = 0;
                         for (const auto &pt : info->polygon)
                         {
                             obstacle.polygon.push_back(pt);

@@ -234,17 +234,18 @@ namespace VDES
 
         Coordinate coordinate;
 
-        /*
-        * Radius of impact of obstacle.
-        * value range: [0 - 12.7]nm
-        */
-        double range = 0.0F;
+        /** 
+         * Radius of impact of obstacle.
+         * Raw value range: [0 - 127], representing radius in units of 100m,
+         * where 127 indicates vicinity, 0 indicates default/invalid.
+         */
+        uint8_t range = 0;
 
-        /*
-        * value range : [0 - 7]
-        * 0 = not available
-        * 4 - 7 = reserved
-        */
+        /** 
+         * value range : [0 - 7]
+         * 0 = not available
+         * 4 - 7 = reserved
+         */
         uint8_t comment = 0;
 
         uint64_t timestampStart = 0;
