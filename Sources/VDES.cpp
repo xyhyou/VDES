@@ -11018,6 +11018,50 @@ namespace VDES
         return container;
     }
 
+    bool VDESManager::DeleteMarineMeteorologyFCSTAreas(const uint32_t index, const size_t number)
+    {
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexMarineMeteorologyFCSTArea);
+
+                m_impl->m_database->exec("DROP VIEW IF EXISTS MeteorologyAreaDataIDView");
+
+                auto sqlCmd = fmt::format("CREATE VIEW MeteorologyAreaDataIDView AS SELECT [Area Code] FROM MarineMeteorologyFCSTArea ORDER BY "
+                                          "[Timestamp Forecast] DESC LIMIT {} OFFSET {}", number, index);
+                m_impl->m_database->exec(sqlCmd);
+                m_impl->m_database->exec("DELETE FROM MarineMeteorologyFCSTArea WHERE [Area Code] IN MeteorologyAreaDataIDView");
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteMarineMeteorologyFCSTAreas");
+            }
+        }
+        return false;
+    }
+
+    bool VDESManager::DeleteMarineMeteorologyFCSTAreas(const std::vector<uint32_t> &dataIDs)
+    {
+        if (m_impl->m_database && !dataIDs.empty())
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexMarineMeteorologyFCSTArea);
+
+                auto sqlCmd = fmt::format("DELETE FROM MarineMeteorologyFCSTArea WHERE [Area Code] IN ({})", fmt::join(dataIDs, ", "));
+                m_impl->m_database->exec(sqlCmd);
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteMarineMeteorologyFCSTAreas");
+            }
+        }
+        return false;
+    }
+
     VDESManager::MarineEnvironmentFCSTAreas VDESManager::GetMarineEnvironmentFCSTAreas(const uint32_t index, const size_t number)
     {
         MarineEnvironmentFCSTAreas container;
@@ -11046,6 +11090,50 @@ namespace VDES
             }
         }
         return container;
+    }
+
+    bool VDESManager::DeleteMarineEnvironmentFCSTAreas(const uint32_t index, const size_t number)
+    {
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexMarineEnvironmentFCSTArea);
+
+                m_impl->m_database->exec("DROP VIEW IF EXISTS EnvironmentAreaDataIDView");
+
+                auto sqlCmd = fmt::format("CREATE VIEW EnvironmentAreaDataIDView AS SELECT [Area Code] FROM MarineEnvironmentFCSTArea ORDER BY "
+                                          "[Timestamp Forecast] DESC LIMIT {} OFFSET {}", number, index);
+                m_impl->m_database->exec(sqlCmd);
+                m_impl->m_database->exec("DELETE FROM MarineEnvironmentFCSTArea WHERE [Area Code] IN EnvironmentAreaDataIDView");
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteMarineEnvironmentFCSTAreas");
+            }
+        }
+        return false;
+    }
+
+    bool VDESManager::DeleteMarineEnvironmentFCSTAreas(const std::vector<uint32_t> &dataIDs)
+    {
+        if (m_impl->m_database && !dataIDs.empty())
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexMarineEnvironmentFCSTArea);
+
+                auto sqlCmd = fmt::format("DELETE FROM MarineEnvironmentFCSTArea WHERE [Area Code] IN ({})", fmt::join(dataIDs, ", "));
+                m_impl->m_database->exec(sqlCmd);
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteMarineEnvironmentFCSTAreas");
+            }
+        }
+        return false;
     }
 
     VDESManager::MarineEnvironmentFCSTAlongshores VDESManager::GetMarineEnvironmentFCSTAlongshores(const uint32_t index, const size_t number)

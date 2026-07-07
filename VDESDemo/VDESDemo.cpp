@@ -288,6 +288,50 @@ static void GenerateDAC_412_FI_26(void)
 	}
 }
 
+// 海洋气象预报 (海区，带参数)
+static std::vector<std::string> GenerateDAC_412_FI_27_WithArea(uint8_t areaCode)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID
+	bitsManager.Encode(8, 6);
+	// Repeat indicator
+	bitsManager.Encode(0, 2);
+	// Source ID
+	bitsManager.Encode(4123001, 30);
+	// Spare
+	bitsManager.Encode(0, 2);
+	// DAC
+	bitsManager.Encode(412, 10);
+	// FI	
+	bitsManager.Encode(27, 6);
+
+	// 发布时间
+	bitsManager.Encode(21, 5);
+	// 预报时间
+	bitsManager.Encode(1, 7);
+
+	// 海区
+	bitsManager.Encode(areaCode, 7);
+	// 天气现象
+	bitsManager.Encode(4, 5);
+	// 风向
+	bitsManager.Encode(150, 9);
+	// 风力级低值 
+	bitsManager.Encode(8, 5);
+	// 风力级高值
+	bitsManager.Encode(12, 5);
+	// 能见度
+	bitsManager.Encode(10, 5);
+
+	// 信息来源
+	bitsManager.Encode(2, 3);
+	auto bitsNum = bitsManager.GetBitsNumberToDecode();
+	auto spareBits = 8 - (bitsNum % 8);
+	bitsManager.Encode(0, spareBits);
+	return bitsManager.BuildPacket();
+}
+
 // 海洋气象预报 (海区)
 static void GenerateDAC_412_FI_27(void)
 {
@@ -382,6 +426,56 @@ static void GenerateDAC_412_FI_28(void)
 	{
 		SPDLOG_DEBUG("VDM = {}", vdm);
 	}
+}
+
+// 海洋环境预报 (海区，带参数)
+static std::vector<std::string> GenerateDAC_412_FI_29_WithArea(uint8_t areaCode)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID
+	bitsManager.Encode(8, 6);
+	// Repeat indicator
+	bitsManager.Encode(0, 2);
+	// Source ID
+	bitsManager.Encode(4123001, 30);
+	// Spare
+	bitsManager.Encode(0, 2);
+
+	// DAC
+	bitsManager.Encode(412, 10);
+	// FI	
+	bitsManager.Encode(29, 6);
+	// 发布时间
+	bitsManager.Encode(22, 5);
+	// 预报时间
+	bitsManager.Encode(1, 7);
+
+	// 海区
+	bitsManager.Encode(areaCode, 5);
+	// 海温低值
+	bitsManager.Encode(30, 9);
+	// 海温高值
+	bitsManager.Encode(10, 8);
+	// 流向平均
+	bitsManager.Encode(150, 9);
+	// 流向最大
+	bitsManager.Encode(225, 9);
+	// 流速平均
+	bitsManager.Encode(50, 8);
+	// 流速最大
+	bitsManager.Encode(100, 8);
+	// 浪高
+	bitsManager.Encode(20, 8);
+	// 涌浪
+	bitsManager.Encode(30, 8);
+	// 信息来源
+	bitsManager.Encode(2, 3);
+
+	auto bitsNum = bitsManager.GetBitsNumberToDecode();
+	auto spareBits = 8 - (bitsNum % 8);
+	bitsManager.Encode(0, spareBits);
+	return bitsManager.BuildPacket();
 }
 
 // 海洋环境预报(海区)
@@ -3242,6 +3336,98 @@ int main(void)
 
 		auto postDeleteAisAtons = vdesManager.GetAISAtoNDynamics(0, 100);
 		std::cout << "Post-deletion AIS AtoN Dynamics count in DB: " << postDeleteAisAtons.size() << std::endl;
+	}
+	std::cout << "================================================================================" << std::endl;
+
+	// Verify Marine Meteorology Forecast Sea Area (FI=27) Deletion APIs
+	std::cout << "\n=== Verification: MarineMeteorologyFCSTAreas (FI=27) Deletion ===" << std::endl;
+	
+	std::cout << "Parsing mock Marine Meteorology Forecast (Sea Area, FI=27) messages..." << std::endl;
+	for (uint8_t areaCode : {10, 20, 30})
+	{
+		auto sentences = GenerateDAC_412_FI_27_WithArea(areaCode);
+		for (const auto &vdm : sentences)
+		{
+			vdesManager.Parse(vdm.c_str(), vdm.length());
+		}
+	}
+
+	// Query initial counts
+	auto fcstAreas = vdesManager.GetMarineMeteorologyFCSTAreas(0, 100);
+	std::cout << "Initial MarineMeteorologyFCSTAreas count in DB: " << fcstAreas.size() << std::endl;
+	for (const auto &item : fcstAreas)
+	{
+		std::cout << "  Area Code: " << (int)item.areaCode << ", Weather Code: " << (int)item.weatherCode << std::endl;
+	}
+
+	if (!fcstAreas.empty())
+	{
+		// 1. Test deletion by dataIDs (which are areaCodes for this type)
+		std::vector<uint32_t> idsToDelete { 10, 20 };
+		std::cout << "Deleting area codes 10 and 20..." << std::endl;
+		bool deleteSuccess = vdesManager.DeleteMarineMeteorologyFCSTAreas(idsToDelete);
+		std::cout << "Delete result: " << (deleteSuccess ? "SUCCESS" : "FAILED") << std::endl;
+
+		auto postDelete = vdesManager.GetMarineMeteorologyFCSTAreas(0, 100);
+		std::cout << "Post-deletion count in DB: " << postDelete.size() << std::endl;
+		for (const auto &item : postDelete)
+		{
+			std::cout << "  Remaining Area Code: " << (int)item.areaCode << std::endl;
+		}
+
+		// 2. Test deletion by index/number
+		std::cout << "Deleting remaining by index and count..." << std::endl;
+		deleteSuccess = vdesManager.DeleteMarineMeteorologyFCSTAreas(0, 10);
+		std::cout << "Delete result: " << (deleteSuccess ? "SUCCESS" : "FAILED") << std::endl;
+
+		auto finalCheck = vdesManager.GetMarineMeteorologyFCSTAreas(0, 100);
+		std::cout << "Final MarineMeteorologyFCSTAreas count in DB: " << finalCheck.size() << std::endl;
+	}
+	std::cout << "================================================================================" << std::endl;
+
+	// Verify Marine Environment Forecast Sea Area (FI=29) Deletion APIs
+	std::cout << "\n=== Verification: MarineEnvironmentFCSTAreas (FI=29) Deletion ===" << std::endl;
+	
+	std::cout << "Parsing mock Marine Environment Forecast (Sea Area, FI=29) messages..." << std::endl;
+	for (uint8_t areaCode : {11, 22, 33})
+	{
+		auto sentences = GenerateDAC_412_FI_29_WithArea(areaCode);
+		for (const auto &vdm : sentences)
+		{
+			vdesManager.Parse(vdm.c_str(), vdm.length());
+		}
+	}
+
+	// Query initial counts
+	auto envAreas = vdesManager.GetMarineEnvironmentFCSTAreas(0, 100);
+	std::cout << "Initial MarineEnvironmentFCSTAreas count in DB: " << envAreas.size() << std::endl;
+	for (const auto &item : envAreas)
+	{
+		std::cout << "  Area Code: " << (int)item.areaCode << ", Temperature Low: " << (int)item.temperatureLow << std::endl;
+	}
+
+	if (!envAreas.empty())
+	{
+		// 1. Test deletion by dataIDs (which are areaCodes for this type)
+		std::vector<uint32_t> idsToDelete { 11, 22 };
+		std::cout << "Deleting area codes 11 and 22..." << std::endl;
+		bool deleteSuccess = vdesManager.DeleteMarineEnvironmentFCSTAreas(idsToDelete);
+		std::cout << "Delete result: " << (deleteSuccess ? "SUCCESS" : "FAILED") << std::endl;
+
+		auto postDelete = vdesManager.GetMarineEnvironmentFCSTAreas(0, 100);
+		std::cout << "Post-deletion count in DB: " << postDelete.size() << std::endl;
+		for (const auto &item : postDelete)
+		{
+			std::cout << "  Remaining Area Code: " << (int)item.areaCode << std::endl;
+		}
+
+		// 2. Test deletion by index/number
+		std::cout << "Deleting remaining by index and count..." << std::endl;
+		deleteSuccess = vdesManager.DeleteMarineEnvironmentFCSTAreas(0, 10);
+		std::cout << "Delete result: " << (deleteSuccess ? "SUCCESS" : "FAILED") << std::endl;
+
+		auto finalCheck = vdesManager.GetMarineEnvironmentFCSTAreas(0, 100);
+		std::cout << "Final MarineEnvironmentFCSTAreas count in DB: " << finalCheck.size() << std::endl;
 	}
 	std::cout << "================================================================================" << std::endl;
 
