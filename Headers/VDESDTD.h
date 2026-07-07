@@ -252,6 +252,8 @@ namespace VDES
 
         uint64_t timestampEnd = 0;
 
+        uint8_t  duration = 0; // Validity duration (0: valid until revoked, 1-3: 1-3 days)
+
         // New fields for geometry support
         uint8_t                 geometryType     = 0;   // 0: 点、圆形, 1: 扇形, 2: 多边形, 3: 折线
         uint16_t                sectorStartAngle = 0;

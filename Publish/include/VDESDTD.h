@@ -234,22 +234,25 @@ namespace VDES
 
         Coordinate coordinate;
 
-        /*
-        * Radius of impact of obstacle.
-        * value range: [0 - 12.7]nm
-        */
-        double range = 0.0F;
+        /** 
+         * Radius of impact of obstacle.
+         * Raw value range: [0 - 127], representing radius in units of 100m,
+         * where 127 indicates vicinity, 0 indicates default/invalid.
+         */
+        uint8_t range = 0;
 
-        /*
-        * value range : [0 - 7]
-        * 0 = not available
-        * 4 - 7 = reserved
-        */
+        /** 
+         * value range : [0 - 7]
+         * 0 = not available
+         * 4 - 7 = reserved
+         */
         uint8_t comment = 0;
 
         uint64_t timestampStart = 0;
 
         uint64_t timestampEnd = 0;
+
+        uint8_t  duration = 0; // Validity duration (0: valid until revoked, 1-3: 1-3 days)
 
         // New fields for geometry support
         uint8_t                 geometryType     = 0;   // 0: 点、圆形, 1: 扇形, 2: 多边形, 3: 折线
@@ -803,6 +806,7 @@ namespace VDES
         bool                 isContinous = 0;
         std::vector<NetInfo> nets;
         std::string          description;
+        bool                 isOwn = false;
     };
 
     /**
@@ -880,7 +884,7 @@ namespace VDES
     };
 
     /**
-     * @brief : Tide forecast DTO
+     * @brief : Tide forecast DTO 
      */
     struct TideForecast : ASMAttribute
     {

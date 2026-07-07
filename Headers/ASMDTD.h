@@ -612,6 +612,7 @@ namespace VDES
         uint8_t    fragment = 0;
         uint16_t   flowVelocity = 0;
         uint16_t   flowDirection = 0;
+        uint64_t   publicationTime = 0;
         std::vector<BridgeSpan> bridgeSpans;
     };
 

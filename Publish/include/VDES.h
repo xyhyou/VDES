@@ -1,4 +1,4 @@
-#ifndef VDES_H_
+﻿#ifndef VDES_H_
 #define VDES_H_
 
 #include "VDESDTD.h"
@@ -183,12 +183,14 @@ namespace VDES
         */
         bool SendRouteRecommendationRequest(const RouteRecommendationRequest &request);
 
-        /*
-        * @brief      Send Hydrometeorological Request
-        * @param[in]  request - the hydrometeorological request DTO
-        * @return     true if validation passes and sentence is dispatched, false otherwise
-        */
         bool SendHydrometeorologyRequest(const HydrometeorologyRequest &request);
+
+        /*
+        * @brief      Send Net Sounder Information to Shore Station
+        * @param[in]  netSounder - the net sounder information DTO containing type, continuity, and coordinates.
+        * @return     true if validation passes and the NMEA sentence is successfully built and dispatched, false otherwise
+        */
+        bool SendNetSounder(const NetSounder &netSounder);
 
         /***********************************************************************
         * AtoN
@@ -919,6 +921,25 @@ namespace VDES
 
         MarineEnvironmentFCSTAlongshores GetMarineEnvironmentFCSTAlongshores(const uint32_t index = 0, const size_t number = -1);
 
+        /*
+        * @brief      Delete the marine environment alongshore forecast information
+        * @param[in]  index   -  the starting position to be deleted
+        * @param[in]  number  -  the maximum number information to be deleted
+        * @param[out] none
+        * @return     true if delete successfully, otherwise false
+        * @note       if the number is -1, delete all forecast after the starting 
+        *             position of index           
+        */
+        bool DeleteMarineEnvironmentFCSTAlongshores(const uint32_t index = 0, const size_t number = -1);
+
+        /*
+        * @brief      Delete the marine environment alongshore forecast information
+        * @param[in]  dataIDs  -  collection of dataIDs to be deleted
+        * @param[out] none
+        * @return     true if delete successfully, otherwise false
+        */
+        bool DeleteMarineEnvironmentFCSTAlongshores(const std::vector<uint32_t> &dataIDs);
+
 
         /***********************************************************************
         * ASM - Bridge
@@ -971,8 +992,18 @@ namespace VDES
         * ASM - Tide Forecast
         ***********************************************************************/
         using TideForecasts = std::vector<TideForecast>;
+        using TideStations = std::vector<TideForecast::TideStation>;
+        using TideStationPtr = std::shared_ptr<TideForecast::TideStation>;
 
         TideForecasts GetTideForecasts(const uint32_t index = 0, const size_t number = -1);
+
+        bool DeleteTideForecasts(const uint32_t index = 0, const size_t number = -1);
+
+        bool DeleteTideForecasts(const std::vector<uint32_t> &dataIDs);
+
+        TideStations GetTideStations(const BoundingBox &bbox, const size_t number = -1);
+
+        TideStationPtr GetTideStation(const double latitude, const double longitude, const double radius);
 
         /***********************************************************************
         * ASM - AtoN Dynamics (non-AIS AtoN)

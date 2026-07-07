@@ -6,6 +6,8 @@
 #include "spdlog/spdlog.h"
 #include "TimerManager.h"
 #include "ThreadPool.h"
+#include "SQLiteCpp/Database.h"
+#include "SQLiteCpp/Statement.h"
 
 #include <iostream>
 #include <fstream>
@@ -1241,6 +1243,12 @@ static std::vector<std::string> GenerateDAC_412_FI_41(void)
 	// 流向 (流向为 145°)
 	bitsManager.Encode(145, 9);
 
+	// 发布时间: 日 (15), 时 (10), 分 (30), 秒 (45) -> 共22位
+	bitsManager.Encode(15, 5);
+	bitsManager.Encode(10, 5);
+	bitsManager.Encode(30, 6);
+	bitsManager.Encode(45, 6);
+
 	// Span #1:
 	// 中心经度 (118.0793)
 	bitsManager.Encode(static_cast<int64_t>(118.0793 * 600000.0), 28);
@@ -2123,10 +2131,10 @@ int main(void)
 		//"$AIASM,1783256514,1,1,,1,2,0,666666666,,IitD=VQVn5?Lh6@j567=kKeB9HqP0>I@3WD02@,4*5D\r\n",
 		//"$AIASM,1783256597,1,1,,1,2,0,666666666,,IitT=`1E3J8H@nTU4=ag53JP1LjP7>01l>0180,4*45\r\n",
 		// 潮汐预报 DAC = 412, FI = 32
-		"$AIASM,1783320688,2,1,1,1,2,0,666666666,,Ij0Qk87wP0Da805DB0?c7r5:Eu1E5O@GcviBawDEBOnUrgbDbWlUFauFgcsU,0*50\r\n",
-		"$AIASM,,2,2,1,1,,0,666666666,,:`B9E:8L00j1BbOFEBWo80,4*26\r\n",
-		"$AIASM,1783303109,2,1,0,1,2,0,666666666,,Ij0Qk87wP0Da805DB0?c7r5:Eu1E5O@GcviBawDEBOnUrgbDbWlUFauFgcsU,0*5E\r\n",
-		"$AIASM,,2,2,0,1,,0,666666666,,:`B9E:8L00j1BbOFEBWo80,4*27\r\n",
+		//"$AIASM,1783320688,2,1,1,1,2,0,666666666,,Ij0Qk87wP0Da805DB0?c7r5:Eu1E5O@GcviBawDEBOnUrgbDbWlUFauFgcsU,0*50\r\n",
+		//"$AIASM,,2,2,1,1,,0,666666666,,:`B9E:8L00j1BbOFEBWo80,4*26\r\n",
+		//"$AIASM,1783303109,2,1,0,1,2,0,666666666,,Ij0Qk87wP0Da805DB0?c7r5:Eu1E5O@GcviBawDEBOnUrgbDbWlUFauFgcsU,0*5E\r\n",
+		//"$AIASM,,2,2,0,1,,0,666666666,,:`B9E:8L00j1BbOFEBWo80,4*27\r\n",
 		//"$AIASM,1783252387,2,1,6,2,2,0,666666666,,Ij0Qk87wP0Da805DB0?c7r5:Eu1E5O@GcviBawDEBOnUrgbDbWlUFauFgcsU,0*5A\r\n",
 		//"$AIASM,,2,2,6,2,,0,666666666,,:`B9E:8L00j1BbOFEBWo80,4*22\r\n",
 
@@ -2143,8 +2151,11 @@ int main(void)
 		//"$AIASM,1782978054,2,1,8,2,2,0,666666666,,Ij42JB816qTH>@<8Ma2P2>38hLG0@s3`04LrAPq0hPe3N08r<S00gQ3NfL0A,0*4D\r\n",
 		//"$AIASM,,2,2,8,2,,0,666666666,,nI601O26t8P0Shj<02v4=q`Ph0,4*3D\r\n",
 		// 碍航物 DAC = 412, FI = 35
+		//"$AIASM,1783388273,1,1,,1,2,0,666666666,,Ij<=@b6:kDdLDu06hww`0HOw6Os4ww?wTh06f8R:80,4*44\r\n",
 		//"$AIASM,1783254079,1,1,,2,2,0,666666666,,Ij<=@HL@pcB0d?cFOo4A5<0,2*1A\r\n",
 		//"$AIASM,1783253640,1,1,,2,2,0,666666666,,Ij<=@b6:kDdLDu06hww`0HOw6Os4ww?wTh06f8R:80,4*44\r\n",
+		// 桥梁 DAC = 412, FI = 41
+		"$AIASM,1783259551,1,1,,1,2,0,666666666,,IjT0?H>7JTP021>@p3@gH0I05@jP,0*5C\r\n",
 		// 中文短信 DAC = 413, FI = 04
 		//"$AIASM,1782977984,1,1,,1,2,0,666666666,,IlBNC2`TQrE9r?saRjIwc9w43O?=bMtVssgmTSV5Ad>WtI>LHVvsnn0,2*0A\r\n",
 		// 前端提示文字 DAC = 413, FI = 5
@@ -2191,6 +2202,12 @@ int main(void)
 
 	auto vdm30 = GenerateDAC_412_FI_30();
 	for (const auto &vdm : vdm30)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	auto vdm41_active = GenerateDAC_412_FI_41();
+	for (const auto &vdm : vdm41_active)
 	{
 		vdesManager.Parse(vdm.c_str(), vdm.length());
 	}
@@ -2413,7 +2430,8 @@ int main(void)
 				  << ", Range: " << (int)obs.range
 				  << ", Comment: " << (int)obs.comment
 				  << ", Start: " << obs.timestampStart
-				  << ", End: " << obs.timestampEnd << std::endl;
+				  << ", End: " << obs.timestampEnd
+				  << ", Duration: " << (int)obs.duration << std::endl;
 		if (obs.geometryType == 1)
 		{
 			std::cout << "    Sector Start Angle: " << obs.sectorStartAngle
@@ -3042,6 +3060,94 @@ int main(void)
 		std::cout << "WARNING: No initial Tide Forecasts in DB to perform verification!" << std::endl;
 	}
 	std::cout << "=========================================================================\n" << std::endl;
+
+	// Verify MSIObstacle duration update
+	std::cout << "\n=== Verification: Querying MSIObstacles (FI=35) from DB ===" << std::endl;
+	auto msiObstacles = vdesManager.GetObstacles(0, 10);
+	std::cout << "MSI Obstacles count: " << msiObstacles.size() << std::endl;
+	for (const auto &obs : msiObstacles)
+	{
+		std::cout << "  Obstacle ID: " << obs.dataID 
+				  << ", Type: " << (int)obs.type 
+				  << ", Lat: " << obs.coordinate.GetLatitude() 
+				  << ", Lon: " << obs.coordinate.GetLongitude() 
+				  << ", Start: " << obs.timestampStart 
+				  << ", End: " << obs.timestampEnd 
+				  << ", Duration: " << (int)obs.duration << std::endl;
+	}
+	std::cout << "===========================================================\n" << std::endl;
+
+	// Verify Automatic Expiration and Cleanup
+	std::cout << "\n=== Verification: Automatic Expiration and Cleanup ===" << std::endl;
+	try {
+		VDES::SQLite::Database db(VDES::ConfigureManager::GetInstance().GetStoragePath() + "/VDES.db", VDES::SQLite::OPEN_READWRITE);
+		// Clean up any existing ID 9999 first
+		db.exec("DELETE FROM MSIObstacle WHERE ID = 9999");
+		db.exec("DELETE FROM MSIObstacleBBox WHERE ID = 9999 OR ID = -9999");
+
+		{
+			// Insert manually
+			db.exec("INSERT INTO MSIObstacle (ID, Type, Latitude, Longitude, Range, [Timestamp Start], [Timestamp End], Comment, Certified, [Timestamp Receive], Read, GeometryType, SectorStartAngle, SectorEndAngle, Polygon, Duration) "
+					"VALUES (9999, 2, 24.5, 118.5, 5, 1000, 2000, 0, 1, 1000, 0, 0, 0, 0, NULL, 1)");
+			db.exec("INSERT INTO MSIObstacleBBox VALUES (9999, 118.4, 118.6, 24.4, 24.6)");
+			std::cout << "Manually inserted mock expired obstacle ID 9999 (Duration=1, End=2000)." << std::endl;
+
+			// Verify it is inside the database before clean
+			VDES::SQLite::Statement queryCheck(db, "SELECT COUNT(*) FROM MSIObstacle WHERE ID = 9999");
+			if (queryCheck.executeStep()) {
+				std::cout << "Mock obstacle count in DB before API call: " << queryCheck.getColumn(0).getInt() << std::endl;
+			}
+		}
+
+		// Trigger the cleanup via GetObstacles API call
+		std::cout << "Calling GetObstacles() to trigger automatic cleanup..." << std::endl;
+		auto listAfterCleanup = vdesManager.GetObstacles(0, 10);
+
+		{
+			// Verify it is no longer inside the database after clean
+			VDES::SQLite::Statement queryCheckAfter(db, "SELECT COUNT(*) FROM MSIObstacle WHERE ID = 9999");
+			if (queryCheckAfter.executeStep()) {
+				int count = queryCheckAfter.getColumn(0).getInt();
+				std::cout << "Mock obstacle count in DB after API call: " << count << std::endl;
+				if (count == 0) {
+					std::cout << "SUCCESS: Expired obstacle ID 9999 was automatically cleaned up from database!" << std::endl;
+				} else {
+					std::cout << "ERROR: Expired obstacle ID 9999 was NOT cleaned up!" << std::endl;
+				}
+			}
+		}
+
+		{
+			// Also verify BBox is cleaned up
+			VDES::SQLite::Statement queryBBoxCheck(db, "SELECT COUNT(*) FROM MSIObstacleBBox WHERE ID = 9999");
+			if (queryBBoxCheck.executeStep()) {
+				std::cout << "Mock BBox count in DB after API call: " << queryBBoxCheck.getColumn(0).getInt() << std::endl;
+			}
+		}
+
+	} catch (const std::exception &e) {
+		std::cout << "WARNING: Failed to run automatic expiration cleanup test: " << e.what() << std::endl;
+	}
+	std::cout << "=======================================================\n" << std::endl;
+
+	// Verify Bridge (FI=41) updates
+	std::cout << "\n=== Verification: Querying Bridges (FI=41) from DB ===" << std::endl;
+	auto bridges = vdesManager.GetBridges(0, 10);
+	std::cout << "Bridges count: " << bridges.size() << std::endl;
+	for (const auto &bridge : bridges)
+	{
+		std::cout << "  Bridge MRN: " << bridge.MRN 
+				  << ", FlowVelocity: " << bridge.flowVelocity 
+				  << ", FlowDirection: " << bridge.flowDirection 
+				  << ", Lat: " << bridge.center.GetLatitude() 
+				  << ", Lon: " << bridge.center.GetLongitude() 
+				  << ", Height: " << bridge.height 
+				  << ", Width: " << bridge.width 
+				  << ", DirectionToPass: " << bridge.directionToPass 
+				  << ", PassAbility: " << (int)bridge.passAbility 
+				  << ", Timestamp (PubTime): " << bridge.timestamp << std::endl;
+	}
+	std::cout << "======================================================" << std::endl;
 
 	return 0;
 }

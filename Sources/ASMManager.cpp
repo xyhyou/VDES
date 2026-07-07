@@ -170,9 +170,9 @@ namespace VDES
     uint64_t ASMManager::Impl::DecodeTime(const AISBitsManager &manager, const uint32_t startBitPos,
                                           const uint32_t bitsNum)
     {
-        if (bitsNum == 20 || bitsNum == 16)
+        if (bitsNum == 20 || bitsNum == 16 || bitsNum == 22)
         {
-            uint8_t  month = 0, day = 0, hour = 0, minute = 0;
+            uint8_t  month = 0, day = 0, hour = 0, minute = 0, second = 0;
             uint32_t pos = startBitPos;
 
             if (bitsNum == 20)
@@ -180,9 +180,20 @@ namespace VDES
                 month = static_cast<uint8_t>(manager.DecodeToNumerical(startBitPos, 4));
                 pos += 4;
             }
-            day = static_cast<uint8_t>(manager.DecodeToNumerical(pos, 5));
-            hour = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 5, 5));
-            minute = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 10, 6));
+
+            if (bitsNum == 22)
+            {
+                day = static_cast<uint8_t>(manager.DecodeToNumerical(pos, 5));
+                hour = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 5, 5));
+                minute = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 10, 6));
+                second = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 16, 6));
+            }
+            else
+            {
+                day = static_cast<uint8_t>(manager.DecodeToNumerical(pos, 5));
+                hour = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 5, 5));
+                minute = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 10, 6));
+            }
             
             auto timestamp = UtilityInterface::GetCurrentTimeStamp();
             tm   timeUTC = { 0 };
@@ -198,9 +209,18 @@ namespace VDES
                 {
                     timeUTC.tm_mday = day;
                 }
-                timeUTC.tm_hour = hour;
-                timeUTC.tm_min = minute;
-                timeUTC.tm_sec = 0;
+                if (hour >= 0 && hour <= 23)
+                {
+                    timeUTC.tm_hour = hour;
+                }
+                if (minute >= 0 && minute <= 59)
+                {
+                    timeUTC.tm_min = minute;
+                }
+                if (second >= 0 && second <= 59)
+                {
+                    timeUTC.tm_sec = second;
+                }
                 auto timestamp = UtilityInterface::MakeGmtime(&timeUTC);
                 return timestamp;
             }
@@ -1400,8 +1420,9 @@ namespace VDES
         asmInfo.fragment = static_cast<uint8_t>(manager.DecodeToNumerical(33, 2));
         asmInfo.flowVelocity = static_cast<uint16_t>(manager.DecodeToNumerical(35, 9));
         asmInfo.flowDirection = static_cast<uint16_t>(manager.DecodeToNumerical(44, 9));
+        asmInfo.publicationTime = DecodeTime(manager, 53, 22);
 
-        auto index = 53;
+        auto index = 75;
 
         auto spanNum = (manager.GetBitsNumberToDecode() - index) / 88;
 

@@ -162,6 +162,8 @@ namespace VDES
 
         void SaveMSIObstacle(const MSIObstacle &obstacle);
 
+        void CleanExpiredObstacles();
+
         void SaveMSIMaritineOperation(const MSIMaritimeOperation &operation);
 
         void SaveMSIMilitaryActivity(const MSIMilitaryActivity &activity);
@@ -740,7 +742,8 @@ namespace VDES
                     "Comment                 BOOLEAN   NOT NULL DEFAULT 0,"
                     "Certified               BOOLEAN   NOT NULL DEFAULT 0,"
                     "[Timestamp Receive]     INTEGER   NOT NULL DEFAULT 0,"
-                    "Read                    BOOLEAN   NOT NULL DEFAULT 0)");
+                    "Read                    BOOLEAN   NOT NULL DEFAULT 0,"
+                    "Duration                INT       NOT NULL DEFAULT 0)");
                     
                 m_database->exec(sql);
 
@@ -779,6 +782,11 @@ namespace VDES
             if (!m_database->fieldExists("Polygon", "MSIObstacle"))
             {
                 auto sql = fmt::format("ALTER TABLE MSIObstacle ADD Polygon BLOB DEFAULT NULL");
+                m_database->exec(sql);
+            }
+            if (!m_database->fieldExists("Duration", "MSIObstacle"))
+            {
+                auto sql = fmt::format("ALTER TABLE MSIObstacle ADD Duration INT NOT NULL DEFAULT 0");
                 m_database->exec(sql);
             }
         }
@@ -2802,6 +2810,7 @@ namespace VDES
         obstacle.geometryType = static_cast<uint8_t>(query.getColumn("GeometryType").getInt());
         obstacle.sectorStartAngle = static_cast<uint16_t>(query.getColumn("SectorStartAngle").getInt());
         obstacle.sectorEndAngle = static_cast<uint16_t>(query.getColumn("SectorEndAngle").getInt());
+        obstacle.duration = static_cast<uint8_t>(query.getColumn("Duration").getInt());
         if (!query.getColumn("Polygon").isNull())
         {
             auto blob = query.getColumn("Polygon").getBlob();
@@ -3293,9 +3302,12 @@ namespace VDES
                 SQLite::Transaction transaction(*m_database.get());
                 BoundingBox         bbox;
 
-                auto sql = "REPLACE INTO MSIObstacle VALUES (@ID, @Type, @Latitude, @Longitude, "
-                           "@Range, @TimestampStart, @TimestampEnd, @Comment, @Certified, @TimestampRcv, @Read, "
-                           "@GeometryType, @SectorStartAngle, @SectorEndAngle, @Polygon)";
+                auto sql = "REPLACE INTO MSIObstacle (ID, Type, Latitude, Longitude, Range, "
+                           "[Timestamp Start], [Timestamp End], Comment, Certified, [Timestamp Receive], Read, "
+                           "GeometryType, SectorStartAngle, SectorEndAngle, Polygon, Duration) "
+                           "VALUES (@ID, @Type, @Latitude, @Longitude, @Range, @TimestampStart, @TimestampEnd, "
+                           "@Comment, @Certified, @TimestampRcv, @Read, @GeometryType, @SectorStartAngle, "
+                           "@SectorEndAngle, @Polygon, @Duration)";
                 auto stmt = m_database->buildStatement(sql);
 
                 if (obstacle.dataID != 0)
@@ -3315,6 +3327,7 @@ namespace VDES
                 stmt.bind("@GeometryType", obstacle.geometryType);
                 stmt.bind("@SectorStartAngle", obstacle.sectorStartAngle);
                 stmt.bind("@SectorEndAngle", obstacle.sectorEndAngle);
+                stmt.bind("@Duration", obstacle.duration);
 
                 if (obstacle.geometryType == 2 || obstacle.geometryType == 3)
                 {
@@ -3366,6 +3379,46 @@ namespace VDES
             catch (const SQLite::Exception &execption)
             {
                 DatabaseErrorProcess(execption, "SaveMSIObstacle");
+            }
+        }
+    }
+
+    void VDESManager::Impl::CleanExpiredObstacles()
+    {
+        if (m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_mutexMSIObstacle);
+                auto currentTime = UtilityInterface::GetCurrentTimeStamp();
+
+                std::vector<int64_t> expiredIDs;
+                auto sqlSelect = fmt::format("SELECT ID FROM MSIObstacle WHERE Duration != 0 AND [Timestamp End] < {}", currentTime);
+                SQLite::Statement query(*m_database.get(), sqlSelect);
+                while (query.executeStep())
+                {
+                    expiredIDs.push_back(query.getColumn(0).getInt64());
+                }
+
+                if (!expiredIDs.empty())
+                {
+                    SQLite::Transaction transaction(*m_database.get());
+
+                    // Delete from BBox virtual table using IN clause matching ID or negative ID
+                    auto sqlBBox = fmt::format("DELETE FROM MSIObstacleBBox WHERE ID IN ({0}) OR -ID IN ({0})", fmt::join(expiredIDs, ", "));
+                    m_database->exec(sqlBBox);
+
+                    // Delete from primary table
+                    auto sqlObstacle = fmt::format("DELETE FROM MSIObstacle WHERE ID IN ({})", fmt::join(expiredIDs, ", "));
+                    m_database->exec(sqlObstacle);
+
+                    transaction.commit();
+                    SPDLOG_DEBUG("CleanExpiredObstacles: cleaned up {} expired obstacles", expiredIDs.size());
+                }
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                DatabaseErrorProcess(execption, "CleanExpiredObstacles");
             }
         }
     }
@@ -5612,6 +5665,7 @@ namespace VDES
                     obstacle.type = info->type;
                     obstacle.coordinate = info->coordinate;
                     obstacle.timestampStart = info->timestampActivate;
+                    obstacle.duration = info->duration;
                     
                     if (info->duration == 0)
                     {
@@ -5876,7 +5930,7 @@ namespace VDES
                         bridge.enableOvertaking = span.enableOvertaking;
                         bridge.flowVelocity = info->flowVelocity;
                         bridge.flowDirection = info->flowDirection;
-						bridge.timestamp = UtilityInterface::GetCurrentTimeStamp();
+                        bridge.timestamp = info->publicationTime != 0 ? info->publicationTime : UtilityInterface::GetCurrentTimeStamp();
                         
                         SaveBridge(bridge);
                     }
@@ -7419,6 +7473,8 @@ namespace VDES
 
         if (m_impl->m_database)
         {
+            m_impl->CleanExpiredObstacles();
+
             auto sqlCmd = fmt::format("SELECT rowid, * FROM MSIObstacle ORDER BY [Timestamp Receive] DESC LIMIT {0} OFFSET {1}",
                                       (number == -1) ? "-1" : fmt::format("{}", number), index);
             try
@@ -7448,6 +7504,8 @@ namespace VDES
         
         if (m_impl->m_database)
         {
+            m_impl->CleanExpiredObstacles();
+
             auto sqlCmd = m_impl->BuildSQLCmd("MSIObstacle", "MSIObstacleBBox", bbox);
             if (number != -1)
             {
@@ -7480,6 +7538,8 @@ namespace VDES
     {
         if (m_impl->m_database)
         {
+            m_impl->CleanExpiredObstacles();
+
             std::lock_guard<std::mutex> lock(m_impl->m_mutexMSIObstacle);
 
             auto bbox = BoundingBox::Build(latitude, longitude, radius);
@@ -7533,6 +7593,8 @@ namespace VDES
     {
         if (m_impl->m_database)
         {
+            m_impl->CleanExpiredObstacles();
+
             try
             {
                 std::lock_guard<std::mutex> lock(m_impl->m_mutexMSIObstacle);
