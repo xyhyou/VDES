@@ -1,4 +1,4 @@
-﻿#ifndef VDES_H_
+#ifndef VDES_H_
 #define VDES_H_
 
 #include "VDESDTD.h"
@@ -982,11 +982,46 @@ namespace VDES
         bool DeleteFrontendPrompts(const std::vector<uint32_t> &dataIDs);
 
         /***********************************************************************
-        * ASM - Marine Meteorology & Environmental Warning
+        * ASM - Marine Meteorology & Environmental Warning (Mew)
         ***********************************************************************/
-        using MarineMeteorologyEWs = std::vector<MarineMeteorologyEW>;
+        // 1. Mew Tropical Cyclone
+        using MewTropicalCyclones = std::vector<MewTropicalCyclone>;
+        using MewTropicalCyclonePtr = std::shared_ptr<MewTropicalCyclone>;
+        MewTropicalCyclones GetMewTropicalCyclones(const uint32_t index = 0, const size_t number = -1);
+        bool DeleteMewTropicalCyclones(const uint32_t index = 0, const size_t number = -1);
+        bool DeleteMewTropicalCyclones(const std::vector<uint32_t> &dataIDs);
+        MewTropicalCyclones GetMewTropicalCyclones(const BoundingBox &boundingBox);
+        MewTropicalCyclonePtr GetMewTropicalCyclone(const double latitude, const double longitude, const double radius);
 
-        MarineMeteorologyEWs GetMarineMeteorologyEWs(const uint32_t index = 0, const size_t number = -1);
+        // 2. Mew Gale
+        using MewGales = std::vector<MewGale>;
+        MewGales GetMewGales(const uint32_t index = 0, const size_t number = -1);
+        bool DeleteMewGales(const uint32_t index = 0, const size_t number = -1);
+        bool DeleteMewGales(const std::vector<uint32_t> &dataIDs);
+
+        // 3. Mew Large Wave
+        using MewLargeWaves = std::vector<MewLargeWave>;
+        MewLargeWaves GetMewLargeWaves(const uint32_t index = 0, const size_t number = -1);
+        bool DeleteMewLargeWaves(const uint32_t index = 0, const size_t number = -1);
+        bool DeleteMewLargeWaves(const std::vector<uint32_t> &dataIDs);
+
+        // 4. Mew Sea Fog
+        using MewSeaFogs = std::vector<MewSeaFog>;
+        MewSeaFogs GetMewSeaFogs(const uint32_t index = 0, const size_t number = -1);
+        bool DeleteMewSeaFogs(const uint32_t index = 0, const size_t number = -1);
+        bool DeleteMewSeaFogs(const std::vector<uint32_t> &dataIDs);
+
+        // 5. Mew Storm Surge
+        using MewStormSurges = std::vector<MewStormSurge>;
+        MewStormSurges GetMewStormSurges(const uint32_t index = 0, const size_t number = -1);
+        bool DeleteMewStormSurges(const uint32_t index = 0, const size_t number = -1);
+        bool DeleteMewStormSurges(const std::vector<uint32_t> &dataIDs);
+
+        // 6. Mew Sea Ice
+        using MewSeaIces = std::vector<MewSeaIce>;
+        MewSeaIces GetMewSeaIces(const uint32_t index = 0, const size_t number = -1);
+        bool DeleteMewSeaIces(const uint32_t index = 0, const size_t number = -1);
+        bool DeleteMewSeaIces(const std::vector<uint32_t> &dataIDs);
 
         /***********************************************************************
         * ASM - Tide Forecast
@@ -1011,6 +1046,8 @@ namespace VDES
         using AtoNDynamicsList = std::vector<AtoNDynamics>;
 
         AtoNDynamicsList GetAtoNDynamics(const uint32_t index = 0, const size_t number = -1);
+        bool DeleteAtoNDynamics(const uint32_t index = 0, const size_t number = -1);
+        bool DeleteAtoNDynamics(const std::vector<uint32_t> &dataIDs);
 
         /***********************************************************************
         * ASM - AIS AtoN Dynamics (AIS AtoN)
@@ -1018,6 +1055,8 @@ namespace VDES
         using AISAtoNDynamicsList = std::vector<AISAtoNDynamics>;
 
         AISAtoNDynamicsList GetAISAtoNDynamics(const uint32_t index = 0, const size_t number = -1);
+        bool DeleteAISAtoNDynamics(const uint32_t index = 0, const size_t number = -1);
+        bool DeleteAISAtoNDynamics(const std::vector<uint32_t> &dataIDs);
 
         /***********************************************************************
         * ASM - Route Recommendation Response
@@ -1149,6 +1188,12 @@ namespace VDES
             ASM_NET_SOUNDER,
 
             ASM_MARINE_METEOROLOGY_EW,
+            ASM_MEW_TROPICAL_CYCLONE,
+            ASM_MEW_GALE,
+            ASM_MEW_LARGE_WAVE,
+            ASM_MEW_SEA_FOG,
+            ASM_MEW_STORM_SURGE,
+            ASM_MEW_SEA_ICE,
 
             ASM_TIDE_FCST,
 

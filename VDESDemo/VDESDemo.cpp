@@ -1,4 +1,4 @@
-﻿#include "VDES.h"
+#include "VDES.h"
 #include "BoundingBox.h"
 #include "VDESConfigure.h"
 #include "UtilityInterface.h"
@@ -1762,44 +1762,68 @@ int main(void)
 	}
 
 	// Query from Database and print
-	auto ews = vdesManager.GetMarineMeteorologyEWs(0, 100);
-	std::cout << "Successfully retrieved " << ews.size() << " early warnings from DB:" << std::endl;
-	for (const auto &ew : ews)
+	auto cyclones = vdesManager.GetMewTropicalCyclones(0, 100);
+	std::cout << "Successfully retrieved " << cyclones.size() << " tropical cyclone warnings from DB:" << std::endl;
+	for (const auto &ew : cyclones)
 	{
 		std::cout << "  Warning ID: " << ew.dataID
 				  << ", MRN: " << ew.MRN
-				  << ", Warning Type: " << (int)ew.warningType
 				  << ", Published: " << ew.timestampPublished
 				  << ", Start: " << ew.timestampStart
 				  << ", End: " << ew.timestampEnd
 				  << ", Duration: " << (int)ew.warningDuration
 				  << ", Info Source: " << (int)ew.infoSource << std::endl;
+		std::cout << "    Cyclone path points count: " << ew.pathPoints.size() << std::endl;
+		for (size_t i = 0; i < ew.pathPoints.size(); ++i)
+		{
+			const auto &pt = ew.pathPoints[i];
+			std::cout << "      Pt " << i << ": TS: " << pt.timestamp
+					  << ", Lat: " << pt.centerLatitude
+					  << ", Lon: " << pt.centerLongitude
+					  << ", Type: " << (int)pt.cycloneType
+					  << ", Wind Scale Max: " << (int)pt.maxWindScale
+					  << ", Pressure: " << pt.centerPressure << std::endl;
+		}
+	}
 
-		if (ew.warningType == 1)
-		{
-			std::cout << "    Cyclone path points count: " << ew.cyclonePathPoints.size() << std::endl;
-			for (size_t i = 0; i < ew.cyclonePathPoints.size(); ++i)
-			{
-				const auto &pt = ew.cyclonePathPoints[i];
-				std::cout << "      Pt " << i << ": TS: " << pt.timestamp
-						  << ", Lat: " << pt.centerLatitude
-						  << ", Lon: " << pt.centerLongitude
-						  << ", Type: " << (int)pt.cycloneType
-						  << ", Wind Scale Max: " << (int)pt.maxWindScale
-						  << ", Pressure: " << pt.centerPressure << std::endl;
-			}
-		}
-		else
-		{
-			std::cout << "    Elements: " << ew.elements.size() << std::endl;
-			for (const auto &elem : ew.elements)
-			{
-				std::cout << "      Element MRN: " << elem.MRN
-						  << ", Area/City/Region Code: " << (int)elem.areaCode
-						  << ", Level: " << (int)elem.warningLevel
-						  << ", Surge Height: " << elem.surgeHeight << std::endl;
-			}
-		}
+	auto gales = vdesManager.GetMewGales(0, 100);
+	std::cout << "Successfully retrieved " << gales.size() << " gale warnings from DB:" << std::endl;
+	for (const auto &ew : gales)
+	{
+		std::cout << "  Warning ID: " << ew.dataID
+				  << ", MRN: " << ew.MRN
+				  << ", Area Code: " << (int)ew.areaCode
+				  << ", Warning Level: " << (int)ew.warningLevel
+				  << ", Published: " << ew.timestampPublished << std::endl;
+	}
+
+	auto waves = vdesManager.GetMewLargeWaves(0, 100);
+	std::cout << "Successfully retrieved " << waves.size() << " large wave warnings from DB:" << std::endl;
+
+	auto fogs = vdesManager.GetMewSeaFogs(0, 100);
+	std::cout << "Successfully retrieved " << fogs.size() << " sea fog warnings from DB:" << std::endl;
+
+	auto surges = vdesManager.GetMewStormSurges(0, 100);
+	std::cout << "Successfully retrieved " << surges.size() << " storm surge warnings from DB:" << std::endl;
+	for (const auto &ew : surges)
+	{
+		std::cout << "  Warning ID: " << ew.dataID
+				  << ", MRN: " << ew.MRN
+				  << ", City Code: " << (int)ew.cityCode
+				  << ", Surge Height: " << ew.surgeHeight
+				  << ", Warning Level: " << (int)ew.warningLevel
+				  << ", Published: " << ew.timestampPublished << std::endl;
+	}
+
+	auto ices = vdesManager.GetMewSeaIces(0, 100);
+	std::cout << "Successfully retrieved " << ices.size() << " sea ice warnings from DB:" << std::endl;
+	for (const auto &ew : ices)
+	{
+		std::cout << "  Warning ID: " << ew.dataID
+				  << ", MRN: " << ew.MRN
+				  << ", Region Code: " << (int)ew.regionCode
+				  << ", Warning Level: " << (int)ew.warningLevel
+				  << ", Published: " << ew.timestampPublished << std::endl;
 	}
 	std::cout << "=========================================\n" << std::endl;
 
@@ -2128,6 +2152,8 @@ int main(void)
 		//"$AIASM,1782891146,1,1,,1,2,0,666666666,,Iiq1P1wpt52Uhg9H37Pj80,4*2D\r\n",
 		//"$AIASM,1782891172,1,1,,1,2,0,666666666,,Iiq1P1bVB52Uhg9H37Pj80,4*2F\r\n",
 		// 海洋气象环境预警 DAC = 412, FI = 31
+		//"$AIASM,1783402405,1,1,,1,2,0,666666666,,IitD=VQVn5?Lh6@j567=kKeB9HqP0>I@3WD02@,4*5B\r\n",
+		//"$AIASM,1783256655,1,1,,1,2,0,666666666,,IiuT=i01k:0Lp07@`050,0*5F\r\n",
 		//"$AIASM,1783256514,1,1,,1,2,0,666666666,,IitD=VQVn5?Lh6@j567=kKeB9HqP0>I@3WD02@,4*5D\r\n",
 		//"$AIASM,1783256597,1,1,,1,2,0,666666666,,IitT=`1E3J8H@nTU4=ag53JP1LjP7>01l>0180,4*45\r\n",
 		// 潮汐预报 DAC = 412, FI = 32
@@ -2150,6 +2176,8 @@ int main(void)
 		//"$AIASM,1782978051,1,1,,1,2,0,666666666,,IlBNC2`TQrE9r?saRjIwc9dwHCum<Vt?Aw9N?ed,2*2C\r\n",
 		//"$AIASM,1782978054,2,1,8,2,2,0,666666666,,Ij42JB816qTH>@<8Ma2P2>38hLG0@s3`04LrAPq0hPe3N08r<S00gQ3NfL0A,0*4D\r\n",
 		//"$AIASM,,2,2,8,2,,0,666666666,,nI601O26t8P0Shj<02v4=q`Ph0,4*3D\r\n",
+		// AIS航标动态 DAC = 412, FI = 34
+		"$AIASM,1783258502,1,1,,1,2,0,666666666,,Ij:3nPU;n0040A<suP`hQD08,0*65\r\n",
 		// 碍航物 DAC = 412, FI = 35
 		//"$AIASM,1783388273,1,1,,1,2,0,666666666,,Ij<=@b6:kDdLDu06hww`0HOw6Os4ww?wTh06f8R:80,4*44\r\n",
 		//"$AIASM,1783254079,1,1,,2,2,0,666666666,,Ij<=@HL@pcB0d?cFOo4A5<0,2*1A\r\n",
@@ -2591,36 +2619,40 @@ int main(void)
 	}
 
 	// --- Marine Meteorology & Environmental Warnings (FI = 31) ---
-	auto ews = vdesManager.GetMarineMeteorologyEWs(0, 100);
-	std::cout << "Parsed " << ews.size() << " early warnings (FI=31):" << std::endl;
-	for (const auto &ew : ews)
+	auto cyclones = vdesManager.GetMewTropicalCyclones(0, 100);
+	std::cout << "Parsed " << cyclones.size() << " tropical cyclone warnings (FI=31):" << std::endl;
+	for (const auto &ew : cyclones)
 	{
 		std::cout << "  MRN: " << ew.MRN
-				  << ", Warning Type: " << (int)ew.warningType
 				  << ", Published: " << ew.timestampPublished
 				  << ", Start: " << ew.timestampStart
 				  << ", End: " << ew.timestampEnd
 				  << ", Duration: " << (int)ew.warningDuration
 				  << ", Info Source: " << (int)ew.infoSource << std::endl;
-		if (ew.warningType == 1)
-		{
-			std::cout << "    Cyclone Center: Lat: " << ew.centerLatitude
-					  << ", Lon: " << ew.centerLongitude
-					  << ", Cyclone Type: " << (int)ew.cycloneType
-					  << ", Wind Scale Max: " << (int)ew.maxWindScale
-					  << ", Pressure: " << ew.centerPressure << std::endl;
-		}
-		else
-		{
-			std::cout << "    Elements: " << ew.elements.size() << std::endl;
-			for (const auto &elem : ew.elements)
-			{
-				std::cout << "      Area/City/Region Code: " << (int)elem.areaCode
-						  << ", Level: " << (int)elem.warningLevel
-						  << ", Surge Height: " << elem.surgeHeight << std::endl;
-			}
-		}
+		std::cout << "    Cyclone path points count: " << ew.pathPoints.size() << std::endl;
 	}
+
+	auto gales = vdesManager.GetMewGales(0, 100);
+	std::cout << "Parsed " << gales.size() << " gale warnings (FI=31):" << std::endl;
+	for (const auto &ew : gales)
+	{
+		std::cout << "  MRN: " << ew.MRN
+				  << ", Area Code: " << (int)ew.areaCode
+				  << ", Warning Level: " << (int)ew.warningLevel
+				  << ", Published: " << ew.timestampPublished << std::endl;
+	}
+
+	auto waves = vdesManager.GetMewLargeWaves(0, 100);
+	std::cout << "Parsed " << waves.size() << " large wave warnings (FI=31):" << std::endl;
+
+	auto fogs = vdesManager.GetMewSeaFogs(0, 100);
+	std::cout << "Parsed " << fogs.size() << " sea fog warnings (FI=31):" << std::endl;
+
+	auto surges = vdesManager.GetMewStormSurges(0, 100);
+	std::cout << "Parsed " << surges.size() << " storm surge warnings (FI=31):" << std::endl;
+
+	auto ices = vdesManager.GetMewSeaIces(0, 100);
+	std::cout << "Parsed " << ices.size() << " sea ice warnings (FI=31):" << std::endl;
 
 	// --- Military Activities (FI = 38) ---
 	auto militaryActivities = vdesManager.GetMilitaryActivitys();
@@ -3148,6 +3180,68 @@ int main(void)
 				  << ", Timestamp (PubTime): " << bridge.timestamp << std::endl;
 	}
 	std::cout << "======================================================" << std::endl;
+
+	// Verify non-AIS & AIS AtoN Dynamics Deletion APIs
+	std::cout << "\n=== Verification: AtoNDynamics (FI=33) and AISAtoNDynamics (FI=34) Deletion ===" << std::endl;
+	
+	// Parse some mock AtoN Dynamics messages to populate the database
+	std::cout << "Parsing mock AtoN Dynamics (FI=33) messages..." << std::endl;
+	for (uint8_t status : {1, 5, 14})
+	{
+		auto sentences = GenerateDAC_412_FI_33(status);
+		for (const auto &vdm : sentences)
+		{
+			vdesManager.Parse(vdm.c_str(), vdm.length());
+		}
+	}
+
+	std::cout << "Parsing mock AIS AtoN Dynamics (FI=34) messages..." << std::endl;
+	for (uint8_t status : {1, 3, 5})
+	{
+		auto sentences = GenerateDAC_412_FI_34(status);
+		for (const auto &vdm : sentences)
+		{
+			vdesManager.Parse(vdm.c_str(), vdm.length());
+		}
+	}
+
+	// Query initial counts
+	auto atons = vdesManager.GetAtoNDynamics(0, 100);
+	std::cout << "Initial AtoN Dynamics count in DB: " << atons.size() << std::endl;
+	if (!atons.empty())
+	{
+		std::vector<uint32_t> idsToDelete;
+		for (const auto &item : atons)
+		{
+			idsToDelete.push_back(item.dataID);
+			std::cout << "  AtoNDynamic Record ID to delete: " << item.dataID << " (MRN=" << item.MRN << ")" << std::endl;
+		}
+
+		bool deleteSuccess = vdesManager.DeleteAtoNDynamics(idsToDelete);
+		std::cout << "DeleteAtoNDynamics result: " << (deleteSuccess ? "SUCCESS" : "FAILED") << std::endl;
+
+		auto postDeleteAtons = vdesManager.GetAtoNDynamics(0, 100);
+		std::cout << "Post-deletion AtoN Dynamics count in DB: " << postDeleteAtons.size() << std::endl;
+	}
+
+	auto aisAtons = vdesManager.GetAISAtoNDynamics(0, 100);
+	std::cout << "Initial AIS AtoN Dynamics count in DB: " << aisAtons.size() << std::endl;
+	if (!aisAtons.empty())
+	{
+		std::vector<uint32_t> idsToDelete;
+		for (const auto &item : aisAtons)
+		{
+			idsToDelete.push_back(item.dataID);
+			std::cout << "  AISAtoNDynamic Record ID to delete: " << item.dataID << " (MRN=" << item.MRN << ")" << std::endl;
+		}
+
+		bool deleteSuccess = vdesManager.DeleteAISAtoNDynamics(idsToDelete);
+		std::cout << "DeleteAISAtoNDynamics result: " << (deleteSuccess ? "SUCCESS" : "FAILED") << std::endl;
+
+		auto postDeleteAisAtons = vdesManager.GetAISAtoNDynamics(0, 100);
+		std::cout << "Post-deletion AIS AtoN Dynamics count in DB: " << postDeleteAisAtons.size() << std::endl;
+	}
+	std::cout << "================================================================================" << std::endl;
 
 	return 0;
 }

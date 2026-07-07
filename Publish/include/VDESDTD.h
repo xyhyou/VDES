@@ -1,4 +1,4 @@
-﻿#ifndef VDES_DTD_H_
+#ifndef VDES_DTD_H_
 #define VDES_DTD_H_
 
 #include "Coordinate.h"
@@ -842,19 +842,11 @@ namespace VDES
     };
 
     /**
-     * @brief : Marine Meteorology early warning
+     * @brief : Mew Tropical Cyclone Warning (Warning Type 1)
      */
-    struct MarineMeteorologyEW : ASMAttribute
+    struct MewTropicalCyclone : ASMAttribute
     {
-        struct WarningElement
-        {
-            uint32_t MRN         = 0;
-            uint8_t areaCode     = 0;     // seaAreaCode, cityCode, or regionCode
-            uint8_t warningLevel = 0;     // warningLevel
-            double  surgeHeight  = 0.0;   // surge height in meters (only for Storm Surge)
-        };
-
-        struct TropicalCyclonePathPoint
+        struct PathPoint
         {
             uint64_t timestamp         = 0;
             double   centerLongitude   = 181.0;
@@ -871,10 +863,88 @@ namespace VDES
 
         uint32_t MRN         = 0;
         uint8_t  fragment    = 0;
-        uint8_t  warningType = 0;   // 1: Cyclone, 2: Wind, 3: Wave, 4: Sea Fog, 5: Storm Surge, 6: Ice
+        std::vector<PathPoint> pathPoints;
 
-        std::vector<TropicalCyclonePathPoint> cyclonePathPoints;
-        std::vector<WarningElement> elements;   // For types 2, 3, 4, 5, 6
+        uint64_t timestampPublished = 0;
+        uint64_t timestampStart     = 0;
+        uint64_t timestampEnd       = 0;
+        uint8_t  warningDuration    = 0;
+        uint8_t  infoSource         = 0;
+    };
+
+    /**
+     * @brief : Mew Gale Warning (Warning Type 2)
+     */
+    struct MewGale : ASMAttribute
+    {
+        uint32_t MRN          = 0;
+        uint8_t  areaCode     = 0;
+        uint8_t  warningLevel = 0;
+
+        uint64_t timestampPublished = 0;
+        uint64_t timestampStart     = 0;
+        uint64_t timestampEnd       = 0;
+        uint8_t  warningDuration    = 0;
+        uint8_t  infoSource         = 0;
+    };
+
+    /**
+     * @brief : Mew Large Wave Warning (Warning Type 3)
+     */
+    struct MewLargeWave : ASMAttribute
+    {
+        uint32_t MRN          = 0;
+        uint8_t  areaCode     = 0;
+        uint8_t  warningLevel = 0;
+
+        uint64_t timestampPublished = 0;
+        uint64_t timestampStart     = 0;
+        uint64_t timestampEnd       = 0;
+        uint8_t  warningDuration    = 0;
+        uint8_t  infoSource         = 0;
+    };
+
+    /**
+     * @brief : Mew Sea Fog Warning (Warning Type 4)
+     */
+    struct MewSeaFog : ASMAttribute
+    {
+        uint32_t MRN          = 0;
+        uint8_t  areaCode     = 0;
+        uint8_t  warningLevel = 0;
+
+        uint64_t timestampPublished = 0;
+        uint64_t timestampStart     = 0;
+        uint64_t timestampEnd       = 0;
+        uint8_t  warningDuration    = 0;
+        uint8_t  infoSource         = 0;
+    };
+
+    /**
+     * @brief : Mew Storm Surge Warning (Warning Type 5)
+     */
+    struct MewStormSurge : ASMAttribute
+    {
+        uint32_t MRN          = 0;
+        uint8_t  cityCode     = 0;
+        double   surgeHeight  = 0.0;
+        uint8_t  warningLevel = 0;
+
+        uint64_t timestampPublished = 0;
+        uint64_t timestampStart     = 0;
+        uint64_t timestampEnd       = 0;
+        uint8_t  warningDuration    = 0;
+        uint8_t  infoSource         = 0;
+    };
+
+    /**
+     * @brief : Mew Sea Ice Warning (Warning Type 6)
+     */
+    struct MewSeaIce : ASMAttribute
+    {
+        uint32_t MRN          = 0;
+        uint8_t  regionCode   = 0;
+        uint8_t  warningLevel = 0;
 
         uint64_t timestampPublished = 0;
         uint64_t timestampStart     = 0;

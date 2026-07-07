@@ -1310,6 +1310,7 @@ namespace VDES
         m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_33>(asmInfo));
     }
 
+    // TODO...需要按新的协议改
     void ASMManager::Impl::ParseASMDAC412FI34(const AISBitsManager &manager)
     {
         ASM_DAC_412_FI_34 asmInfo;
