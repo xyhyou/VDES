@@ -6681,8 +6681,8 @@ namespace VDES
                     AISAtoNDynamics dynamics;
                     dynamics.DAC = info->DAC;
                     dynamics.FI = info->FI;
-                    dynamics.MRN = info->MRN;
-                    dynamics.fragment = info->fragment;
+                    dynamics.MRN = 0;
+                    dynamics.fragment = 0;
                     dynamics.atonAttribute = info->atonAttribute;
                     dynamics.status = info->status;
                     dynamics.precaution = info->precaution;

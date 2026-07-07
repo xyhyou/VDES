@@ -1138,10 +1138,6 @@ static std::vector<std::string> GenerateDAC_412_FI_34(uint8_t status)
 	// FI	
 	bitsManager.Encode(34, 6);
 
-	// MRN
-	bitsManager.Encode(12345, 17);
-	// 片段描述
-	bitsManager.Encode(0, 2);
 	// 航标属性
 	bitsManager.Encode(1, 3);
 	// 状态
@@ -1149,11 +1145,13 @@ static std::vector<std::string> GenerateDAC_412_FI_34(uint8_t status)
 
 	if (status == 1)
 	{
-		// 新设: Table 88 (113 bits)
+		// 新设: Table 88 (115 bits)
 		// MMSI #1
 		bitsManager.Encode(994121001, 30);
 		// 航标 MRN #1
 		bitsManager.Encode(67890, 17);
+		// 片段描述 #1
+		bitsManager.Encode(0, 2);
 		// 航标类型 #1
 		bitsManager.Encode(5, 6);
 		// 经度 (step 1/10000', 119.5432 degrees)
@@ -1165,11 +1163,13 @@ static std::vector<std::string> GenerateDAC_412_FI_34(uint8_t status)
 	}
 	else if (status == 2 || status == 5 || status == 6)
 	{
-		// 撤除、故障、恢复工作: Table 91 (108 bits)
+		// 撤除、故障、恢复工作: Table 91 (110 bits)
 		// MMSI #1
 		bitsManager.Encode(994121001, 30);
 		// 航标 MRN #1
 		bitsManager.Encode(67890, 17);
+		// 片段描述 #1
+		bitsManager.Encode(0, 2);
 		// 航标类型 #1
 		bitsManager.Encode(5, 6);
 		// 经度
@@ -1179,11 +1179,13 @@ static std::vector<std::string> GenerateDAC_412_FI_34(uint8_t status)
 	}
 	else if (status == 3 || status == 4)
 	{
-		// 移位、位置调整: Table 93 (164 bits)
+		// 移位、位置调整: Table 93 (166 bits)
 		// MMSI #1
 		bitsManager.Encode(994121001, 30);
 		// 航标 MRN #1
 		bitsManager.Encode(67890, 17);
+		// 片段描述 #1
+		bitsManager.Encode(0, 2);
 		// 航标类型 #1
 		bitsManager.Encode(5, 6);
 		// 改变前位置经度 (119.5400)

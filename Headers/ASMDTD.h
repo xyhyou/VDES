@@ -1,4 +1,4 @@
-﻿#ifndef ASM_DTD_H_
+#ifndef ASM_DTD_H_
 #define ASM_DTD_H_
 
 #include <vector>
@@ -432,6 +432,7 @@ namespace VDES
         {
             uint32_t   mmsi = 0;
             uint32_t   MRN = 0;
+            uint8_t    fragmentDescription = 0;
             uint8_t    type = 0;
             Coordinate coordinate;
             
@@ -443,8 +444,6 @@ namespace VDES
             bool       isRoughPosition = false;
         };
 
-        uint32_t             MRN = 0;
-        uint8_t              fragment = 0;
         uint8_t              atonAttribute = 0;
         uint8_t              status = 0;
         uint8_t              precaution = 0;

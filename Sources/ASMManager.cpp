@@ -1,4 +1,4 @@
-﻿#include "ASMManager.h"
+#include "ASMManager.h"
 
 #include <map>
 #include <cstdlib>
@@ -1310,7 +1310,6 @@ namespace VDES
         m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_33>(asmInfo));
     }
 
-    // TODO...需要按新的协议改
     void ASMManager::Impl::ParseASMDAC412FI34(const AISBitsManager &manager)
     {
         ASM_DAC_412_FI_34 asmInfo;
@@ -1318,32 +1317,30 @@ namespace VDES
         asmInfo.DAC = 412;
         asmInfo.FI = 34;
 
-        asmInfo.MRN = manager.DecodeToNumerical(16, 17);
-        asmInfo.fragment = static_cast<uint8_t>(manager.DecodeToNumerical(33, 2));
-        asmInfo.atonAttribute = static_cast<uint8_t>(manager.DecodeToNumerical(35, 3));
-        asmInfo.status = static_cast<uint8_t>(manager.DecodeToNumerical(38, 4));
+        asmInfo.atonAttribute = static_cast<uint8_t>(manager.DecodeToNumerical(16, 3));
+        asmInfo.status = static_cast<uint8_t>(manager.DecodeToNumerical(19, 4));
 
         uint32_t L = 0;
         switch (asmInfo.status)
         {
-        case 1:  L = 113; break;
+        case 1:  L = 115; break;
         case 2:
         case 5:
-        case 6:  L = 108; break;
+        case 6:  L = 110; break;
         case 3:
-        case 4:  L = 164; break;
+        case 4:  L = 166; break;
         default: L = 0;   break;
         }
 
         uint32_t n = 0;
-        if (L > 0 && manager.GetBitsNumberToDecode() >= 46)
+        if (L > 0 && manager.GetBitsNumberToDecode() >= 27)
         {
-            n = (manager.GetBitsNumberToDecode() - 46) / L;
+            n = (manager.GetBitsNumberToDecode() - 27) / L;
         }
 
         for (uint32_t i = 0; i < n; ++i)
         {
-            uint32_t pos = 42 + i * L;
+            uint32_t pos = 23 + i * L;
             ASM_DAC_412_FI_34::Element elem;
 
             switch (asmInfo.status)
@@ -1352,12 +1349,13 @@ namespace VDES
                 {
                     elem.mmsi = manager.DecodeToNumerical(pos, 30);
                     elem.MRN = manager.DecodeToNumerical(pos + 30, 17);
-                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 47, 6));
-                    auto lonVal = manager.DecodeToNumerical(pos + 53, 28);
-                    auto latVal = manager.DecodeToNumerical(pos + 81, 27);
+                    elem.fragmentDescription = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 47, 2));
+                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 49, 6));
+                    auto lonVal = manager.DecodeToNumerical(pos + 55, 28);
+                    auto latVal = manager.DecodeToNumerical(pos + 83, 27);
                     elem.coordinate.SetLongitude(UtilityInterface::ConvertComplementCodeToInteger(lonVal, 28) / 600000.0);
                     elem.coordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(latVal, 27) / 600000.0);
-                    elem.range = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 108, 5));
+                    elem.range = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 110, 5));
                 }
                 break;
 
@@ -1367,9 +1365,10 @@ namespace VDES
                 {
                     elem.mmsi = manager.DecodeToNumerical(pos, 30);
                     elem.MRN = manager.DecodeToNumerical(pos + 30, 17);
-                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 47, 6));
-                    auto lonVal = manager.DecodeToNumerical(pos + 53, 28);
-                    auto latVal = manager.DecodeToNumerical(pos + 81, 27);
+                    elem.fragmentDescription = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 47, 2));
+                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 49, 6));
+                    auto lonVal = manager.DecodeToNumerical(pos + 55, 28);
+                    auto latVal = manager.DecodeToNumerical(pos + 83, 27);
                     elem.coordinate.SetLongitude(UtilityInterface::ConvertComplementCodeToInteger(lonVal, 28) / 600000.0);
                     elem.coordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(latVal, 27) / 600000.0);
                 }
@@ -1380,14 +1379,15 @@ namespace VDES
                 {
                     elem.mmsi = manager.DecodeToNumerical(pos, 30);
                     elem.MRN = manager.DecodeToNumerical(pos + 30, 17);
-                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 47, 6));
-                    auto prevLon = manager.DecodeToNumerical(pos + 53, 28);
-                    auto prevLat = manager.DecodeToNumerical(pos + 81, 27);
+                    elem.fragmentDescription = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 47, 2));
+                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 49, 6));
+                    auto prevLon = manager.DecodeToNumerical(pos + 55, 28);
+                    auto prevLat = manager.DecodeToNumerical(pos + 83, 27);
                     elem.prevCoordinate.SetLongitude(UtilityInterface::ConvertComplementCodeToInteger(prevLon, 28) / 600000.0);
                     elem.prevCoordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(prevLat, 27) / 600000.0);
-                    elem.isRoughPosition = manager.DecodeToNumerical(pos + 108, 1) == 1;
-                    auto lonVal = manager.DecodeToNumerical(pos + 109, 28);
-                    auto latVal = manager.DecodeToNumerical(pos + 137, 27);
+                    elem.isRoughPosition = manager.DecodeToNumerical(pos + 110, 1) == 1;
+                    auto lonVal = manager.DecodeToNumerical(pos + 111, 28);
+                    auto latVal = manager.DecodeToNumerical(pos + 139, 27);
                     elem.coordinate.SetLongitude(UtilityInterface::ConvertComplementCodeToInteger(lonVal, 28) / 600000.0);
                     elem.coordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(latVal, 27) / 600000.0);
                 }
@@ -1400,7 +1400,7 @@ namespace VDES
             asmInfo.elements.push_back(elem);
         }
 
-        uint32_t posEnd = 42 + n * L;
+        uint32_t posEnd = 23 + n * L;
         if (manager.GetBitsNumberToDecode() >= posEnd + 4)
         {
             asmInfo.precaution = static_cast<uint8_t>(manager.DecodeToNumerical(posEnd, 4));
