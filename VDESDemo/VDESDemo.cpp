@@ -2983,5 +2983,65 @@ int main(void)
 	}
 	std::cout << "==========================================================\n" << std::endl;
 
+	// Verify Tide Forecast deletion, BBox retrieval, and picking APIs
+	std::cout << "\n=== Verification: Tide Forecast BBox Retrieval, Picking, and Deletion ===" << std::endl;
+	
+	// Query current Tide Forecasts in DB to get an ID for testing
+	auto currentTideForecasts = vdesManager.GetTideForecasts(0, 10);
+	std::cout << "Initial Tide Forecasts count in DB: " << currentTideForecasts.size() << std::endl;
+	
+	if (!currentTideForecasts.empty()) {
+		// Test BBox retrieval
+		// In previous test run, we had mock tide stations around Xiamen (Lat: 24.35, Lon: 119.1) and (Lat: 24.6833, Lon: 119.6)
+		// We'll build a BoundingBox targeting this region
+		VDES::BoundingBox::Rect rect;
+		rect.left = 119.0;
+		rect.right = 119.7;
+		rect.bottom = 24.3;
+		rect.top = 24.7;
+		auto searchBBox = VDES::BoundingBox::Build(rect);
+		
+		auto bboxStations = vdesManager.GetTideStations(searchBBox);
+		std::cout << "Tide Stations found in BBox [119.0, 119.7, 24.3, 24.7]: " << bboxStations.size() << std::endl;
+		for (size_t i = 0; i < bboxStations.size(); ++i) {
+			std::cout << "    BBox Station " << i << ": Lat=" << bboxStations[i].coordinate.GetLatitude() 
+					  << ", Lon=" << bboxStations[i].coordinate.GetLongitude() 
+					  << ", TidalDatum=" << bboxStations[i].tidalDatum 
+					  << ", HighTide=" << bboxStations[i].tideHigh << std::endl;
+		}
+		
+		// Test Picking API: Pick station nearest to (Lat: 24.35, Lon: 119.1) within 10 NM
+		auto pickedStation = vdesManager.GetTideStation(24.35, 119.1, 10.0);
+		if (pickedStation) {
+			std::cout << "Tide Station successfully picked near (24.35, 119.1) within 10 NM: Lat=" 
+					  << pickedStation->coordinate.GetLatitude() << ", Lon=" << pickedStation->coordinate.GetLongitude() 
+					  << ", HighTide=" << pickedStation->tideHigh << std::endl;
+		} else {
+			std::cout << "WARNING: No Tide Station picked near (24.35, 119.1) within 10 NM" << std::endl;
+		}
+
+		// Test Deletion API (Delete by list of IDs)
+		std::vector<uint32_t> idsToDelete;
+		for (const auto &forecast : currentTideForecasts) {
+			idsToDelete.push_back(forecast.dataID);
+		}
+		
+		std::cout << "Deleting Tide Forecasts with IDs: ";
+		for (auto id : idsToDelete) std::cout << id << " ";
+		std::cout << std::endl;
+		
+		bool deleteSuccess = vdesManager.DeleteTideForecasts(idsToDelete);
+		std::cout << "DeleteTideForecasts result: " << (deleteSuccess ? "SUCCESS" : "FAILED") << std::endl;
+		
+		auto postDeleteTideForecasts = vdesManager.GetTideForecasts(0, 10);
+		std::cout << "Post-deletion Tide Forecasts count in DB: " << postDeleteTideForecasts.size() << std::endl;
+		
+		auto postDeleteStations = vdesManager.GetTideStations(searchBBox);
+		std::cout << "Post-deletion Tide Stations in BBox: " << postDeleteStations.size() << std::endl;
+	} else {
+		std::cout << "WARNING: No initial Tide Forecasts in DB to perform verification!" << std::endl;
+	}
+	std::cout << "=========================================================================\n" << std::endl;
+
 	return 0;
 }

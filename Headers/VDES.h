@@ -992,8 +992,18 @@ namespace VDES
         * ASM - Tide Forecast
         ***********************************************************************/
         using TideForecasts = std::vector<TideForecast>;
+        using TideStations = std::vector<TideForecast::TideStation>;
+        using TideStationPtr = std::shared_ptr<TideForecast::TideStation>;
 
         TideForecasts GetTideForecasts(const uint32_t index = 0, const size_t number = -1);
+
+        bool DeleteTideForecasts(const uint32_t index = 0, const size_t number = -1);
+
+        bool DeleteTideForecasts(const std::vector<uint32_t> &dataIDs);
+
+        TideStations GetTideStations(const BoundingBox &bbox, const size_t number = -1);
+
+        TideStationPtr GetTideStation(const double latitude, const double longitude, const double radius);
 
         /***********************************************************************
         * ASM - AtoN Dynamics (non-AIS AtoN)

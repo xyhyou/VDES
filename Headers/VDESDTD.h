@@ -882,7 +882,7 @@ namespace VDES
     };
 
     /**
-     * @brief : Tide forecast DTO
+     * @brief : Tide forecast DTO 
      */
     struct TideForecast : ASMAttribute
     {

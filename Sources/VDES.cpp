@@ -9580,6 +9580,170 @@ namespace VDES
         return container;
     }
 
+    bool VDESManager::DeleteTideForecasts(const uint32_t index, const size_t number)
+    {
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexTideForecast);
+
+                // Delete child rows first:
+                auto sqlStation = fmt::format("DELETE FROM TideStation WHERE Forecast_ID IN ("
+                                              "SELECT ID FROM TideForecast ORDER BY [Timestamp Receive] DESC LIMIT {0} OFFSET {1})",
+                                              (number == -1) ? "-1" : fmt::format("{}", number), index);
+                m_impl->m_database->exec(sqlStation);
+
+                // Then delete parent rows:
+                auto sqlForecast = fmt::format("DELETE FROM TideForecast WHERE ID IN ("
+                                               "SELECT ID FROM TideForecast ORDER BY [Timestamp Receive] DESC LIMIT {0} OFFSET {1})",
+                                               (number == -1) ? "-1" : fmt::format("{}", number), index);
+                m_impl->m_database->exec(sqlForecast);
+
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteTideForecasts(index, number)");
+            }
+        }
+        return false;
+    }
+
+    bool VDESManager::DeleteTideForecasts(const std::vector<uint32_t> &dataIDs)
+    {
+        if (dataIDs.empty())
+        {
+            return true;
+        }
+
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexTideForecast);
+
+                // Delete child rows first:
+                auto sqlStation = fmt::format("DELETE FROM TideStation WHERE Forecast_ID IN ({})", fmt::join(dataIDs, ", "));
+                m_impl->m_database->exec(sqlStation);
+
+                // Then delete parent rows:
+                auto sqlForecast = fmt::format("DELETE FROM TideForecast WHERE ID IN ({})", fmt::join(dataIDs, ", "));
+                m_impl->m_database->exec(sqlForecast);
+
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteTideForecasts(dataIDs)");
+            }
+        }
+        return false;
+    }
+
+    VDESManager::TideStations VDESManager::GetTideStations(const BoundingBox &bbox, const size_t number)
+    {
+        TideStations stations;
+
+        if (m_impl->m_database)
+        {
+            auto rects = bbox.GetRects();
+            auto rectNum = rects.size();
+            std::string sqlCmd;
+
+            if (rectNum > 0)
+            {
+                for (auto i = 0U; i < rectNum; i++)
+                {
+                    auto &rect = rects[i];
+                    auto strTemp = fmt::format("SELECT * FROM TideStation WHERE "
+                        "Latitude >= {Bottom} AND Latitude <= {Top} "
+                        "AND Longitude >= {Left} AND Longitude <= {Right}",
+                        fmt::arg("Right", rect.right),
+                        fmt::arg("Left", rect.left),
+                        fmt::arg("Bottom", rect.bottom),
+                        fmt::arg("Top", rect.top));
+                    sqlCmd.append(strTemp);
+                    if (i < rectNum - 1 && rectNum > 1)
+                    {
+                        sqlCmd.append(" UNION ");
+                    }
+                }
+
+                if (number != -1)
+                {
+                    sqlCmd.append(fmt::format(" LIMIT {}", number));
+                }
+
+                try
+                {
+                    std::lock_guard<std::mutex> lock(m_impl->m_mutexTideForecast);
+
+                    SQLite::Statement query(*m_impl->m_database.get(), sqlCmd);
+
+                    while (query.executeStep())
+                    {
+                        TideForecast::TideStation station;
+                        station.coordinate = Coordinate(query.getColumn("Latitude").getDouble(), query.getColumn("Longitude").getDouble());
+                        station.tidalDatum = query.getColumn("Tidal Datum").getUInt();
+                        station.tideHigh = query.getColumn("Tide High").getUInt();
+                        station.timestampTideHigh = query.getColumn("Timestamp Tide High").getInt64();
+                        station.tideLow = query.getColumn("Tide Low").getUInt();
+                        station.timestampTideLow = query.getColumn("Timestamp Tide Low").getInt64();
+                        stations.push_back(station);
+                    }
+                }
+                catch (const SQLite::Exception &execption)
+                {
+                    m_impl->DatabaseErrorProcess(execption, "GetTideStations");
+                }
+            }
+        }
+        return stations;
+    }
+
+    VDESManager::TideStationPtr VDESManager::GetTideStation(const double latitude, const double longitude, const double radius)
+    {
+        if (m_impl->m_database)
+        {
+            auto bbox = BoundingBox::Build(latitude, longitude, radius);
+            TideStations candidates = GetTideStations(bbox);
+
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexTideForecast);
+
+                TideForecast::TideStation nearestStation;
+                double distanceNearest = -1.0;
+                bool found = false;
+
+                for (const auto &station : candidates)
+                {
+                    auto distance = GeoCalculator::Distance(Coordinate(latitude, longitude), station.coordinate);
+                    if (distance <= radius)
+                    {
+                        if (!found || distance < distanceNearest)
+                        {
+                            nearestStation = station;
+                            distanceNearest = distance;
+                            found = true;
+                        }
+                    }
+                }
+
+                if (found)
+                {
+                    return std::make_shared<TideForecast::TideStation>(nearestStation);
+                }
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "GetTideStation");
+            }
+        }
+        return nullptr;
+    }
+
     VDESManager::AtoNDynamicsList VDESManager::GetAtoNDynamics(const uint32_t index, const size_t number)
     {
         AtoNDynamicsList container;
