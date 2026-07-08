@@ -906,12 +906,50 @@ namespace VDES
         
         MarineMeteorologyFCSTAreas GetMarineMeteorologyFCSTAreas(const uint32_t index = 0, const size_t number = -1);
 
+        /*
+        * @brief      Delete the marine meteorology forecast sea area information
+        * @param[in]  index   -  the starting position to be deleted
+        * @param[in]  number  -  the maximum number information to be deleted
+        * @param[out] none
+        * @return     true if delete successfully, otherwise false
+        * @note       if the number is -1, delete all forecast after the starting 
+        *             position of index           
+        */
+        bool DeleteMarineMeteorologyFCSTAreas(const uint32_t index = 0, const size_t number = -1);
+
+        /*
+        * @brief      Delete the marine meteorology forecast sea area information
+        * @param[in]  dataIDs  -  collection of dataIDs to be deleted
+        * @param[out] none
+        * @return     true if delete successfully, otherwise false
+        */
+        bool DeleteMarineMeteorologyFCSTAreas(const std::vector<uint32_t> &dataIDs);
+
         /***********************************************************************
         * ASM - Marine Environment Forecast (Sea area) (DAC = 412, FI = 29)
         ***********************************************************************/
         using MarineEnvironmentFCSTAreas = std::vector<MarineEnvironmentFCSTArea>;
 
         MarineEnvironmentFCSTAreas GetMarineEnvironmentFCSTAreas(const uint32_t index = 0, const size_t number = -1);
+
+        /*
+        * @brief      Delete the marine environment forecast sea area information
+        * @param[in]  index   -  the starting position to be deleted
+        * @param[in]  number  -  the maximum number information to be deleted
+        * @param[out] none
+        * @return     true if delete successfully, otherwise false
+        * @note       if the number is -1, delete all forecast after the starting 
+        *             position of index           
+        */
+        bool DeleteMarineEnvironmentFCSTAreas(const uint32_t index = 0, const size_t number = -1);
+
+        /*
+        * @brief      Delete the marine environment forecast sea area information
+        * @param[in]  dataIDs  -  collection of dataIDs to be deleted
+        * @param[out] none
+        * @return     true if delete successfully, otherwise false
+        */
+        bool DeleteMarineEnvironmentFCSTAreas(const std::vector<uint32_t> &dataIDs);
 
         
         /***********************************************************************

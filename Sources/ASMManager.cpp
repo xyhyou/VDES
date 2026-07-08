@@ -67,6 +67,10 @@ namespace VDES
 
         void ParseASMDAC412FI43(const AISBitsManager &manager);
 
+        void ParseASMDAC412FI44(const AISBitsManager &manager);
+
+        void ParseChannelBoundaryHelper(const AISBitsManager &manager, uint8_t edgeType, uint8_t fi);
+
         void ParseASMDAC413FI5(const AISBitsManager &manager);
 
         void ParseASMDAC413FI7(const AISBitsManager &manager);
@@ -146,6 +150,8 @@ namespace VDES
         m_asmParserMap.insert(std::make_pair(41242, std::bind(&Impl::ParseASMDAC412FI42, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41243, std::bind(&Impl::ParseASMDAC412FI43, this, std::placeholders::_1)));
+
+        m_asmParserMap.insert(std::make_pair(41244, std::bind(&Impl::ParseASMDAC412FI44, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41305, std::bind(&Impl::ParseASMDAC413FI5, this, std::placeholders::_1)));
 
@@ -1556,29 +1562,29 @@ namespace VDES
         m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_42>(asmInfo));
     }
 
-    void ASMManager::Impl::ParseASMDAC412FI43(const AISBitsManager &manager)
+    void ASMManager::Impl::ParseChannelBoundaryHelper(const AISBitsManager &manager, uint8_t edgeType, uint8_t fi)
     {
         ASM_DAC_412_FI_43 asmInfo;
         Coordinate        coordinate;
 
         asmInfo.DAC = 412;
-        asmInfo.FI = 43;
+        asmInfo.FI = fi;
 
         asmInfo.MRN = manager.DecodeToNumerical(16, 17);
         asmInfo.fragment = static_cast<uint8_t>(manager.DecodeToNumerical(33, 2));
-        asmInfo.edgeType = static_cast<uint8_t>(manager.DecodeToNumerical(35, 1));
+        asmInfo.edgeType = edgeType;
 
-        auto value = manager.DecodeToNumerical(36, 28);
+        auto value = manager.DecodeToNumerical(35, 28);
         auto longitude = UtilityInterface::ConvertComplementCodeToInteger(value, 28);
         coordinate.SetLongitude(longitude / 600000.0);
 
-        value = manager.DecodeToNumerical(64, 27);
+        value = manager.DecodeToNumerical(63, 27);
         auto latitude = UtilityInterface::ConvertComplementCodeToInteger(value, 27);
         coordinate.SetLatitude(latitude / 600000.0);
 
         asmInfo.coordinates.push_back(coordinate);
 
-        auto index = 91; 
+        auto index = 90; 
 
         auto surplusCoordinateNum = (manager.GetBitsNumberToDecode() - index) / 47;
 
@@ -1601,6 +1607,16 @@ namespace VDES
         }
 
         m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_43>(asmInfo));
+    }
+
+    void ASMManager::Impl::ParseASMDAC412FI43(const AISBitsManager &manager)
+    {
+        ParseChannelBoundaryHelper(manager, 0, 43);
+    }
+
+    void ASMManager::Impl::ParseASMDAC412FI44(const AISBitsManager &manager)
+    {
+        ParseChannelBoundaryHelper(manager, 1, 44);
     }
 
     void ASMManager::Impl::ParseASMDAC413FI5(const AISBitsManager &manager)

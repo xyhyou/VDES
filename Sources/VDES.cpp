@@ -376,6 +376,18 @@ namespace VDES
             double   longitude;
         };
 
+        struct BridgeSpanStruct
+        {
+            double   latitude;
+            double   longitude;
+            double   height;
+            double   width;
+            uint16_t directionToPass;
+            uint8_t  passAbility;
+            bool     enableMeeting;
+            bool     enableOvertaking;
+        };
+
         struct WaypointStruct
         {
             CoordinateStruct coordinate;
@@ -1133,20 +1145,13 @@ namespace VDES
     {
         try
         {
+            m_database->exec("DROP TABLE IF EXISTS Bridge");
             m_database->exec("CREATE TABLE IF NOT EXISTS Bridge ("
-                "ID INTEGER PRIMARY KEY AUTOINCREMENT, "
-                "MRN INT, "
+                "MRN INTEGER PRIMARY KEY, "
                 "Fragment INT, "
-                "Latitude DOUBLE, "
-                "Longitude DOUBLE, "
-                "Height DOUBLE, "
-                "Width DOUBLE, "
-                "DirectionToPass INT, "
-                "PassAbility INT, "
-                "EnableMeeting BOOLEAN, "
-                "EnableOvertaking BOOLEAN, "
                 "FlowVelocity INT, "
                 "FlowDirection INT, "
+                "Spans BLOB, "
                 "[Timestamp Receive] INTEGER"
                 ")");
         }
@@ -3110,17 +3115,36 @@ namespace VDES
         bridge.MRN = query.getColumn("MRN").getUInt();
         bridge.fragment = static_cast<uint8_t>(query.getColumn("Fragment").getUInt());
         bridge.status = 0;
-        bridge.center.SetLatitude(query.getColumn("Latitude").getDouble());
-        bridge.center.SetLongitude(query.getColumn("Longitude").getDouble());
-        bridge.height = query.getColumn("Height").getDouble();
-        bridge.width = query.getColumn("Width").getDouble();
-        bridge.directionToPass = static_cast<uint16_t>(query.getColumn("DirectionToPass").getUInt());
-        bridge.passAbility = static_cast<uint8_t>(query.getColumn("PassAbility").getUInt());
-        bridge.enableMeeting = query.getColumn("EnableMeeting").getUInt() != 0;
-        bridge.enableOvertaking = query.getColumn("EnableOvertaking").getUInt() != 0;
         bridge.flowVelocity = static_cast<uint16_t>(query.getColumn("FlowVelocity").getUInt());
         bridge.flowDirection = static_cast<uint16_t>(query.getColumn("FlowDirection").getUInt());
         bridge.timestamp = query.getColumn("Timestamp Receive").getInt64();
+
+        SQLite::Column column = query.getColumn("Spans");
+        auto           size = column.getBytes();
+
+        bridge.spans.clear();
+        if (size > 0)
+        {
+            if (size % sizeof(BridgeSpanStruct) == 0)
+            {
+                auto ptr = (const BridgeSpanStruct *)column.getBlob();
+                auto count = size / sizeof(BridgeSpanStruct);
+
+                for (size_t i = 0; i < count; i++)
+                {
+                    Bridge::Span span;
+                    span.center.SetLatitude(ptr[i].latitude);
+                    span.center.SetLongitude(ptr[i].longitude);
+                    span.height = ptr[i].height;
+                    span.width = ptr[i].width;
+                    span.directionToPass = ptr[i].directionToPass;
+                    span.passAbility = ptr[i].passAbility;
+                    span.enableMeeting = ptr[i].enableMeeting;
+                    span.enableOvertaking = ptr[i].enableOvertaking;
+                    bridge.spans.push_back(span);
+                }
+            }
+        }
     }
 
     void VDESManager::Impl::LoadChannelCenterlineFromQueryResult(ChannelCenterline &centerline, 
@@ -3944,26 +3968,30 @@ namespace VDES
         {
             try
             {
-                auto sql = "INSERT INTO Bridge (MRN, Fragment, Latitude, Longitude, Height, Width, "
-                           "DirectionToPass, PassAbility, EnableMeeting, EnableOvertaking, "
-                           "FlowVelocity, FlowDirection, [Timestamp Receive]) "
-                           "VALUES (@MRN, @Fragment, @Latitude, @Longitude, @Height, @Width, "
-                           "@DirectionToPass, @PassAbility, @EnableMeeting, @EnableOvertaking, "
-                           "@FlowVelocity, @FlowDirection, @TimestampRcv)";
+                auto sql = "REPLACE INTO Bridge (MRN, Fragment, FlowVelocity, FlowDirection, Spans, [Timestamp Receive]) "
+                           "VALUES (@MRN, @Fragment, @FlowVelocity, @FlowDirection, @Spans, @TimestampRcv)";
                 auto stmt = m_database->buildStatement(sql);
 
                 stmt.bind("@MRN", bridge.MRN);
                 stmt.bind("@Fragment", bridge.fragment);
-                stmt.bind("@Latitude", bridge.center.GetLatitude());
-                stmt.bind("@Longitude", bridge.center.GetLongitude());
-                stmt.bind("@Height", bridge.height);
-                stmt.bind("@Width", bridge.width);
-                stmt.bind("@DirectionToPass", bridge.directionToPass);
-                stmt.bind("@PassAbility", bridge.passAbility);
-                stmt.bind("@EnableMeeting", bridge.enableMeeting ? 1 : 0);
-                stmt.bind("@EnableOvertaking", bridge.enableOvertaking ? 1 : 0);
                 stmt.bind("@FlowVelocity", bridge.flowVelocity);
                 stmt.bind("@FlowDirection", bridge.flowDirection);
+
+                auto pointsCount = bridge.spans.size();
+                auto size = pointsCount * sizeof(BridgeSpanStruct);
+                auto blob = std::unique_ptr<BridgeSpanStruct[]>(new BridgeSpanStruct[pointsCount]);
+                for (size_t i = 0; i < pointsCount; ++i)
+                {
+                    blob[i].latitude = bridge.spans[i].center.GetLatitude();
+                    blob[i].longitude = bridge.spans[i].center.GetLongitude();
+                    blob[i].height = bridge.spans[i].height;
+                    blob[i].width = bridge.spans[i].width;
+                    blob[i].directionToPass = bridge.spans[i].directionToPass;
+                    blob[i].passAbility = bridge.spans[i].passAbility;
+                    blob[i].enableMeeting = bridge.spans[i].enableMeeting;
+                    blob[i].enableOvertaking = bridge.spans[i].enableOvertaking;
+                }
+                stmt.bind("@Spans", blob.get(), static_cast<int>(size));
                 stmt.bind("@TimestampRcv", bridge.timestamp);
 
                 stmt.exec();
@@ -6241,42 +6269,32 @@ namespace VDES
                 auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_41>(asmData);
                 if (info)
                 {
-                    std::unique_lock<std::mutex> lock(m_mutexBridge);
-                    try
-                    {
-                        if (m_database)
-                        {
-                            auto sqlDel = fmt::format("DELETE FROM Bridge WHERE MRN = {}", info->MRN);
-                            m_database->exec(sqlDel);
-                        }
-                    }
-                    catch (const SQLite::Exception &execption)
-                    {
-                        DatabaseErrorProcess(execption, "HandleASMMessage_DeleteBridgeSpans");
-                    }
+                    Bridge bridge;
+                    bridge.MRN = info->MRN;
+                    bridge.fragment = info->fragment;
+                    bridge.status = 0;
+                    bridge.flowVelocity = info->flowVelocity;
+                    bridge.flowDirection = info->flowDirection;
+                    bridge.timestamp = info->publicationTime != 0 ? info->publicationTime : UtilityInterface::GetCurrentTimeStamp();
 
                     for (const auto &span : info->bridgeSpans)
                     {
-                        Bridge bridge;
-                        bridge.MRN = info->MRN;
-                        bridge.fragment = info->fragment;
-                        bridge.status = 0;
-                        bridge.center = span.center;
-                        bridge.height = span.height;
-                        bridge.width = span.width;
-                        bridge.directionToPass = span.directionToPass;
-                        bridge.passAbility = span.passAbility;
-                        bridge.enableMeeting = span.enableMeeting;
-                        bridge.enableOvertaking = span.enableOvertaking;
-                        bridge.flowVelocity = info->flowVelocity;
-                        bridge.flowDirection = info->flowDirection;
-                        bridge.timestamp = info->publicationTime != 0 ? info->publicationTime : UtilityInterface::GetCurrentTimeStamp();
-                        
-                        SaveBridge(bridge);
+                        Bridge::Span s;
+                        s.center = span.center;
+                        s.height = span.height;
+                        s.width = span.width;
+                        s.directionToPass = span.directionToPass;
+                        s.passAbility = span.passAbility;
+                        s.enableMeeting = span.enableMeeting;
+                        s.enableOvertaking = span.enableOvertaking;
+                        bridge.spans.push_back(s);
                     }
+
+                    std::unique_lock<std::mutex> lock(m_mutexBridge);
+                    SaveBridge(bridge);
                     lock.unlock();
 
-                    if (!info->bridgeSpans.empty())
+                    if (!bridge.spans.empty())
                     {
                         m_parent->notifyEvent(EventType::ASM_BRIDGE, 0);
                     }
@@ -6383,12 +6401,14 @@ namespace VDES
                 }
             }
 
-            if (asmData->DAC == 412 && asmData->FI == 43)
+            if (asmData->DAC == 412 && (asmData->FI == 43 || asmData->FI == 44))
             {
                 auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_43>(asmData);
                 if (info)
                 {
                     ChannelBoundary boundary;
+                    boundary.DAC = info->DAC;
+                    boundary.FI = info->FI;
                     boundary.MRN = info->MRN;
                     boundary.fragment = info->fragment;
                     boundary.edgeType = info->edgeType;

@@ -406,7 +406,7 @@ namespace VDES
         uint8_t additional;
 
         Coordinate coordinate;
-        uint64_t   timestampValid = 0;
+        uint64_t   timestampPublished = 0;
 
         // New fields for FI=39 support
         uint16_t statusDescription   = 0;   // 状况描述 (16-bit)
@@ -777,18 +777,23 @@ namespace VDES
      */
     struct Bridge : ASMAttribute
     {
-        uint32_t   MRN;
-        uint8_t    fragment;
-        uint8_t    status;
-        Coordinate center;
-        double     height           = 0.0;
-        double     width            = 0.0;
-        uint16_t   directionToPass  = 0;
-        uint8_t    passAbility      = 0;
-        bool       enableMeeting    = 0;
-        bool       enableOvertaking = 0;
-        uint16_t   flowVelocity     = 0;
-        uint16_t   flowDirection    = 0;
+        struct Span
+        {
+            Coordinate center;
+            double     height           = 0.0;
+            double     width            = 0.0;
+            uint16_t   directionToPass  = 0;
+            uint8_t    passAbility      = 0;
+            bool       enableMeeting    = false;
+            bool       enableOvertaking = false;
+        };
+
+        uint32_t          MRN;
+        uint8_t           fragment;
+        uint8_t           status;
+        uint16_t          flowVelocity     = 0;
+        uint16_t          flowDirection    = 0;
+        std::vector<Span> spans;
     };
 
     struct NetSounder : ASMAttribute

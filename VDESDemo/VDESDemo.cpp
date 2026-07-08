@@ -1363,6 +1363,24 @@ static std::vector<std::string> GenerateDAC_412_FI_41(void)
 	// 允许超越 (允许 -> 1)
 	bitsManager.Encode(1, 1);
 
+	// Span #2:
+	// 中心经度 (118.0893)
+	bitsManager.Encode(static_cast<int64_t>(118.0893 * 600000.0), 28);
+	// 中心纬度 (24.590496)
+	bitsManager.Encode(static_cast<int64_t>(24.590496 * 600000.0), 27);
+	// 净高 (50.0 m -> 500)
+	bitsManager.Encode(500, 10);
+	// 净宽 (400 m -> 400)
+	bitsManager.Encode(400, 10);
+	// 通行能力 (双向 -> 3)
+	bitsManager.Encode(3, 2);
+	// 通行方向 (通航角 130°)
+	bitsManager.Encode(130, 9);
+	// 允许会遇 (允许 -> 1)
+	bitsManager.Encode(1, 1);
+	// 允许超越 (允许 -> 1)
+	bitsManager.Encode(1, 1);
+
 	auto bitsNum = bitsManager.GetBitsNumberToDecode();
 	auto spareBits = 8 - (bitsNum % 8);
 	bitsManager.Encode(0, spareBits);
@@ -1685,7 +1703,7 @@ static std::vector<std::string> GenerateDAC_412_FI_42(void)
 	return results;
 }
 
-// Navigational Channel Boundary (FI = 43)
+// Navigational Channel Boundary (FI = 43/44)
 static std::vector<std::string> GenerateDAC_412_FI_43(uint8_t edgeType)
 {
 	VDES::AISBitsManager bitsManager;
@@ -1701,14 +1719,12 @@ static std::vector<std::string> GenerateDAC_412_FI_43(uint8_t edgeType)
 	// DAC
 	bitsManager.Encode(412, 10);
 	// FI	
-	bitsManager.Encode(43, 6);
+	bitsManager.Encode(edgeType == 0 ? 43 : 44, 6);
 
 	// MRN
 	bitsManager.Encode(302, 17);
 	// Fragment
 	bitsManager.Encode(0, 2);
-	// Edge Type
-	bitsManager.Encode(edgeType, 1);
 
 	// Node 1 (fixed point 28/27 bits)
 	bitsManager.Encode(static_cast<uint32_t>(118.234567 * 600000), 28);
@@ -1727,7 +1743,7 @@ static std::vector<std::string> GenerateDAC_412_FI_43(uint8_t edgeType)
 	{
 		auto sentence = vdm + "\r\n";
 		results.push_back(sentence);
-		std::cout << "GEN VDM (FI=43 Channel Boundary, edgeType=" << (int)edgeType << "): " << sentence;
+		std::cout << "GEN VDM (FI=" << (edgeType == 0 ? 43 : 44) << " Channel Boundary, edgeType=" << (int)edgeType << "): " << sentence;
 	}
 	return results;
 }
@@ -2275,10 +2291,10 @@ int main(void)
 		// AIS航标动态 DAC = 412, FI = 34
 		//"$AIASM,1783258502,1,1,,1,2,0,666666666,,Ij:3nPU;n0040A<suP`hQD08,0*65\r\n",
 		// 碍航物 DAC = 412, FI = 35
-		//"$AIASM,1783253640,1,1,,2,2,0,666666666,,Ij<=@b6:kDdLDu06hww`0HOw6Os4ww?wTh06f8R:80,4*44\r\n",
+		"$AIASM,1783253640,1,1,,2,2,0,666666666,,Ij<=@b6:kDdLDu06hww`0HOw6Os4ww?wTh06f8R:80,4*44\r\n",
 		// 船舶遇险 DAC = 412, FI = 39
-		"$AIASM,1783259385,1,1,,1,2,0,666666666,,IjLuo`P004a5d1akpLAbh30,2*4F\r\n",
-		"$AIASM,1783259374,1,1,,1,2,0,666666666,,IjL6;r@0T4`V30q93LAbi10,2*06\r\n",
+		//"$AIASM,1783259385,1,1,,1,2,0,666666666,,IjLuo`P004a5d1akpLAbh30,2*4F\r\n",
+		//"$AIASM,1783259374,1,1,,1,2,0,666666666,,IjL6;r@0T4`V30q93LAbi10,2*06\r\n",
 		//"$AIASM,1783254079,1,1,,2,2,0,666666666,,Ij<=@HL@pcB0d?cFOo4A5<0,2*1A\r\n",
 		//"$AIASM,1783253640,1,1,,2,2,0,666666666,,Ij<=@b6:kDdLDu06hww`0HOw6Os4ww?wTh06f8R:80,4*44\r\n",
 		// 桥梁 DAC = 412, FI = 41
@@ -2335,6 +2351,19 @@ int main(void)
 
 	auto vdm41_active = GenerateDAC_412_FI_41();
 	for (const auto &vdm : vdm41_active)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Parse mock Channel Boundary (FI=43/44) messages
+	auto vdm43_left = GenerateDAC_412_FI_43(0);
+	for (const auto &vdm : vdm43_left)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	auto vdm43_right = GenerateDAC_412_FI_43(1);
+	for (const auto &vdm : vdm43_right)
 	{
 		vdesManager.Parse(vdm.c_str(), vdm.length());
 	}
@@ -2611,7 +2640,7 @@ int main(void)
 
 	// --- Channel Boundaries (FI = 43) ---
 	auto boundaries = vdesManager.GetChannelBoundaries(0, 100);
-	std::cout << "Parsed " << boundaries.size() << " channel boundaries (FI=43):" << std::endl;
+	std::cout << "Parsed " << boundaries.size() << " channel boundaries (FI=43/44):" << std::endl;
 	for (const auto &cb : boundaries)
 	{
 		std::cout << "  MRN: " << cb.MRN
@@ -2985,6 +3014,24 @@ int main(void)
 #endif
 #endif
 
+	// Verify Channel Boundaries (FI = 43/44) from database
+	std::cout << "\n=== Verification: Querying Channel Boundaries (FI=43/44) from DB ===" << std::endl;
+	auto boundaries = vdesManager.GetChannelBoundaries(0, 100);
+	std::cout << "Parsed and saved Channel Boundaries count: " << boundaries.size() << std::endl;
+	for (const auto &cb : boundaries)
+	{
+		std::cout << "  MRN: " << cb.MRN
+				  << ", Fragment: " << (int)cb.fragment
+				  << ", EdgeType: " << (int)cb.edgeType << " (0: Left, 1: Right)"
+				  << ", Coordinates count: " << cb.coordinates.size() << std::endl;
+		for (size_t i = 0; i < cb.coordinates.size(); ++i)
+		{
+			std::cout << "    Pt " << i << ": Lat=" << cb.coordinates[i].GetLatitude()
+					  << ", Lon=" << cb.coordinates[i].GetLongitude() << std::endl;
+		}
+	}
+	std::cout << "=========================================================\n" << std::endl;
+
 	// Verify NetSounder (FI=45) from database
 	std::cout << "\n=== Verification: Querying Net Sounders (FI=45) from DB ===" << std::endl;
 	auto netSounders = vdesManager.GetNetSounders(0, 100);
@@ -3270,13 +3317,20 @@ int main(void)
 		std::cout << "  Bridge MRN: " << bridge.MRN 
 				  << ", FlowVelocity: " << bridge.flowVelocity 
 				  << ", FlowDirection: " << bridge.flowDirection 
-				  << ", Lat: " << bridge.center.GetLatitude() 
-				  << ", Lon: " << bridge.center.GetLongitude() 
-				  << ", Height: " << bridge.height 
-				  << ", Width: " << bridge.width 
-				  << ", DirectionToPass: " << bridge.directionToPass 
-				  << ", PassAbility: " << (int)bridge.passAbility 
-				  << ", Timestamp (PubTime): " << bridge.timestamp << std::endl;
+				  << ", Timestamp (PubTime): " << bridge.timestamp 
+				  << ", Spans Count: " << bridge.spans.size() << std::endl;
+		for (size_t i = 0; i < bridge.spans.size(); ++i)
+		{
+			const auto &span = bridge.spans[i];
+			std::cout << "    Span " << i << ": Lat=" << span.center.GetLatitude()
+					  << ", Lon=" << span.center.GetLongitude()
+					  << ", Height=" << span.height
+					  << ", Width=" << span.width
+					  << ", DirectionToPass=" << span.directionToPass
+					  << ", PassAbility=" << (int)span.passAbility
+					  << ", EnableMeeting=" << span.enableMeeting
+					  << ", EnableOvertaking=" << span.enableOvertaking << std::endl;
+		}
 	}
 	std::cout << "======================================================" << std::endl;
 
