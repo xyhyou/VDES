@@ -406,7 +406,7 @@ namespace VDES
         uint8_t additional;
 
         Coordinate coordinate;
-        uint64_t   timestampValid = 0;
+        uint64_t   timestampPublished = 0;
 
         // New fields for FI=39 support
         uint16_t statusDescription   = 0;   // 状况描述 (16-bit)

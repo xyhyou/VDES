@@ -3027,7 +3027,7 @@ namespace VDES
         distress.additional = static_cast<uint8_t>(query.getColumn("Additional").getInt());
         distress.coordinate.SetLatitude(query.getColumn("Latitude").getDouble());
         distress.coordinate.SetLongitude(query.getColumn("Longitude").getDouble());
-        distress.timestampValid = query.getColumn("Timestamp").getInt64();
+        distress.timestampPublished = query.getColumn("Timestamp").getInt64();
         distress.isCertified = query.getColumn("Certified").getInt() == 1;
         distress.timestamp = query.getColumn("Timestamp Receive").getInt64();
         distress.read = query.getColumn("Read").getInt() == 1;
@@ -3754,7 +3754,7 @@ namespace VDES
                 stmt.bind("@Additional", distress.additional);
                 stmt.bind("@Latitude", distress.coordinate.GetLatitude());
                 stmt.bind("@Longitude", distress.coordinate.GetLongitude());
-                stmt.bind("@TimestampValid", distress.timestampValid);
+                stmt.bind("@TimestampValid", distress.timestampPublished);
                 stmt.bind("@Certified", distress.isCertified ? 1 : 0);
                 stmt.bind("@TimestampRcv", distress.timestamp);
                 stmt.bind("@Read", distress.read ? 1 : 0);
@@ -5507,7 +5507,7 @@ namespace VDES
         distress.additional = static_cast<uint8_t>(manager.DecodeToNumerical(46, 4));
         distress.coordinate.SetLongitude(DecodeCoordinate(manager, 50, 28));
         distress.coordinate.SetLatitude(DecodeCoordinate(manager, 78, 27));
-        distress.timestampValid = DecodeTime(manager, 105, 20);
+        distress.timestampPublished = DecodeTime(manager, 105, 20);
         distress.isCertified = true;
         distress.timestamp = UtilityInterface::GetCurrentTimeStamp();
 
@@ -5785,16 +5785,16 @@ namespace VDES
                     {
                         MarineMeteorologyFCST fcst;
                         auto &locationInfo = info->locationInfos.at(i);
-                        fcst.weatherCode = locationInfo.weatherCode;
-                        fcst.coordinate = locationInfo.coordinate;
-                        fcst.windSpeed = locationInfo.windSpeed;
+                        fcst.weatherCode   = locationInfo.weatherCode;
+                        fcst.coordinate    = locationInfo.coordinate;
+                        fcst.windSpeed     = locationInfo.windSpeed;
                         fcst.windDirection = locationInfo.windDirection;
-                        fcst.temperature = locationInfo.temperature;
-                        fcst.airPressure = locationInfo.airPressure;
-                        fcst.visibility = locationInfo.visibility;
-                        fcst.infoSource = info->infoSource;
+                        fcst.temperature   = locationInfo.temperature;
+                        fcst.airPressure   = locationInfo.airPressure;
+                        fcst.visibility    = locationInfo.visibility;
+                        fcst.infoSource    = info->infoSource;
                         fcst.timestampFCST = timestampDayBegin + info->hoursOffsetFCST * 3600;
-                        fcst.timestamp = timestampDayBegin;
+                        fcst.timestamp     = timestampDayBegin;
                         container.emplace_back(fcst);
                     }
                     if (!container.empty())
@@ -5830,15 +5830,15 @@ namespace VDES
                     for (const auto &seaAreaInfo : info->seaAreaInfos)
                     {
                         MarineMeteorologyFCSTArea area;
-                        area.areaCode = seaAreaInfo.areaCode;
-                        area.weatherCode = seaAreaInfo.weatherCode;
+                        area.areaCode      = seaAreaInfo.areaCode;
+                        area.weatherCode   = seaAreaInfo.weatherCode;
                         area.windDirection = seaAreaInfo.windDirection;
-                        area.windScaleLow = seaAreaInfo.windScaleLow;
+                        area.windScaleLow  = seaAreaInfo.windScaleLow;
                         area.windScaleHigh = seaAreaInfo.windScaleHigh;
-                        area.visibility = seaAreaInfo.visibility;
-                        area.infoSource = info->infoSource;
+                        area.visibility    = seaAreaInfo.visibility;
+                        area.infoSource    = info->infoSource;
                         area.timestampFCST = timestampDayBegin + info->hoursOffsetFCST * 3600;
-                        area.timestamp = timestampDayBegin;
+                        area.timestamp     = timestampDayBegin;
                         container.emplace_back(area);
                     }
 
@@ -5876,15 +5876,15 @@ namespace VDES
                     for (const auto &locationInfo : info->locationInfos)
                     {
                         MarineEnvironmentFCST fcst;
-                        fcst.coordinate = locationInfo.coordinate;
-                        fcst.flowVelocity = locationInfo.flowVelocity;
+                        fcst.coordinate    = locationInfo.coordinate;
+                        fcst.flowVelocity  = locationInfo.flowVelocity;
                         fcst.flowDirection = locationInfo.flowDirection;
-                        fcst.waveHeight = locationInfo.waveHeight;
+                        fcst.waveHeight    = locationInfo.waveHeight;
                         fcst.waveDirection = locationInfo.waveDirection;
-                        fcst.temperature = locationInfo.temperature;
-                        fcst.infoSource = info->infoSource;
+                        fcst.temperature   = locationInfo.temperature;
+                        fcst.infoSource    = info->infoSource;
                         fcst.timestampFCST = timestampDayBegin + info->hoursOffsetFCST * 3600;
-                        fcst.timestamp = timestampDayBegin;
+                        fcst.timestamp     = timestampDayBegin;
                         container.emplace_back(fcst);
                     }
                     if (!container.empty())
@@ -5921,18 +5921,18 @@ namespace VDES
                     for (const auto &seaAreaInfo : info->seaAreaInfos)
                     {
                         MarineEnvironmentFCSTArea area;
-                        area.areaCode = seaAreaInfo.areaCode;
-                        area.temperatureLow = seaAreaInfo.temperatureLow;
-                        area.temperatureHigh = seaAreaInfo.temperatureHigh;
+                        area.areaCode         = seaAreaInfo.areaCode;
+                        area.temperatureLow   = seaAreaInfo.temperatureLow;
+                        area.temperatureHigh  = seaAreaInfo.temperatureHigh;
                         area.flowDirectionAvg = seaAreaInfo.flowDirectionAvg;
-                        area.flowDirctionMax = seaAreaInfo.flowDirctionMax;
-                        area.flowVelocityAvg = seaAreaInfo.flowVelocityAvg;
-                        area.flowVelocityMax = seaAreaInfo.flowVelocityMax;
-                        area.waveHeight = seaAreaInfo.waveHeight;
-                        area.swellHeight = seaAreaInfo.swellHeight;
-                        area.infoSource = info->infoSource;
-                        area.timestampFCST = timestampDayBegin + info->hoursOffsetFCST * 3600;
-                        area.timestamp = timestampDayBegin;
+                        area.flowDirctionMax  = seaAreaInfo.flowDirctionMax;
+                        area.flowVelocityAvg  = seaAreaInfo.flowVelocityAvg;
+                        area.flowVelocityMax  = seaAreaInfo.flowVelocityMax;
+                        area.waveHeight       = seaAreaInfo.waveHeight;
+                        area.swellHeight      = seaAreaInfo.swellHeight;
+                        area.infoSource       = info->infoSource;
+                        area.timestampFCST    = timestampDayBegin + info->hoursOffsetFCST * 3600;
+                        area.timestamp        = timestampDayBegin;
                         container.emplace_back(area);
                     }
 
@@ -6184,7 +6184,7 @@ namespace VDES
                     distress.additional = 0;
 
                     distress.coordinate = info->coordinate;
-                    distress.timestampValid = info->distressTime;
+                    distress.timestampPublished = info->distressTime;
 
                     distress.statusDescription = info->statusDescription;
                     distress.judgment = info->judgment;
