@@ -1,4 +1,4 @@
-#include "ASMManager.h"
+﻿#include "ASMManager.h"
 
 #include <map>
 #include <cstdlib>
@@ -79,11 +79,11 @@ namespace VDES
 
         void ParseASMDAC412FI47(const AISBitsManager &manager);
 
-        void ParseASMDAC412FI49(const AISBitsManager &manager);
-
         void ParseASMDAC412FI50(const AISBitsManager &manager);
 
         void ParseASMDAC412FI51(const AISBitsManager &manager);
+
+        void ParseASMDAC412FI52(const AISBitsManager &manager);
 
         double DecodeCoordinate(const AISBitsManager &manager, const uint32_t startBitPos, const uint32_t bitsNum);
 
@@ -123,13 +123,19 @@ namespace VDES
         
         m_asmParserMap.insert(std::make_pair(41230, std::bind(&Impl::ParseASMDAC412FI30, this, std::placeholders::_1)));
 
+        m_asmParserMap.insert(std::make_pair(41231, std::bind(&Impl::ParseASMDAC412FI31, this, std::placeholders::_1)));
+
 		m_asmParserMap.insert(std::make_pair(41232, std::bind(&Impl::ParseASMDAC412FI32, this, std::placeholders::_1)));
+
+        m_asmParserMap.insert(std::make_pair(41233, std::bind(&Impl::ParseASMDAC412FI33, this, std::placeholders::_1)));
+
+        m_asmParserMap.insert(std::make_pair(41234, std::bind(&Impl::ParseASMDAC412FI34, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41235, std::bind(&Impl::ParseASMDAC412FI35, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41236, std::bind(&Impl::ParseASMDAC412FI36, this, std::placeholders::_1)));
 
-        m_asmParserMap.insert(std::make_pair(41231, std::bind(&Impl::ParseASMDAC412FI31, this, std::placeholders::_1)));
+        m_asmParserMap.insert(std::make_pair(41237, std::bind(&Impl::ParseASMDAC412FI37, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41238, std::bind(&Impl::ParseASMDAC412FI38, this, std::placeholders::_1)));
 
@@ -137,15 +143,7 @@ namespace VDES
 
         m_asmParserMap.insert(std::make_pair(41240, std::bind(&Impl::ParseASMDAC412FI40, this, std::placeholders::_1)));
 
-        m_asmParserMap.insert(std::make_pair(41233, std::bind(&Impl::ParseASMDAC412FI33, this, std::placeholders::_1)));
-
-        m_asmParserMap.insert(std::make_pair(41234, std::bind(&Impl::ParseASMDAC412FI34, this, std::placeholders::_1)));
-
         m_asmParserMap.insert(std::make_pair(41241, std::bind(&Impl::ParseASMDAC412FI41, this, std::placeholders::_1)));
-
-        m_asmParserMap.insert(std::make_pair(41245, std::bind(&Impl::ParseASMDAC412FI45, this, std::placeholders::_1)));
-
-        m_asmParserMap.insert(std::make_pair(41237, std::bind(&Impl::ParseASMDAC412FI37, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41242, std::bind(&Impl::ParseASMDAC412FI42, this, std::placeholders::_1)));
 
@@ -153,19 +151,21 @@ namespace VDES
 
         m_asmParserMap.insert(std::make_pair(41244, std::bind(&Impl::ParseASMDAC412FI44, this, std::placeholders::_1)));
 
-        m_asmParserMap.insert(std::make_pair(41305, std::bind(&Impl::ParseASMDAC413FI5, this, std::placeholders::_1)));
-
-        m_asmParserMap.insert(std::make_pair(41307, std::bind(&Impl::ParseASMDAC413FI7, this, std::placeholders::_1)));
-
-        m_asmParserMap.insert(std::make_pair(41308, std::bind(&Impl::ParseASMDAC413FI8, this, std::placeholders::_1)));
+        m_asmParserMap.insert(std::make_pair(41245, std::bind(&Impl::ParseASMDAC412FI45, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41247, std::bind(&Impl::ParseASMDAC412FI47, this, std::placeholders::_1)));
-
-        m_asmParserMap.insert(std::make_pair(41249, std::bind(&Impl::ParseASMDAC412FI49, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41250, std::bind(&Impl::ParseASMDAC412FI50, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41251, std::bind(&Impl::ParseASMDAC412FI51, this, std::placeholders::_1)));
+
+        m_asmParserMap.insert(std::make_pair(41252, std::bind(&Impl::ParseASMDAC412FI52, this, std::placeholders::_1)));
+
+        m_asmParserMap.insert(std::make_pair(41305, std::bind(&Impl::ParseASMDAC413FI5, this, std::placeholders::_1)));
+
+        m_asmParserMap.insert(std::make_pair(41307, std::bind(&Impl::ParseASMDAC413FI7, this, std::placeholders::_1)));
+
+        m_asmParserMap.insert(std::make_pair(41308, std::bind(&Impl::ParseASMDAC413FI8, this, std::placeholders::_1)));  
     }
 
     ASMManager::Impl::~Impl()
@@ -998,14 +998,13 @@ namespace VDES
 
         ASM_DAC_412_FI_39 asmInfo;
 
-        asmInfo.DAC = 412;
-        asmInfo.FI = 39;
-
-        asmInfo.MRN = manager.DecodeToNumerical(16, 17);
-        asmInfo.fragment = static_cast<uint8_t>(manager.DecodeToNumerical(33, 2));
-        asmInfo.distressType = static_cast<uint8_t>(manager.DecodeToNumerical(35, 4));
+        asmInfo.DAC               = 412;
+        asmInfo.FI                = 39;
+        asmInfo.MRN               = manager.DecodeToNumerical(16, 17);
+        asmInfo.fragment          = static_cast<uint8_t>(manager.DecodeToNumerical(33, 2));
+        asmInfo.distressType      = static_cast<uint8_t>(manager.DecodeToNumerical(35, 4));
         asmInfo.statusDescription = static_cast<uint16_t>(manager.DecodeToNumerical(39, 16));
-        asmInfo.judgment = static_cast<uint8_t>(manager.DecodeToNumerical(55, 3));
+        asmInfo.judgment          = static_cast<uint8_t>(manager.DecodeToNumerical(55, 3));
 
         auto lonVal = manager.DecodeToNumerical(58, 22);
         auto longitude = UtilityInterface::ConvertComplementCodeToInteger(lonVal, 22);
@@ -1016,9 +1015,9 @@ namespace VDES
         asmInfo.coordinate.SetLatitude(latitude / 6000.0);
 
         asmInfo.locationInstruction = static_cast<uint8_t>(manager.DecodeToNumerical(101, 1));
-        asmInfo.distressTime = DecodeTime(manager, 102, 20);
-        asmInfo.duration = static_cast<uint8_t>(manager.DecodeToNumerical(122, 6));
-        asmInfo.cautionCode = static_cast<uint8_t>(manager.DecodeToNumerical(128, 4));
+        asmInfo.distressTime        = DecodeTime(manager, 102, 20);
+        asmInfo.duration            = static_cast<uint8_t>(manager.DecodeToNumerical(122, 6));
+        asmInfo.cautionCode         = static_cast<uint8_t>(manager.DecodeToNumerical(128, 4));
 
         SPDLOG_DEBUG("Impl::ParseASMDAC412FI39: distressType={}, duration={}", asmInfo.distressType, asmInfo.duration);
         m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_39>(asmInfo));
@@ -1139,21 +1138,21 @@ namespace VDES
         uint32_t L = 0;
         switch (asmInfo.status)
         {
-        case 1:  L = 110; break;
+        case 1:  L = 112; break;
         case 2:
         case 3:
-        case 6:  L = 77;  break;
+        case 6:  L = 79;  break;
         case 4:
-        case 7:  L = 133; break;
-        case 5:  L = 81;  break;
-        case 8:  L = 100; break;
-        case 9:  L = 82;  break;
+        case 7:  L = 135; break;
+        case 5:  L = 83;  break;
+        case 8:  L = 102; break;
+        case 9:  L = 84;  break;
         case 10:
         case 11:
         case 12:
-        case 13: L = 72;  break;
-        case 14: L = 117; break;
-        case 15: L = 172; break;
+        case 13: L = 74;  break;
+        case 14: L = 119; break;
+        case 15: L = 174; break;
         default: L = 0;   break;
         }
 
@@ -1173,18 +1172,19 @@ namespace VDES
             case 1:
                 {
                     elem.MRN = manager.DecodeToNumerical(pos, 17);
-                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 17, 5));
-                    auto lonVal = manager.DecodeToNumerical(pos + 22, 28);
-                    auto latVal = manager.DecodeToNumerical(pos + 50, 27);
+                    elem.fragmentDesc = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 17, 2));
+                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 19, 5));
+                    auto lonVal = manager.DecodeToNumerical(pos + 24, 28);
+                    auto latVal = manager.DecodeToNumerical(pos + 52, 27);
                     elem.coordinate.SetLongitude(UtilityInterface::ConvertComplementCodeToInteger(lonVal, 28) / 600000.0);
                     elem.coordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(latVal, 27) / 600000.0);
-                    elem.rhythmNameCode = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 77, 5));
-                    elem.rhythmParamCode = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 82, 5));
-                    elem.bodyColor = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 87, 5));
-                    elem.lightColor = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 92, 4));
-                    elem.lightPeriod = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 96, 4));
-                    elem.range = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 100, 5));
-                    elem.morseCode = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 105, 5));
+                    elem.rhythmNameCode = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 79, 5));
+                    elem.rhythmParamCode = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 84, 5));
+                    elem.bodyColor = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 89, 5));
+                    elem.lightColor = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 94, 4));
+                    elem.lightPeriod = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 98, 4));
+                    elem.range = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 102, 5));
+                    elem.morseCode = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 107, 5));
                 }
                 break;
 
@@ -1193,9 +1193,10 @@ namespace VDES
             case 6:
                 {
                     elem.MRN = manager.DecodeToNumerical(pos, 17);
-                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 17, 5));
-                    auto lonVal = manager.DecodeToNumerical(pos + 22, 28);
-                    auto latVal = manager.DecodeToNumerical(pos + 50, 27);
+                    elem.fragmentDesc = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 17, 2));
+                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 19, 5));
+                    auto lonVal = manager.DecodeToNumerical(pos + 24, 28);
+                    auto latVal = manager.DecodeToNumerical(pos + 52, 27);
                     elem.coordinate.SetLongitude(UtilityInterface::ConvertComplementCodeToInteger(lonVal, 28) / 600000.0);
                     elem.coordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(latVal, 27) / 600000.0);
                 }
@@ -1204,14 +1205,15 @@ namespace VDES
             case 7:
                 {
                     elem.MRN = manager.DecodeToNumerical(pos, 17);
-                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 17, 5));
-                    auto prevLon = manager.DecodeToNumerical(pos + 22, 28);
-                    auto prevLat = manager.DecodeToNumerical(pos + 50, 27);
+                    elem.fragmentDesc = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 17, 2));
+                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 19, 5));
+                    auto prevLon = manager.DecodeToNumerical(pos + 24, 28);
+                    auto prevLat = manager.DecodeToNumerical(pos + 52, 27);
                     elem.prevCoordinate.SetLongitude(UtilityInterface::ConvertComplementCodeToInteger(prevLon, 28) / 600000.0);
                     elem.prevCoordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(prevLat, 27) / 600000.0);
-                    elem.isRoughPosition = manager.DecodeToNumerical(pos + 77, 1) == 1;
-                    auto lonVal = manager.DecodeToNumerical(pos + 78, 28);
-                    auto latVal = manager.DecodeToNumerical(pos + 106, 27);
+                    elem.isRoughPosition = manager.DecodeToNumerical(pos + 79, 1) == 1;
+                    auto lonVal = manager.DecodeToNumerical(pos + 80, 28);
+                    auto latVal = manager.DecodeToNumerical(pos + 108, 27);
                     elem.coordinate.SetLongitude(UtilityInterface::ConvertComplementCodeToInteger(lonVal, 28) / 600000.0);
                     elem.coordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(latVal, 27) / 600000.0);
                 }
@@ -1219,11 +1221,12 @@ namespace VDES
 
             case 5:
                 {
-                    elem.failureType = static_cast<uint8_t>(manager.DecodeToNumerical(pos, 4));
-                    elem.MRN = manager.DecodeToNumerical(pos + 4, 17);
-                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 21, 5));
-                    auto lonVal = manager.DecodeToNumerical(pos + 26, 28);
-                    auto latVal = manager.DecodeToNumerical(pos + 54, 27);
+                    elem.MRN = manager.DecodeToNumerical(pos, 17);
+                    elem.fragmentDesc = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 17, 2));
+                    elem.failureType = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 19, 4));
+                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 23, 5));
+                    auto lonVal = manager.DecodeToNumerical(pos + 28, 28);
+                    auto latVal = manager.DecodeToNumerical(pos + 56, 27);
                     elem.coordinate.SetLongitude(UtilityInterface::ConvertComplementCodeToInteger(lonVal, 28) / 600000.0);
                     elem.coordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(latVal, 27) / 600000.0);
                 }
@@ -1232,28 +1235,30 @@ namespace VDES
             case 8:
                 {
                     elem.MRN = manager.DecodeToNumerical(pos, 17);
-                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 17, 5));
-                    auto lonVal = manager.DecodeToNumerical(pos + 22, 28);
-                    auto latVal = manager.DecodeToNumerical(pos + 50, 27);
+                    elem.fragmentDesc = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 17, 2));
+                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 19, 5));
+                    auto lonVal = manager.DecodeToNumerical(pos + 24, 28);
+                    auto latVal = manager.DecodeToNumerical(pos + 52, 27);
                     elem.coordinate.SetLongitude(UtilityInterface::ConvertComplementCodeToInteger(lonVal, 28) / 600000.0);
                     elem.coordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(latVal, 27) / 600000.0);
-                    elem.rhythmNameCode = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 77, 5));
-                    elem.rhythmParamCode = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 82, 5));
-                    elem.lightColor = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 87, 4));
-                    elem.lightPeriod = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 91, 4));
-                    elem.range = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 95, 5));
+                    elem.rhythmNameCode = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 79, 5));
+                    elem.rhythmParamCode = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 84, 5));
+                    elem.lightColor = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 89, 4));
+                    elem.lightPeriod = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 93, 4));
+                    elem.range = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 97, 5));
                 }
                 break;
 
             case 9:
                 {
                     elem.MRN = manager.DecodeToNumerical(pos, 17);
-                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 17, 5));
-                    auto lonVal = manager.DecodeToNumerical(pos + 22, 28);
-                    auto latVal = manager.DecodeToNumerical(pos + 50, 27);
+                    elem.fragmentDesc = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 17, 2));
+                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 19, 5));
+                    auto lonVal = manager.DecodeToNumerical(pos + 24, 28);
+                    auto latVal = manager.DecodeToNumerical(pos + 52, 27);
                     elem.coordinate.SetLongitude(UtilityInterface::ConvertComplementCodeToInteger(lonVal, 28) / 600000.0);
                     elem.coordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(latVal, 27) / 600000.0);
-                    elem.morseCode = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 77, 5));
+                    elem.morseCode = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 79, 5));
                 }
                 break;
 
@@ -1263,8 +1268,9 @@ namespace VDES
             case 13:
                 {
                     elem.MRN = manager.DecodeToNumerical(pos, 17);
-                    auto lonVal = manager.DecodeToNumerical(pos + 17, 28);
-                    auto latVal = manager.DecodeToNumerical(pos + 45, 27);
+                    elem.fragmentDesc = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 17, 2));
+                    auto lonVal = manager.DecodeToNumerical(pos + 19, 28);
+                    auto latVal = manager.DecodeToNumerical(pos + 47, 27);
                     elem.coordinate.SetLongitude(UtilityInterface::ConvertComplementCodeToInteger(lonVal, 28) / 600000.0);
                     elem.coordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(latVal, 27) / 600000.0);
                 }
@@ -1272,12 +1278,13 @@ namespace VDES
 
             case 14:
                 {
-                    elem.timestampStart = DecodeTime(manager, pos, 20);
-                    elem.timestampEnd = DecodeTime(manager, pos + 20, 20);
-                    elem.MRN = manager.DecodeToNumerical(pos + 40, 17);
-                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 57, 5));
-                    auto lonVal = manager.DecodeToNumerical(pos + 62, 28);
-                    auto latVal = manager.DecodeToNumerical(pos + 90, 27);
+                    elem.MRN = manager.DecodeToNumerical(pos, 17);
+                    elem.fragmentDesc = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 17, 2));
+                    elem.timestampStart = DecodeTime(manager, pos + 19, 20);
+                    elem.timestampEnd = DecodeTime(manager, pos + 39, 20);
+                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 59, 5));
+                    auto lonVal = manager.DecodeToNumerical(pos + 64, 28);
+                    auto latVal = manager.DecodeToNumerical(pos + 92, 27);
                     elem.coordinate.SetLongitude(UtilityInterface::ConvertComplementCodeToInteger(lonVal, 28) / 600000.0);
                     elem.coordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(latVal, 27) / 600000.0);
                 }
@@ -1285,16 +1292,17 @@ namespace VDES
 
             case 15:
                 {
-                    elem.timestampStart = DecodeTime(manager, pos, 20);
-                    elem.timestampEnd = DecodeTime(manager, pos + 20, 20);
-                    elem.MRN = manager.DecodeToNumerical(pos + 40, 17);
-                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 57, 5));
-                    auto prevLon = manager.DecodeToNumerical(pos + 62, 28);
-                    auto prevLat = manager.DecodeToNumerical(pos + 90, 27);
+                    elem.MRN = manager.DecodeToNumerical(pos, 17);
+                    elem.fragmentDesc = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 17, 2));
+                    elem.timestampStart = DecodeTime(manager, pos + 19, 20);
+                    elem.timestampEnd = DecodeTime(manager, pos + 39, 20);
+                    elem.type = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 59, 5));
+                    auto prevLon = manager.DecodeToNumerical(pos + 64, 28);
+                    auto prevLat = manager.DecodeToNumerical(pos + 92, 27);
                     elem.prevCoordinate.SetLongitude(UtilityInterface::ConvertComplementCodeToInteger(prevLon, 28) / 600000.0);
                     elem.prevCoordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(prevLat, 27) / 600000.0);
-                    auto lonVal = manager.DecodeToNumerical(pos + 117, 28);
-                    auto latVal = manager.DecodeToNumerical(pos + 145, 27);
+                    auto lonVal = manager.DecodeToNumerical(pos + 119, 28);
+                    auto latVal = manager.DecodeToNumerical(pos + 147, 27);
                     elem.coordinate.SetLongitude(UtilityInterface::ConvertComplementCodeToInteger(lonVal, 28) / 600000.0);
                     elem.coordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(latVal, 27) / 600000.0);
                 }
@@ -1458,7 +1466,7 @@ namespace VDES
 
     void ASMManager::Impl::ParseASMDAC412FI45(const AISBitsManager &manager)
     {
-        if (manager.GetBitsNumberToDecode() < 90)
+        if (manager.GetBitsNumberToDecode() < 92)
         {
             SPDLOG_WARN("Payload too short for DAC 412 FI 45: {} bits", manager.GetBitsNumberToDecode());
             return;
@@ -1476,19 +1484,20 @@ namespace VDES
         // Decode first point
         ASM_DAC_412_FI_45::NetInfo firstNet;
         firstNet.MRN = static_cast<uint32_t>(manager.DecodeToNumerical(index, 20));
+        firstNet.fragmentDesc = static_cast<uint8_t>(manager.DecodeToNumerical(index + 20, 2));
 
-        auto value = manager.DecodeToNumerical(index + 20, 25);
+        auto value = manager.DecodeToNumerical(index + 22, 25);
         value = UtilityInterface::ConvertComplementCodeToInteger(value, 25);
         firstNet.coordinate.SetLongitude(value / 60000.0);
 
-        value = manager.DecodeToNumerical(index + 45, 24);
+        value = manager.DecodeToNumerical(index + 47, 24);
         value = UtilityInterface::ConvertComplementCodeToInteger(value, 24);
         firstNet.coordinate.SetLatitude(value / 60000.0);
 
         asmInfo.nets.push_back(firstNet);
 
-        index = 90;
-        auto surplusCoordinateNum = (manager.GetBitsNumberToDecode() - index) / 49;
+        index = 92;
+        auto surplusCoordinateNum = (manager.GetBitsNumberToDecode() - index) / 51;
 
         for (auto i = 0U; i < surplusCoordinateNum; i++)
         {
@@ -1496,19 +1505,20 @@ namespace VDES
             ASM_DAC_412_FI_45::NetInfo net;
 
             net.MRN = static_cast<uint32_t>(manager.DecodeToNumerical(index, 20));
+            net.fragmentDesc = static_cast<uint8_t>(manager.DecodeToNumerical(index + 20, 2));
 
-            value = manager.DecodeToNumerical(index + 20, 15);
+            value = manager.DecodeToNumerical(index + 22, 15);
             value = UtilityInterface::ConvertComplementCodeToInteger(value, 15);
             auto longitude = value / 60000.0 + netPrev.coordinate.GetLongitude();
             net.coordinate.SetLongitude(longitude);
 
-            value = manager.DecodeToNumerical(index + 35, 14);
+            value = manager.DecodeToNumerical(index + 37, 14);
             value = UtilityInterface::ConvertComplementCodeToInteger(value, 14);
             auto latitude = value / 60000.0 + netPrev.coordinate.GetLatitude();
             net.coordinate.SetLatitude(latitude);
 
             asmInfo.nets.push_back(net);
-            index += 49;
+            index += 51;
         }
 
         m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_45>(asmInfo));
@@ -1784,7 +1794,7 @@ namespace VDES
         m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_47>(asmInfo));
     }
 
-    void ASMManager::Impl::ParseASMDAC412FI49(const AISBitsManager &manager)
+    void ASMManager::Impl::ParseASMDAC412FI50(const AISBitsManager &manager)
     {
         auto totalBits = manager.GetBitsNumberToDecode();
         if (totalBits < 67)
@@ -1792,29 +1802,29 @@ namespace VDES
             return;
         }
 
-        ASM_DAC_412_FI_49 asmInfo;
+        ASM_DAC_412_FI_50 asmInfo;
         asmInfo.DAC = 412;
-        asmInfo.FI = 49;
+        asmInfo.FI = 50;
 
         asmInfo.MRN = manager.DecodeToNumerical(16, 17);
 
         uint16_t responseInfo = manager.DecodeToNumerical(33, 14);
-        asmInfo.hasWindSpeed = (responseInfo & (1 << 0)) != 0;
+        asmInfo.hasWindSpeed     = (responseInfo & (1 << 0)) != 0;
         asmInfo.hasWindDirection = (responseInfo & (1 << 1)) != 0;
-        asmInfo.hasVisibility = (responseInfo & (1 << 2)) != 0;
-        asmInfo.hasWaveHeight = (responseInfo & (1 << 3)) != 0;
+        asmInfo.hasVisibility    = (responseInfo & (1 << 2)) != 0;
+        asmInfo.hasWaveHeight    = (responseInfo & (1 << 3)) != 0;
         asmInfo.hasWaveDirection = (responseInfo & (1 << 4)) != 0;
-        asmInfo.hasSwellHeight = (responseInfo & (1 << 5)) != 0;
+        asmInfo.hasSwellHeight   = (responseInfo & (1 << 5)) != 0;
 
         asmInfo.forecastTime = DecodeTime(manager, 47, 20);
 
         uint32_t L = 0;
-        if (asmInfo.hasWindSpeed)     L += 6;
-        if (asmInfo.hasWindDirection) L += 9;
-        if (asmInfo.hasVisibility)    L += 8;
-        if (asmInfo.hasWaveHeight)     L += 8;
-        if (asmInfo.hasWaveDirection) L += 9;
-        if (asmInfo.hasSwellHeight)    L += 8;
+        if (asmInfo.hasWindSpeed)     { L += 6; }
+        if (asmInfo.hasWindDirection) { L += 9; }
+        if (asmInfo.hasVisibility)    { L += 8; }
+        if (asmInfo.hasWaveHeight)    { L += 8; }
+        if (asmInfo.hasWaveDirection) { L += 9; }
+        if (asmInfo.hasSwellHeight)   { L += 8; }
 
         if (L > 0)
         {
@@ -1823,7 +1833,7 @@ namespace VDES
 
             for (uint32_t i = 0; i < pointsCount; ++i)
             {
-                ASM_DAC_412_FI_49::PointForecast point;
+                ASM_DAC_412_FI_50::PointForecast point;
 
                 if (asmInfo.hasWindSpeed)
                 {
@@ -1860,19 +1870,19 @@ namespace VDES
             }
         }
 
-        m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_49>(asmInfo));
+        m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_50>(asmInfo));
     }
 
-    void ASMManager::Impl::ParseASMDAC412FI50(const AISBitsManager &manager)
+    void ASMManager::Impl::ParseASMDAC412FI51(const AISBitsManager &manager)
     {
         if (manager.GetBitsNumberToDecode() < 128)
         {
             return;
         }
 
-        ASM_DAC_412_FI_50 asmInfo;
+        ASM_DAC_412_FI_51 asmInfo;
         asmInfo.DAC = 412;
-        asmInfo.FI = 50;
+        asmInfo.FI = 51;
         asmInfo.mmsi = m_sourceMMSIReceived;
 
         asmInfo.extendedVesselType = manager.DecodeToNumerical(17, 8);
@@ -1889,8 +1899,14 @@ namespace VDES
         for (int i = 0; i < 5; ++i)
         {
             uint8_t val = manager.DecodeToNumerical(60 + i * 6, 6);
-            if (val < 32) portCode.push_back(val + 64);
-            else if (val < 64) portCode.push_back(val);
+            if (val < 32) 
+            { 
+                portCode.push_back(val + 64);
+            } 
+            else if (val < 64) 
+            { 
+                portCode.push_back(val);
+            }
         }
         // Remove padding '@'
         while (!portCode.empty() && portCode.back() == '@')
@@ -1899,10 +1915,10 @@ namespace VDES
         }
         asmInfo.portCode = portCode;
 
-        m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_50>(asmInfo));
+        m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_51>(asmInfo));
     }
 
-    void ASMManager::Impl::ParseASMDAC412FI51(const AISBitsManager &manager)
+    void ASMManager::Impl::ParseASMDAC412FI52(const AISBitsManager &manager)
     {
         auto totalBits = manager.GetBitsNumberToDecode();
         if (totalBits < 30)
@@ -1910,11 +1926,10 @@ namespace VDES
             return;
         }
 
-        ASM_DAC_412_FI_51 asmInfo;
-        asmInfo.DAC = 412;
-        asmInfo.FI = 51;
-        asmInfo.mmsi = m_sourceMMSIReceived;
-
+        ASM_DAC_412_FI_52 asmInfo;
+        asmInfo.DAC     = 412;
+        asmInfo.FI      = 52;
+        asmInfo.mmsi    = m_sourceMMSIReceived;
         asmInfo.crewNum = manager.DecodeToNumerical(17, 13);
 
         uint32_t n = totalBits - 30;
@@ -1943,8 +1958,7 @@ namespace VDES
         }
         
         asmInfo.chineseName = UtilityInterface::GBKToUTF8(gbkStr);
-
-        m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_51>(asmInfo));
+        m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_52>(asmInfo));
     }
 
     ASMManager::ASMManager()

@@ -1,4 +1,4 @@
-#include "VDES.h"
+﻿#include "VDES.h"
 
 #include <cmath>
 #include <map>
@@ -263,9 +263,9 @@ namespace VDES
         
         void SaveOwnExtendedVesselInfo(const ExtendedVesselInfo &info);
         
-        void SaveOtherVesselExtendedInfoPartA(const ASM_DAC_412_FI_50 &partA);
+        void SaveOtherVesselExtendedInfoPartA(const ASM_DAC_412_FI_51 &partA);
         
-        void SaveOtherVesselExtendedInfoPartB(const ASM_DAC_412_FI_51 &partB);
+        void SaveOtherVesselExtendedInfoPartB(const ASM_DAC_412_FI_52 &partB);
         
         void LoadOtherVesselExtendedInfoFromQueryResult(OtherVesselExtendedInfo &info, const SQLite::Statement &query);
         
@@ -374,6 +374,7 @@ namespace VDES
             uint32_t MRN;
             double   latitude;
             double   longitude;
+            uint8_t  fragmentDesc;
         };
 
         struct BridgeSpanStruct
@@ -1185,11 +1186,10 @@ namespace VDES
         try
         {
             m_database->exec("CREATE TABLE IF NOT EXISTS ChannelBoundary ("
-                "ID INTEGER PRIMARY KEY AUTOINCREMENT, "
-                "MRN INT, "
+                "MRN INTEGER PRIMARY KEY, "
                 "Fragment INT, "
-                "EdgeType INT, "
-                "Coordinates BLOB, "
+                "LeftCoordinates BLOB, "
+                "RightCoordinates BLOB, "
                 "[Timestamp Receive] INTEGER"
                 ")");
         }
@@ -1799,6 +1799,7 @@ namespace VDES
                 auto sql = fmt::format("CREATE TABLE AtoNDynamicElement ("
                     "Dynamics_ID             INTEGER   NOT NULL,"
                     "MRN                     INT       NOT NULL DEFAULT 0,"
+                    "[Fragment Desc]         INT       NOT NULL DEFAULT 0,"
                     "Type                    INT       NOT NULL DEFAULT 0,"
                     "Longitude               DOUBLE    NOT NULL DEFAULT 181.0,"
                     "Latitude                DOUBLE    NOT NULL DEFAULT 91.0,"
@@ -1815,6 +1816,7 @@ namespace VDES
                     "[Failure Type]          INT       NOT NULL DEFAULT 0,"
                     "[Timestamp Start]       INTEGER   NOT NULL DEFAULT 0,"
                     "[Timestamp End]         INTEGER   NOT NULL DEFAULT 0,"
+                    "Description             TEXT,"
                     "FOREIGN KEY(Dynamics_ID) REFERENCES AtoNDynamics(ID) ON DELETE CASCADE)");
                 m_database->exec(sql);
 
@@ -1822,6 +1824,16 @@ namespace VDES
                 {
                     m_database->exec("CREATE INDEX AtoNDynamicElementIDIndex ON AtoNDynamicElement (Dynamics_ID)");
                 }
+            }
+
+            if (m_database && !m_database->fieldExists("[Fragment Desc]", "AtoNDynamicElement"))
+            {
+                m_database->exec("ALTER TABLE AtoNDynamicElement ADD [Fragment Desc] INT NOT NULL DEFAULT 0");
+            }
+
+            if (m_database && !m_database->fieldExists("Description", "AtoNDynamicElement"))
+            {
+                m_database->exec("ALTER TABLE AtoNDynamicElement ADD Description TEXT");
             }
         }
         catch (const SQLite::Exception &execption)
@@ -3173,22 +3185,34 @@ namespace VDES
     void VDESManager::Impl::LoadChannelBoundaryFromQueryResult(ChannelBoundary &boundary, 
         const SQLite::Statement &query)
     {
-        boundary.dataID = query.getColumn("ID").getUInt();
+        boundary.dataID = query.getColumn("MRN").getUInt();
         boundary.MRN = query.getColumn("MRN").getUInt();
         boundary.fragment = static_cast<uint8_t>(query.getColumn("Fragment").getUInt());
-        boundary.edgeType = static_cast<uint8_t>(query.getColumn("EdgeType").getUInt());
         boundary.timestamp = query.getColumn("Timestamp Receive").getInt64();
 
-        SQLite::Column column = query.getColumn("Coordinates");
-        auto size = column.getBytes();
-        if (size > 0)
+        SQLite::Column colLeft = query.getColumn("LeftCoordinates");
+        auto sizeLeft = colLeft.getBytes();
+        boundary.leftCoordinates.clear();
+        if (sizeLeft > 0)
         {
-            auto ptr = (const CoordinateStruct *)column.getBlob();
-            auto count = size / sizeof(CoordinateStruct);
-            boundary.coordinates.clear();
+            auto ptr = (const CoordinateStruct *)colLeft.getBlob();
+            auto count = sizeLeft / sizeof(CoordinateStruct);
             for (auto i = 0U; i < count; i++)
             {
-                boundary.coordinates.push_back(Coordinate(ptr[i].latitude, ptr[i].longitude));
+                boundary.leftCoordinates.push_back(Coordinate(ptr[i].latitude, ptr[i].longitude));
+            }
+        }
+
+        SQLite::Column colRight = query.getColumn("RightCoordinates");
+        auto sizeRight = colRight.getBytes();
+        boundary.rightCoordinates.clear();
+        if (sizeRight > 0)
+        {
+            auto ptr = (const CoordinateStruct *)colRight.getBlob();
+            auto count = sizeRight / sizeof(CoordinateStruct);
+            for (auto i = 0U; i < count; i++)
+            {
+                boundary.rightCoordinates.push_back(Coordinate(ptr[i].latitude, ptr[i].longitude));
             }
         }
     }
@@ -3236,6 +3260,7 @@ namespace VDES
                     net.MRN = ptr[i].MRN;
                     net.latitude = ptr[i].latitude;
                     net.longitude = ptr[i].longitude;
+                    net.fragmentDesc = ptr[i].fragmentDesc;
                     netSounder.nets.push_back(net);
                 }
             }
@@ -4043,23 +4068,33 @@ namespace VDES
         {
             try
             {
-                auto sql = "INSERT INTO ChannelBoundary (MRN, Fragment, EdgeType, Coordinates, [Timestamp Receive]) "
-                           "VALUES (@MRN, @Fragment, @EdgeType, @Coordinates, @TimestampRcv)";
+                auto sql = "REPLACE INTO ChannelBoundary (MRN, Fragment, LeftCoordinates, RightCoordinates, [Timestamp Receive]) "
+                           "VALUES (@MRN, @Fragment, @LeftCoords, @RightCoords, @TimestampRcv)";
                 auto stmt = m_database->buildStatement(sql);
 
                 stmt.bind("@MRN", boundary.MRN);
                 stmt.bind("@Fragment", boundary.fragment);
-                stmt.bind("@EdgeType", boundary.edgeType);
 
-                auto pointsCount = boundary.coordinates.size();
-                auto size = pointsCount * sizeof(CoordinateStruct);
-                auto blob = std::unique_ptr<CoordinateStruct[]>(new CoordinateStruct[pointsCount]);
-                for (size_t i = 0; i < pointsCount; ++i)
+                auto leftCount = boundary.leftCoordinates.size();
+                auto sizeL = leftCount * sizeof(CoordinateStruct);
+                auto blobL = std::unique_ptr<CoordinateStruct[]>(new CoordinateStruct[leftCount]);
+                for (size_t i = 0; i < leftCount; ++i)
                 {
-                    blob[i].latitude = boundary.coordinates[i].GetLatitude();
-                    blob[i].longitude = boundary.coordinates[i].GetLongitude();
+                    blobL[i].latitude = boundary.leftCoordinates[i].GetLatitude();
+                    blobL[i].longitude = boundary.leftCoordinates[i].GetLongitude();
                 }
-                stmt.bind("@Coordinates", blob.get(), size);
+                stmt.bind("@LeftCoords", blobL.get(), static_cast<int>(sizeL));
+
+                auto rightCount = boundary.rightCoordinates.size();
+                auto sizeR = rightCount * sizeof(CoordinateStruct);
+                auto blobR = std::unique_ptr<CoordinateStruct[]>(new CoordinateStruct[rightCount]);
+                for (size_t i = 0; i < rightCount; ++i)
+                {
+                    blobR[i].latitude = boundary.rightCoordinates[i].GetLatitude();
+                    blobR[i].longitude = boundary.rightCoordinates[i].GetLongitude();
+                }
+                stmt.bind("@RightCoords", blobR.get(), static_cast<int>(sizeR));
+
                 stmt.bind("@TimestampRcv", boundary.timestamp);
 
                 stmt.exec();
@@ -4094,6 +4129,7 @@ namespace VDES
                     blob[i].MRN = netSounder.nets[i].MRN;
                     blob[i].latitude = netSounder.nets[i].latitude;
                     blob[i].longitude = netSounder.nets[i].longitude;
+                    blob[i].fragmentDesc = netSounder.nets[i].fragmentDesc;
                 }
                 stmt.bind("@Coordinates", blob.get(), static_cast<int>(size));
                 stmt.bind("@TimestampRcv", netSounder.timestamp);
@@ -4998,29 +5034,33 @@ namespace VDES
                     m_database->exec(sql);
                     auto rowID = m_database->getLastInsertRowid();
 
-                    sql = fmt::format("INSERT INTO AtoNDynamicElement VALUES ({DynamicsID}, {MRN}, {Type}, {Lon}, {Lat}, "
-                                      "{RhythmNameCode}, {RhythmParamCode}, {BodyColor}, {LightColor}, {LightPeriod}, "
-                                      "{Range}, {MorseCode}, {PrevLon}, {PrevLat}, {IsRoughPosition}, {FailureType}, "
-                                      "{TimestampStart}, {TimestampEnd})",
-                                      fmt::arg("DynamicsID", rowID),
-                                      fmt::arg("MRN", elem.MRN),
-                                      fmt::arg("Type", elem.type),
-                                      fmt::arg("Lon", elem.coordinate.GetLongitude()),
-                                      fmt::arg("Lat", elem.coordinate.GetLatitude()),
-                                      fmt::arg("RhythmNameCode", elem.rhythmNameCode),
-                                      fmt::arg("RhythmParamCode", elem.rhythmParamCode),
-                                      fmt::arg("BodyColor", elem.bodyColor),
-                                      fmt::arg("LightColor", elem.lightColor),
-                                      fmt::arg("LightPeriod", elem.lightPeriod),
-                                      fmt::arg("Range", elem.range),
-                                      fmt::arg("MorseCode", elem.morseCode),
-                                      fmt::arg("PrevLon", elem.prevCoordinate.GetLongitude()),
-                                      fmt::arg("PrevLat", elem.prevCoordinate.GetLatitude()),
-                                      fmt::arg("IsRoughPosition", elem.isRoughPosition ? 1 : 0),
-                                      fmt::arg("FailureType", elem.failureType),
-                                      fmt::arg("TimestampStart", elem.timestampStart),
-                                      fmt::arg("TimestampEnd", elem.timestampEnd));
-                    m_database->exec(sql);
+                    SQLite::Statement insertElem(*m_database.get(), 
+                        "INSERT INTO AtoNDynamicElement (Dynamics_ID, MRN, [Fragment Desc], Type, Longitude, Latitude, "
+                        "[Rhythm Name Code], [Rhythm Param Code], [Body Color], [Light Color], [Light Period], "
+                        "Range, [Morse Code], [Prev Longitude], [Prev Latitude], [Is Rough Position], [Failure Type], "
+                        "[Timestamp Start], [Timestamp End], Description) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    insertElem.bind(1, static_cast<int64_t>(rowID));
+                    insertElem.bind(2, static_cast<int64_t>(elem.MRN));
+                    insertElem.bind(3, static_cast<int>(elem.fragmentDesc));
+                    insertElem.bind(4, static_cast<int>(elem.type));
+                    insertElem.bind(5, elem.coordinate.GetLongitude());
+                    insertElem.bind(6, elem.coordinate.GetLatitude());
+                    insertElem.bind(7, static_cast<int>(elem.rhythmNameCode));
+                    insertElem.bind(8, static_cast<int>(elem.rhythmParamCode));
+                    insertElem.bind(9, static_cast<int>(elem.bodyColor));
+                    insertElem.bind(10, static_cast<int>(elem.lightColor));
+                    insertElem.bind(11, static_cast<int>(elem.lightPeriod));
+                    insertElem.bind(12, static_cast<int>(elem.range));
+                    insertElem.bind(13, static_cast<int>(elem.morseCode));
+                    insertElem.bind(14, elem.prevCoordinate.GetLongitude());
+                    insertElem.bind(15, elem.prevCoordinate.GetLatitude());
+                    insertElem.bind(16, elem.isRoughPosition ? 1 : 0);
+                    insertElem.bind(17, static_cast<int>(elem.failureType));
+                    insertElem.bind(18, static_cast<int64_t>(elem.timestampStart));
+                    insertElem.bind(19, static_cast<int64_t>(elem.timestampEnd));
+                    insertElem.bind(20, elem.description);
+                    insertElem.exec();
                 }
 
                 transaction.commit();
@@ -5049,6 +5089,7 @@ namespace VDES
         {
             AtoNDynamics::Element elem;
             elem.MRN = static_cast<uint32_t>(queryElement.getColumn("MRN").getInt());
+            elem.fragmentDesc = static_cast<uint8_t>(queryElement.getColumn("Fragment Desc").getInt());
             elem.type = static_cast<uint8_t>(queryElement.getColumn("Type").getInt());
             elem.coordinate.SetLongitude(queryElement.getColumn("Longitude").getDouble());
             elem.coordinate.SetLatitude(queryElement.getColumn("Latitude").getDouble());
@@ -5065,6 +5106,7 @@ namespace VDES
             elem.failureType = static_cast<uint8_t>(queryElement.getColumn("Failure Type").getInt());
             elem.timestampStart = queryElement.getColumn("Timestamp Start").getInt64();
             elem.timestampEnd = queryElement.getColumn("Timestamp End").getInt64();
+            elem.description = queryElement.getColumn("Description").getString();
             dynamics.elements.emplace_back(elem);
         }
     }
@@ -5725,31 +5767,31 @@ namespace VDES
                 }
             }
 
-            if (asmData->DAC == 412 && asmData->FI == 49)
+            if (asmData->DAC == 412 && asmData->FI == 50)
             {
-                auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_49>(asmData);
+                auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_50>(asmData);
                 if (info)
                 {
                     HydrometeorologyResponse response;
-                    response.MRN = info->MRN;
-                    response.forecastTime = info->forecastTime;
-                    response.hasWindSpeed = info->hasWindSpeed;
+                    response.MRN              = info->MRN;
+                    response.forecastTime     = info->forecastTime;
+                    response.hasWindSpeed     = info->hasWindSpeed;
                     response.hasWindDirection = info->hasWindDirection;
-                    response.hasVisibility = info->hasVisibility;
-                    response.hasWaveHeight = info->hasWaveHeight;
+                    response.hasVisibility    = info->hasVisibility;
+                    response.hasWaveHeight    = info->hasWaveHeight;
                     response.hasWaveDirection = info->hasWaveDirection;
-                    response.hasSwellHeight = info->hasSwellHeight;
-                    
+                    response.hasSwellHeight   = info->hasSwellHeight;
+
                     response.points.clear();
                     for (const auto &p : info->points)
                     {
                         HydrometeorologyResponse::PointForecast pt;
-                        pt.windSpeed = p.windSpeed;
+                        pt.windSpeed     = p.windSpeed;
                         pt.windDirection = p.windDirection;
-                        pt.visibility = p.visibility;
-                        pt.waveHeight = p.waveHeight;
+                        pt.visibility    = p.visibility;
+                        pt.waveHeight    = p.waveHeight;
                         pt.waveDirection = p.waveDirection;
-                        pt.swellHeight = p.swellHeight;
+                        pt.swellHeight   = p.swellHeight;
                         response.points.push_back(pt);
                     }
                     response.timestamp = UtilityInterface::GetCurrentTimeStamp();
@@ -5763,9 +5805,9 @@ namespace VDES
                 }
             }
 
-            if (asmData->DAC == 412 && asmData->FI == 50)
+            if (asmData->DAC == 412 && asmData->FI == 51)
             {
-                auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_50>(asmData);
+                auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_51>(asmData);
                 if (info)
                 {
                     std::unique_lock<std::mutex> lock(m_mutexOtherVesselExtendedInfo);
@@ -5776,9 +5818,9 @@ namespace VDES
                 }
             }
 
-            if (asmData->DAC == 412 && asmData->FI == 51)
+            if (asmData->DAC == 412 && asmData->FI == 52)
             {
-                auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_51>(asmData);
+                auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_52>(asmData);
                 if (info)
                 {
                     std::unique_lock<std::mutex> lock(m_mutexOtherVesselExtendedInfo);
@@ -6206,22 +6248,19 @@ namespace VDES
                 {
                     MSIMaritimeDistress distress;
 
-                    distress.type = info->distressType;
-                    distress.situation = 0;
-                    distress.status = 0;
-                    distress.additional = 0;
-
-                    distress.coordinate = info->coordinate;
-                    distress.timestampPublished = info->distressTime;
-
-                    distress.statusDescription = info->statusDescription;
-                    distress.judgment = info->judgment;
+                    distress.type                = info->distressType;
+                    distress.situation           = 0;
+                    distress.status              = 0;
+                    distress.additional          = 0;
+                    distress.coordinate          = info->coordinate;
+                    distress.timestampPublished  = info->distressTime;
+                    distress.statusDescription   = info->statusDescription;
+                    distress.judgment            = info->judgment;
                     distress.locationInstruction = info->locationInstruction;
-                    distress.duration = info->duration;
-                    distress.cautionCode = info->cautionCode;
-
-                    distress.isCertified = true;
-                    distress.timestamp = UtilityInterface::GetCurrentTimeStamp();
+                    distress.duration            = info->duration;
+                    distress.cautionCode         = info->cautionCode;
+                    distress.isCertified         = true;
+                    distress.timestamp           = UtilityInterface::GetCurrentTimeStamp();
 
                     std::unique_lock<std::mutex> lock(m_mutexMSIMaritimeDistress);
                     SaveMSIMaritimeDistress(distress);
@@ -6316,6 +6355,7 @@ namespace VDES
                     {
                         NetSounder::NetInfo net;
                         net.MRN = netInfo.MRN;
+                        net.fragmentDesc = netInfo.fragmentDesc;
                         net.latitude = netInfo.coordinate.GetLatitude();
                         net.longitude = netInfo.coordinate.GetLongitude();
                         netSounder.nets.push_back(net);
@@ -6365,6 +6405,87 @@ namespace VDES
                 }
             }
 
+            if (asmData->DAC == 413 && asmData->FI == 8)
+            {
+                auto info = std::dynamic_pointer_cast<ASM_DAC_413_FI_8>(asmData);
+                if (info && info->mainDAC == 412 && info->mainFI == 45)
+                {
+                    try
+                    {
+                        if (m_database)
+                        {
+                            std::vector<NetSounder> netSoundersToUpdate;
+                            {
+                                std::lock_guard<std::mutex> dbLock(m_mutexNetSounder);
+                                auto sqlCmd = "SELECT * FROM NetSounder";
+                                SQLite::Statement query(*m_database.get(), sqlCmd);
+                                while (query.executeStep())
+                                {
+                                    NetSounder ns;
+                                    LoadNetSounderFromQueryResult(ns, query);
+                                    
+                                    bool hasMatch = false;
+                                    for (const auto &net : ns.nets)
+                                    {
+                                        if (net.MRN == info->MRN)
+                                        {
+                                            hasMatch = true;
+                                            break;
+                                        }
+                                    }
+                                    
+                                    if (hasMatch)
+                                    {
+                                        ns.description = info->description;
+                                        netSoundersToUpdate.push_back(ns);
+                                    }
+                                }
+                            }
+
+                            if (!netSoundersToUpdate.empty())
+                            {
+                                std::unique_lock<std::mutex> writeLock(m_mutexNetSounder);
+                                for (auto &ns : netSoundersToUpdate)
+                                {
+                                    auto sqlDel = fmt::format("DELETE FROM NetSounder WHERE MRN = {}", ns.MRN);
+                                    m_database->exec(sqlDel);
+                                    SaveNetSounder(ns);
+                                }
+                                writeLock.unlock();
+                                
+                                m_parent->notifyEvent(EventType::ASM_NET_SOUNDER, 0);
+                            }
+                        }
+                    }
+                    catch (const SQLite::Exception &execption)
+                    {
+                        DatabaseErrorProcess(execption, "HandleASMMessage_SupplementaryDescription_NetSounder");
+                    }
+                }
+
+                if (info && info->mainDAC == 412 && info->mainFI == 33)
+                {
+                    try
+                    {
+                        if (m_database)
+                        {
+                            std::unique_lock<std::mutex> lock(m_mutexAtoNDynamics);
+                            SQLite::Statement updateStmt(*m_database.get(), "UPDATE AtoNDynamicElement SET Description = ? WHERE MRN = ?");
+                            updateStmt.bind(1, info->description);
+                            updateStmt.bind(2, static_cast<int64_t>(info->MRN));
+                            updateStmt.exec();
+                            lock.unlock();
+
+                            m_parent->notifyEvent(EventType::ASM_ATON_DYNAMICS, 0);
+                        }
+                    }
+                    catch (const SQLite::Exception &execption)
+                    {
+                        DatabaseErrorProcess(execption, "HandleASMMessage_SupplementaryDescription_AtoNDynamics");
+                    }
+                }
+            }
+
             if (asmData->DAC == 412 && asmData->FI == 42)
             {
                 auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_42>(asmData);
@@ -6406,29 +6527,66 @@ namespace VDES
                 auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_43>(asmData);
                 if (info)
                 {
+                    std::vector<Coordinate> leftCoords;
+                    std::vector<Coordinate> rightCoords;
+                    
+                    try
+                    {
+                        if (m_database)
+                        {
+                            auto sqlQuery = fmt::format("SELECT * FROM ChannelBoundary WHERE MRN = {}", info->MRN);
+                            SQLite::Statement query(*m_database.get(), sqlQuery);
+                            if (query.executeStep())
+                            {
+                                SQLite::Column colLeft = query.getColumn("LeftCoordinates");
+                                auto sizeLeft = colLeft.getBytes();
+                                if (sizeLeft > 0)
+                                {
+                                    auto ptr = (const CoordinateStruct *)colLeft.getBlob();
+                                    auto count = sizeLeft / sizeof(CoordinateStruct);
+                                    for (auto i = 0U; i < count; i++)
+                                    {
+                                        leftCoords.push_back(Coordinate(ptr[i].latitude, ptr[i].longitude));
+                                    }
+                                }
+                                SQLite::Column colRight = query.getColumn("RightCoordinates");
+                                auto sizeRight = colRight.getBytes();
+                                if (sizeRight > 0)
+                                {
+                                    auto ptr = (const CoordinateStruct *)colRight.getBlob();
+                                    auto count = sizeRight / sizeof(CoordinateStruct);
+                                    for (auto i = 0U; i < count; i++)
+                                    {
+                                        rightCoords.push_back(Coordinate(ptr[i].latitude, ptr[i].longitude));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch (const SQLite::Exception &execption)
+                    {
+                        DatabaseErrorProcess(execption, "HandleASMMessage_ReadExistingChannelBoundary");
+                    }
+
+                    if (info->edgeType == 0)
+                    {
+                        leftCoords = info->coordinates;
+                    }
+                    else
+                    {
+                        rightCoords = info->coordinates;
+                    }
+
                     ChannelBoundary boundary;
                     boundary.DAC = info->DAC;
                     boundary.FI = info->FI;
                     boundary.MRN = info->MRN;
                     boundary.fragment = info->fragment;
-                    boundary.edgeType = info->edgeType;
-                    boundary.coordinates = info->coordinates;
-					boundary.timestamp = UtilityInterface::GetCurrentTimeStamp();
+                    boundary.leftCoordinates = leftCoords;
+                    boundary.rightCoordinates = rightCoords;
+                    boundary.timestamp = UtilityInterface::GetCurrentTimeStamp();
 
                     std::unique_lock<std::mutex> lock(m_mutexChannelBoundary);
-                    try
-                    {
-                        if (m_database)
-                        {
-                            auto sqlDel = fmt::format("DELETE FROM ChannelBoundary WHERE MRN = {} AND EdgeType = {}", info->MRN, info->edgeType);
-                            m_database->exec(sqlDel);
-                        }
-                    }
-                    catch (const SQLite::Exception &execption)
-                    {
-                        DatabaseErrorProcess(execption, "HandleASMMessage_DeleteChannelBoundary");
-                    }
-
                     SaveChannelBoundary(boundary);
                     lock.unlock();
 
@@ -6668,6 +6826,7 @@ namespace VDES
                     {
                         AtoNDynamics::Element elem;
                         elem.MRN = elemInfo.MRN;
+                        elem.fragmentDesc = elemInfo.fragmentDesc;
                         elem.type = elemInfo.type;
                         elem.coordinate = elemInfo.coordinate;
                         elem.rhythmNameCode = elemInfo.rhythmNameCode;
@@ -11864,7 +12023,7 @@ namespace VDES
         }
     }
 
-    void VDESManager::Impl::SaveOtherVesselExtendedInfoPartA(const ASM_DAC_412_FI_50 &partA)
+    void VDESManager::Impl::SaveOtherVesselExtendedInfoPartA(const ASM_DAC_412_FI_51 &partA)
     {
         if (m_database)
         {
@@ -11901,7 +12060,7 @@ namespace VDES
         }
     }
 
-    void VDESManager::Impl::SaveOtherVesselExtendedInfoPartB(const ASM_DAC_412_FI_51 &partB)
+    void VDESManager::Impl::SaveOtherVesselExtendedInfoPartB(const ASM_DAC_412_FI_52 &partB)
     {
         if (m_database)
         {
@@ -12195,7 +12354,10 @@ namespace VDES
 
     void VDESManager::DeleteHydrometeorologyResponses(const std::vector<uint32_t> &dataIDs)
     {
-        if (dataIDs.empty()) return;
+        if (dataIDs.empty())
+        {
+            return;
+        } 
         if (m_impl->m_database)
         {
             try
@@ -12209,7 +12371,9 @@ namespace VDES
                 m_impl->DatabaseErrorProcess(execption, "DeleteHydrometeorologyResponses");
             }
         }
-    }    bool VDESManager::SendRouteRecommendationRequest(const RouteRecommendationRequest &request)
+    }    
+    
+    bool VDESManager::SendRouteRecommendationRequest(const RouteRecommendationRequest &request)
     {
         if (!request.startCoordinate.IsValid() || !request.destCoordinate.IsValid())
         {
@@ -12219,15 +12383,30 @@ namespace VDES
         AISBitsManager aisBitsManager;
         // DAC (10 bits) = 412
         aisBitsManager.Encode(412, 10);
-        // FI (6 bits) = 45
-        aisBitsManager.Encode(45, 6);
+        // FI (6 bits) = 46
+        aisBitsManager.Encode(46, 6);
 
-        // grossTonnage (30 bits)
-        aisBitsManager.Encode(request.grossTonnage, 30);
+        // grossTonnage (19 bits)
+        // Standard range: 1~500000, 0: default value, 500001: > 500000
+        uint32_t rawGrossTonnage = request.grossTonnage;
+        if (rawGrossTonnage > 500000)
+        {
+            rawGrossTonnage = 500001;
+        }
+        aisBitsManager.Encode(rawGrossTonnage, 19);
 
-        // maxStaticDraft (13 bits, unit 0.1m)
-        uint16_t rawDraft = static_cast<uint16_t>(request.maxStaticDraft * 10);
-        aisBitsManager.Encode(rawDraft, 13);
+        // maxStaticDraft (8 bits, unit 0.1m)
+        // Standard range: 0.1m~25.4m (represented as 1~254), 255: >25.4m, 0: default value
+        uint8_t rawDraft = 0;
+        if (request.maxStaticDraft > 25.4)
+        {
+            rawDraft = 255;
+        }
+        else if (request.maxStaticDraft > 0.0)
+        {
+            rawDraft = static_cast<uint8_t>(request.maxStaticDraft * 10.0 + 0.5);
+        }
+        aisBitsManager.Encode(rawDraft, 8);
 
         // cargoType (8 bits)
         aisBitsManager.Encode(request.cargoType, 8);
@@ -12249,6 +12428,9 @@ namespace VDES
         int32_t destLat = static_cast<int32_t>(request.destCoordinate.GetLatitude() * 600000.0);
         aisBitsManager.Encode(UtilityInterface::ConvertIntegerToComplementCode(destLon, 28), 28);
         aisBitsManager.Encode(UtilityInterface::ConvertIntegerToComplementCode(destLat, 27), 27);
+
+        // Spare bits (3 bits, set to 0)
+        aisBitsManager.Encode(0, 3);
 
         m_impl->m_sequenceNoAAB = (m_impl->m_sequenceNoAAB + 1) % 10;
         uint32_t seqNo = m_impl->m_sequenceNoAAB;
@@ -12284,16 +12466,17 @@ namespace VDES
 
         AISBitsManager aisBitsManager;
         aisBitsManager.Encode(412, 10);
-        aisBitsManager.Encode(48, 6);
+        aisBitsManager.Encode(49, 6);
         aisBitsManager.Encode(request.MRN & 0x1FFFF, 17);
 
         uint16_t reqInfo = 0;
-        if (request.windSpeed)     reqInfo |= (1 << 0);
-        if (request.windDirection) reqInfo |= (1 << 1);
-        if (request.visibility)    reqInfo |= (1 << 2);
-        if (request.waveHeight)     reqInfo |= (1 << 3);
-        if (request.waveDirection) reqInfo |= (1 << 4);
-        if (request.swellHeight)    reqInfo |= (1 << 5);
+        if (request.windSpeed)     {reqInfo |= (1 << 0);}
+        if (request.windDirection) {reqInfo |= (1 << 1);}
+        if (request.visibility)    {reqInfo |= (1 << 2);}
+        if (request.waveHeight)    {reqInfo |= (1 << 3);}
+        if (request.waveDirection) {reqInfo |= (1 << 4);}
+        if (request.swellHeight)   {reqInfo |= (1 << 5);}
+        
         aisBitsManager.Encode(reqInfo & 0x3FFF, 14);
 
         tm timeUTC = {0};
@@ -12365,22 +12548,24 @@ namespace VDES
         // isContinous (1 bit)
         aisBitsManager.Encode(netSounder.isContinous ? 1 : 0, 1);
 
-        // First point: MRN (20 bits), Longitude (25 bits), Latitude (24 bits)
+        // First point: MRN (20 bits), Fragment Description (2 bits), Longitude (25 bits), Latitude (24 bits)
         const auto &firstNet = netSounder.nets[0];
         aisBitsManager.Encode(firstNet.MRN & 0xFFFFF, 20);
+        aisBitsManager.Encode(firstNet.fragmentDesc & 3, 2);
 
         int32_t firstLon = static_cast<int32_t>(::round(firstNet.longitude * 60000.0));
         int32_t firstLat = static_cast<int32_t>(::round(firstNet.latitude * 60000.0));
         aisBitsManager.Encode(UtilityInterface::ConvertIntegerToComplementCode(firstLon, 25), 25);
         aisBitsManager.Encode(UtilityInterface::ConvertIntegerToComplementCode(firstLat, 24), 24);
 
-        // Subsequent points: MRN (20 bits), Longitude delta (15 bits), Latitude delta (14 bits)
+        // Subsequent points: MRN (20 bits), Fragment Description (2 bits), Longitude delta (15 bits), Latitude delta (14 bits)
         for (size_t i = 1; i < netSounder.nets.size(); ++i)
         {
             const auto &net = netSounder.nets[i];
             const auto &prevNet = netSounder.nets[i - 1];
 
             aisBitsManager.Encode(net.MRN & 0xFFFFF, 20);
+            aisBitsManager.Encode(net.fragmentDesc & 3, 2);
 
             double diffLon = net.longitude - prevNet.longitude;
             double diffLat = net.latitude - prevNet.latitude;

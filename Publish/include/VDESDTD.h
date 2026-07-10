@@ -1,4 +1,4 @@
-#ifndef VDES_DTD_H_
+﻿#ifndef VDES_DTD_H_
 #define VDES_DTD_H_
 
 #include "Coordinate.h"
@@ -809,6 +809,7 @@ namespace VDES
             uint32_t MRN = 0;
             double   latitude = 0.0;
             double   longitude = 0.0;
+            uint8_t  fragmentDesc = 0;
         };
 
         uint32_t             MRN = 0;
@@ -838,8 +839,8 @@ namespace VDES
     {
         uint32_t                MRN      = 0;
         uint8_t                 fragment = 0;
-        uint8_t                 edgeType = 0;   // 0: Left boundary, 1: Right boundary
-        std::vector<Coordinate> coordinates;
+        std::vector<Coordinate> leftCoordinates;
+        std::vector<Coordinate> rightCoordinates;
     };
 
     /**
@@ -992,8 +993,10 @@ namespace VDES
         struct Element
         {
             uint32_t   MRN  = 0;
+            uint8_t    fragmentDesc = 0;
             uint8_t    type = 0;
             Coordinate coordinate;
+            std::string description;
 
             // Newly established & light character changed specifics
             uint8_t rhythmNameCode  = 0;

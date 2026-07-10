@@ -1,4 +1,4 @@
-#ifndef ASM_DTD_H_
+﻿#ifndef ASM_DTD_H_
 #define ASM_DTD_H_
 
 #include <vector>
@@ -394,6 +394,7 @@ namespace VDES
         struct Element
         {
             uint32_t   MRN = 0;
+            uint8_t    fragmentDesc = 0;
             uint8_t    type = 0;
             Coordinate coordinate;
             
@@ -651,6 +652,7 @@ namespace VDES
         struct NetInfo
         {
             uint32_t   MRN = 0;
+            uint8_t    fragmentDesc = 0;
             Coordinate coordinate;
         };
 
@@ -707,7 +709,7 @@ namespace VDES
     /**
      * @brief : Shore-based Response to Hydrometeorology Request (DAC 412, FI 49)
      */
-    struct ASM_DAC_412_FI_49 : ASM_DAC_FI
+    struct ASM_DAC_412_FI_50 : ASM_DAC_FI
     {
         struct PointForecast
         {
@@ -735,7 +737,7 @@ namespace VDES
     /**
      * @brief : Extended Static and Voyage Information - Part A (DAC 412, FI 50)
      */
-    struct ASM_DAC_412_FI_50 : ASM_DAC_FI
+    struct ASM_DAC_412_FI_51 : ASM_DAC_FI
     {
         uint32_t    mmsi = 0;
         uint8_t     extendedVesselType = 0;
@@ -749,7 +751,7 @@ namespace VDES
     /**
      * @brief : Extended Static and Voyage Information - Part B (DAC 412, FI 51)
      */
-    struct ASM_DAC_412_FI_51 : ASM_DAC_FI
+    struct ASM_DAC_412_FI_52 : ASM_DAC_FI
     {
         uint32_t    mmsi = 0;
         uint16_t    crewNum = 0;

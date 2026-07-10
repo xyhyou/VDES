@@ -1,4 +1,4 @@
-#include "VDES.h"
+﻿#include "VDES.h"
 #include "BoundingBox.h"
 #include "VDESConfigure.h"
 #include "UtilityInterface.h"
@@ -1132,9 +1132,11 @@ static std::vector<std::string> GenerateDAC_412_FI_33(uint8_t status)
 
 	if (status == 1)
 	{
-		// 新设: Table 62 (110 bits)
+		// 新设: Table 62 (112 bits)
 		// MRN
 		bitsManager.Encode(67890, 17);
+		// 片段描述 (1: 需要额外的文本补充片段)
+		bitsManager.Encode(1, 2);
 		// 航标类型
 		bitsManager.Encode(5, 5);
 		// 经度 (step 1/10000', 119.5432 degrees)
@@ -1158,11 +1160,13 @@ static std::vector<std::string> GenerateDAC_412_FI_33(uint8_t status)
 	}
 	else if (status == 5)
 	{
-		// 故障: Table 75 (81 bits)
-		// 故障类型
-		bitsManager.Encode(2, 4); // 灯光熄灭
+		// 故障: Table 75 (83 bits)
 		// MRN
 		bitsManager.Encode(67890, 17);
+		// 片段描述
+		bitsManager.Encode(1, 2);
+		// 故障类型
+		bitsManager.Encode(2, 4); // 灯光熄灭
 		// 航标类型
 		bitsManager.Encode(5, 5);
 		// 经度
@@ -1170,9 +1174,65 @@ static std::vector<std::string> GenerateDAC_412_FI_33(uint8_t status)
 		// 纬度
 		bitsManager.Encode(static_cast<uint32_t>(24.3210 * 600000.0), 27);
 	}
+	else if (status == 8)
+	{
+		// 改变灯质: Table 77 (102 bits)
+		// MRN
+		bitsManager.Encode(67890, 17);
+		// 片段描述
+		bitsManager.Encode(1, 2);
+		// 航标类型
+		bitsManager.Encode(5, 5);
+		// 经度
+		bitsManager.Encode(static_cast<uint32_t>(119.5432 * 600000.0), 28);
+		// 纬度
+		bitsManager.Encode(static_cast<uint32_t>(24.3210 * 600000.0), 27);
+		// 改变后节奏名称
+		bitsManager.Encode(4, 5);
+		// 改变后节奏参数
+		bitsManager.Encode(5, 5);
+		// 改变后灯光颜色
+		bitsManager.Encode(3, 4);
+		// 改变后灯质周期
+		bitsManager.Encode(8, 4);
+		// 改变后作用距离
+		bitsManager.Encode(15, 5);
+	}
+	else if (status == 9)
+	{
+		// 莫尔斯编码变更: Table 79 (84 bits)
+		// MRN
+		bitsManager.Encode(67890, 17);
+		// 片段描述
+		bitsManager.Encode(1, 2);
+		// 航标类型
+		bitsManager.Encode(5, 5);
+		// 经度
+		bitsManager.Encode(static_cast<uint32_t>(119.5432 * 600000.0), 28);
+		// 纬度
+		bitsManager.Encode(static_cast<uint32_t>(24.3210 * 600000.0), 27);
+		// 改变后莫尔斯编码
+		bitsManager.Encode(6, 5);
+	}
+	else if (status == 10)
+	{
+		// 冰标变更等: Table 81 (74 bits)
+		// MRN
+		bitsManager.Encode(67890, 17);
+		// 片段描述
+		bitsManager.Encode(1, 2);
+		// 经度
+		bitsManager.Encode(static_cast<uint32_t>(119.5432 * 600000.0), 28);
+		// 纬度
+		bitsManager.Encode(static_cast<uint32_t>(24.3210 * 600000.0), 27);
+	}
 	else if (status == 14)
 	{
-		// 临时撤除: Table 83 (117 bits)
+		// 临时撤除: Table 83 (119 bits)
+		// MRN
+		bitsManager.Encode(67890, 17);
+		// 片段描述
+		bitsManager.Encode(1, 2);
 		// 临时撤除起始时间 (月/日/时/分)
 		bitsManager.Encode(10, 4); // 10月
 		bitsManager.Encode(15, 5); // 15日
@@ -1183,8 +1243,6 @@ static std::vector<std::string> GenerateDAC_412_FI_33(uint8_t status)
 		bitsManager.Encode(31, 5); // 31日
 		bitsManager.Encode(23, 5); // 23时
 		bitsManager.Encode(59, 6); // 59分
-		// MRN
-		bitsManager.Encode(67890, 17);
 		// 航标类型
 		bitsManager.Encode(5, 5);
 		// 经度
@@ -1192,10 +1250,39 @@ static std::vector<std::string> GenerateDAC_412_FI_33(uint8_t status)
 		// 纬度
 		bitsManager.Encode(static_cast<uint32_t>(24.3210 * 600000.0), 27);
 	}
+	else if (status == 15)
+	{
+		// 临时位置调整: Table 85 (174 bits)
+		// MRN
+		bitsManager.Encode(67890, 17);
+		// 片段描述
+		bitsManager.Encode(1, 2);
+		// 临时位置调整起始时间 (月/日/时/分)
+		bitsManager.Encode(10, 4); // 10月
+		bitsManager.Encode(15, 5); // 15日
+		bitsManager.Encode(8, 5);  // 8时
+		bitsManager.Encode(30, 6); // 30分
+		// 恢复日期与时间 (月/日/时/分)
+		bitsManager.Encode(12, 4); // 12月
+		bitsManager.Encode(31, 5); // 31日
+		bitsManager.Encode(23, 5); // 23时
+		bitsManager.Encode(59, 6); // 59分
+		// 航标类型
+		bitsManager.Encode(5, 5);
+		// 改变前位置经度
+		bitsManager.Encode(static_cast<uint32_t>(118.5432 * 600000.0), 28);
+		// 改变前位置纬度
+		bitsManager.Encode(static_cast<uint32_t>(23.3210 * 600000.0), 27);
+		// 改变后位置经度
+		bitsManager.Encode(static_cast<uint32_t>(119.5432 * 600000.0), 28);
+		// 改变后位置纬度
+		bitsManager.Encode(static_cast<uint32_t>(24.3210 * 600000.0), 27);
+	}
 	else
 	{
 		// Fallback for other statuses to prevent empty body
 		bitsManager.Encode(67890, 17);
+		bitsManager.Encode(0, 2);
 		bitsManager.Encode(static_cast<uint32_t>(119.5432 * 600000.0), 28);
 		bitsManager.Encode(static_cast<uint32_t>(24.3210 * 600000.0), 27);
 	}
@@ -1823,6 +1910,76 @@ static void GenerateASM_DAC_413_FI_5(void)
 }
 
 
+static std::vector<std::string> GenerateDAC_413_FI_8(uint32_t mrn, uint16_t mainDAC, uint8_t mainFI, const std::string &desc)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID (6 bits) = 8
+	bitsManager.Encode(8, 6);
+	// Repeat indicator (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// Source ID (30 bits) = 4123001
+	bitsManager.Encode(4123001, 30);
+	// Spare (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// DAC (10 bits) = 413
+	bitsManager.Encode(413, 10);
+	// FI (6 bits) = 8
+	bitsManager.Encode(8, 6);
+
+	// MRN (17 bits)
+	bitsManager.Encode(mrn & 0x1FFFF, 17);
+	// mainDAC (10 bits)
+	bitsManager.Encode(mainDAC & 0x3FF, 10);
+	// mainFI (6 bits)
+	bitsManager.Encode(mainFI & 0x3F, 6);
+	// encodingType (2 bits) = 0 (6-bit ASCII)
+	bitsManager.Encode(0, 2);
+	// textLength (11 bits)
+	bitsManager.Encode(static_cast<uint32_t>(desc.length()), 11);
+
+	// Encode string in 6-bit ASCII
+	static std::map<char, uint32_t> map6Bit = {
+		{'@', 0},  {'A', 1},  {'B', 2},  {'C', 3},  {'D', 4},
+		{'E', 5},  {'F', 6},  {'G', 7},  {'H', 8},  {'I', 9},
+		{'J', 10}, {'K', 11}, {'L', 12}, {'M', 13}, {'N', 14},
+		{'O', 15}, {'P', 16}, {'Q', 17}, {'R', 18}, {'S', 19},
+		{'T', 20}, {'U', 21}, {'V', 22}, {'W', 23}, {'X', 24},
+		{'Y', 25}, {'Z', 26}, {'[', 27}, {'\\', 28},{']', 29},
+		{'^', 30}, {'_', 31}, {' ', 32}, {'!', 33}, {'\"', 34},
+		{'#', 35}, {'$', 36}, {'%', 37}, {'&', 38}, {'\'', 39},
+		{'(', 40}, {')', 41}, {'*', 42}, {'+', 43}, {',', 44},
+		{'-', 45}, {'.', 46}, {'/', 47}, {'0', 48}, {'1', 49},
+		{'2', 50}, {'3', 51}, {'4', 52}, {'5', 53}, {'6', 54},
+		{'7', 55}, {'8', 56}, {'9', 57}, {':', 58}, {';', 59},
+		{'<', 60}, {'=', 61}, {'>', 62}, {'?', 63}
+	};
+
+	for (char c : desc)
+	{
+		char upperC = toupper(c);
+		auto iter = map6Bit.find(upperC);
+		uint32_t code = (iter != map6Bit.end()) ? iter->second : 32;
+		bitsManager.Encode(code, 6);
+	}
+
+	auto bitsNum = bitsManager.GetBitsNumberToDecode();
+	auto spareBits = 8 - (bitsNum % 8);
+	if (spareBits < 8)
+	{
+		bitsManager.Encode(0, spareBits);
+	}
+
+	auto vdms = bitsManager.BuildPacket();
+	std::vector<std::string> results;
+	for (auto &vdm : vdms)
+	{
+		results.push_back(vdm + "\r\n");
+	}
+	return results;
+}
+
+
 int main(void)
 {
 	SetConsoleOutputCP(CP_UTF8);
@@ -2297,6 +2454,8 @@ int main(void)
 		//"$AIASM,1783403099,1,1,,2,2,0,666666666,,IjD8s0i>t:DF5L`r>?;4V0L`8`003:O@07tt0P,4*52\r\n",
 		//"$AIASM,1783580797,1,1,,2,2,0,666666666,,IjD0sh0OMJ0FFbPog<;>@8L@:l06@jO9f7lKPP,4*49\r\n",
 		// 船舶遇险 DAC = 412, FI = 39
+		//"$AIASM,1783658954,1,1,,2,2,0,666666666,,IjLuoH0000a5d1akp06?030,2*0D\r\n",
+		//"$AIASM,1783658811,1,1,,1,2,0,666666666,,IjL6;r@0T4`V30q93LAbi10,2*0B\r\n",
 		//"$AIASM,1783259385,1,1,,1,2,0,666666666,,IjLuo`P004a5d1akpLAbh30,2*4F\r\n",
 		//"$AIASM,1783259374,1,1,,1,2,0,666666666,,IjL6;r@0T4`V30q93LAbi10,2*06\r\n",
 		//"$AIASM,1783254079,1,1,,2,2,0,666666666,,Ij<=@HL@pcB0d?cFOo4A5<0,2*1A\r\n",
@@ -2306,8 +2465,8 @@ int main(void)
 		// 航道边线左侧 DAC = 412, FI = 43
 		//"$AIASM,1783259645,1,1,,2,2,0,666666666,,Ijd1sPRc?@1>g400rV0v`P01LiQpbN06@I3k;d0,2*4F\r\n",
 		// 航线推荐 DAC = 412, FI = 46
-		"$AIASM,1783646310,1,1,,1,4,0,666666666,210210210,Ijwi5M<<2LTwivS>P1`OP8da0?@T00,4*26\r\n",
-		"$AIASM,1783646512,1,1,,2,4,0,666666666,210210210,IjtQ6JmP2KelP00003Fn000006ed7uSh0G<H00,4*72\r\n",
+		//"$AIASM,1783646310,1,1,,1,4,0,666666666,210210210,Ijwi5M<<2LTwivS>P1`OP8da0?@T00,4*26\r\n",
+		//"$AIASM,1783646512,1,1,,2,4,0,666666666,210210210,IjtQ6JmP2KelP00003Fn000006ed7uSh0G<H00,4*72\r\n",
 		//"$AIASM,1783646310,1,1,,1,4,0,666666666,210210210,Ijwi5M<<2LTwivS>P1`OP8da0?@T00,4*26\r\n",
 		// 中文短信 DAC = 413, FI = 04
 		//"$AIASM,1782977984,1,1,,1,2,0,666666666,,IlBNC2`TQrE9r?saRjIwc9w43O?=bMtVssgmTSV5Ad>WtI>LHVvsnn0,2*0A\r\n",
@@ -2649,19 +2808,24 @@ int main(void)
 		}
 	}
 
-	// --- Channel Boundaries (FI = 43) ---
+	// --- Channel Boundaries (FI = 43/44) ---
 	auto boundaries = vdesManager.GetChannelBoundaries(0, 100);
 	std::cout << "Parsed " << boundaries.size() << " channel boundaries (FI=43/44):" << std::endl;
 	for (const auto &cb : boundaries)
 	{
 		std::cout << "  MRN: " << cb.MRN
 				  << ", Fragment: " << (int)cb.fragment
-				  << ", EdgeType: " << (int)cb.edgeType
-				  << ", Coordinates count: " << cb.coordinates.size() << std::endl;
-		for (size_t i = 0; i < cb.coordinates.size(); ++i)
+				  << ", Left Coordinates count: " << cb.leftCoordinates.size()
+				  << ", Right Coordinates count: " << cb.rightCoordinates.size() << std::endl;
+		for (size_t i = 0; i < cb.leftCoordinates.size(); ++i)
 		{
-			std::cout << "    Pt " << i << ": Lat=" << cb.coordinates[i].GetLatitude()
-					  << ", Lon=" << cb.coordinates[i].GetLongitude() << std::endl;
+			std::cout << "    Left Pt " << i << ": Lat=" << cb.leftCoordinates[i].GetLatitude()
+					  << ", Lon=" << cb.leftCoordinates[i].GetLongitude() << std::endl;
+		}
+		for (size_t i = 0; i < cb.rightCoordinates.size(); ++i)
+		{
+			std::cout << "    Right Pt " << i << ": Lat=" << cb.rightCoordinates[i].GetLatitude()
+					  << ", Lon=" << cb.rightCoordinates[i].GetLongitude() << std::endl;
 		}
 	}
 
@@ -2742,6 +2906,7 @@ int main(void)
 		for (size_t i = 0; i < ns.nets.size(); ++i)
 		{
 			std::cout << "    Net " << i << ": MRN=" << ns.nets[i].MRN
+					  << ", FragmentDesc=" << (int)ns.nets[i].fragmentDesc
 					  << ", Lat=" << ns.nets[i].latitude
 					  << ", Lon=" << ns.nets[i].longitude << std::endl;
 		}
@@ -2848,7 +3013,9 @@ int main(void)
 		for (const auto &elem : atonDyn.elements)
 		{
 			std::cout << "    Element MRN: " << elem.MRN
+					  << ", FragmentDesc: " << (int)elem.fragmentDesc
 					  << ", Type: " << (int)elem.type
+					  << ", Desc: \"" << elem.description << "\""
 					  << ", Coordinate: Lat: " << elem.coordinate.GetLatitude() << ", Lon: " << elem.coordinate.GetLongitude()
 					  << ", rhythmNameCode: " << (int)elem.rhythmNameCode
 					  << ", rhythmParamCode: " << (int)elem.rhythmParamCode
@@ -3025,6 +3192,23 @@ int main(void)
 #endif
 #endif
 
+	// Test parsing left and right channel boundaries (MRN=302)
+	{
+		std::cout << "\n--- Simulating Left Boundary (FI=43) parsing... ---" << std::endl;
+		auto leftVDMs = GenerateDAC_412_FI_43(0);
+		for (const auto &vdm : leftVDMs)
+		{
+			vdesManager.Parse(vdm.c_str(), vdm.length());
+		}
+
+		std::cout << "\n--- Simulating Right Boundary (FI=44) parsing... ---" << std::endl;
+		auto rightVDMs = GenerateDAC_412_FI_43(1);
+		for (const auto &vdm : rightVDMs)
+		{
+			vdesManager.Parse(vdm.c_str(), vdm.length());
+		}
+	}
+
 	// Verify Channel Boundaries (FI = 43/44) from database
 	std::cout << "\n=== Verification: Querying Channel Boundaries (FI=43/44) from DB ===" << std::endl;
 	auto boundaries = vdesManager.GetChannelBoundaries(0, 100);
@@ -3033,12 +3217,17 @@ int main(void)
 	{
 		std::cout << "  MRN: " << cb.MRN
 				  << ", Fragment: " << (int)cb.fragment
-				  << ", EdgeType: " << (int)cb.edgeType << " (0: Left, 1: Right)"
-				  << ", Coordinates count: " << cb.coordinates.size() << std::endl;
-		for (size_t i = 0; i < cb.coordinates.size(); ++i)
+				  << ", Left Coordinates count: " << cb.leftCoordinates.size()
+				  << ", Right Coordinates count: " << cb.rightCoordinates.size() << std::endl;
+		for (size_t i = 0; i < cb.leftCoordinates.size(); ++i)
 		{
-			std::cout << "    Pt " << i << ": Lat=" << cb.coordinates[i].GetLatitude()
-					  << ", Lon=" << cb.coordinates[i].GetLongitude() << std::endl;
+			std::cout << "    Left Pt " << i << ": Lat=" << cb.leftCoordinates[i].GetLatitude()
+					  << ", Lon=" << cb.leftCoordinates[i].GetLongitude() << std::endl;
+		}
+		for (size_t i = 0; i < cb.rightCoordinates.size(); ++i)
+		{
+			std::cout << "    Right Pt " << i << ": Lat=" << cb.rightCoordinates[i].GetLatitude()
+					  << ", Lon=" << cb.rightCoordinates[i].GetLongitude() << std::endl;
 		}
 	}
 	std::cout << "=========================================================\n" << std::endl;
@@ -3077,6 +3266,7 @@ int main(void)
 		for (size_t i = 0; i < ns.nets.size(); ++i)
 		{
 			std::cout << "    Net " << i << ": MRN=" << ns.nets[i].MRN
+					  << ", FragmentDesc=" << (int)ns.nets[i].fragmentDesc
 					  << ", Lat=" << ns.nets[i].latitude
 					  << ", Lon=" << ns.nets[i].longitude << std::endl;
 		}
@@ -3161,7 +3351,7 @@ int main(void)
 	});
 
 	VDES::NetSounder ownNetSounder;
-	ownNetSounder.MRN = 999991;
+	ownNetSounder.MRN = 12345;
 	ownNetSounder.fragment = 0;
 	ownNetSounder.type = 3;
 	ownNetSounder.isContinous = true;
@@ -3169,13 +3359,15 @@ int main(void)
 	ownNetSounder.description = "Vessel own active net sounder";
 
 	VDES::NetSounder::NetInfo net1;
-	net1.MRN = 999991;
+	net1.MRN = 12345;
+	net1.fragmentDesc = 1; // Needs text supplement!
 	net1.latitude = 24.4186;
 	net1.longitude = 118.54;
 	ownNetSounder.nets.push_back(net1);
 
 	VDES::NetSounder::NetInfo net2;
-	net2.MRN = 999992;
+	net2.MRN = 12346;
+	net2.fragmentDesc = 0;
 	net2.latitude = 24.4786;
 	net2.longitude = 118.66;
 	ownNetSounder.nets.push_back(net2);
@@ -3184,13 +3376,16 @@ int main(void)
 	std::cout << "SendNetSounder result: " << (sendSuccess ? "SUCCESS" : "FAILED") << std::endl;
 	if (sendSuccess) {
 		std::cout << "Captured Broadcast NMEA: " << capturedNMEA;
+		
+		// Parse it back to simulate reception and verify parser changes
+		vdesManager.Parse(capturedNMEA.c_str(), capturedNMEA.length());
 	}
 
-	// Verify database persistence
+	// Verify database persistence and fragmentDesc
 	auto dbNets = vdesManager.GetNetSounders(0, 100);
 	bool found = false;
 	for (const auto &n : dbNets) {
-		if (n.MRN == 999991) {
+		if (n.MRN == 12345) {
 			found = true;
 			std::cout << "Persisted Net Sounder found in DB. MRN: " << n.MRN 
 					  << ", Type: " << (int)n.type 
@@ -3200,6 +3395,7 @@ int main(void)
 					  << ", Desc: " << n.description << std::endl;
 			for (size_t i = 0; i < n.nets.size(); ++i) {
 				std::cout << "    Net " << i << ": MRN=" << n.nets[i].MRN 
+						  << ", FragmentDesc=" << (int)n.nets[i].fragmentDesc 
 						  << ", Lat=" << n.nets[i].latitude 
 						  << ", Lon=" << n.nets[i].longitude << std::endl;
 			}
@@ -3207,6 +3403,27 @@ int main(void)
 	}
 	if (!found) {
 		std::cout << "ERROR: Persisted Net Sounder NOT found in database!" << std::endl;
+	}
+
+	// Now simulate receiving description supplement fragment (DAC 413, FI 8)
+	std::cout << "\n--- Simulating reception of Supplementary Description (FI 8) for MRN = 12345 ---" << std::endl;
+	auto suppVDMs = GenerateDAC_413_FI_8(12345, 412, 45, "Updated description from supplementary fragment!");
+	for (const auto &vdm : suppVDMs)
+	{
+		std::cout << "Injecting FI 8 NMEA: " << vdm;
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Re-query database to verify update
+	std::cout << "Re-querying database to check for updated description..." << std::endl;
+	dbNets = vdesManager.GetNetSounders(0, 100);
+	found = false;
+	for (const auto &n : dbNets) {
+		if (n.MRN == 12345) {
+			found = true;
+			std::cout << "Persisted Net Sounder after update: MRN: " << n.MRN 
+					  << ", Desc: \"" << n.description << "\"" << std::endl;
+		}
 	}
 	std::cout << "==========================================================\n" << std::endl;
 
@@ -3370,7 +3587,7 @@ int main(void)
 	
 	// Parse some mock AtoN Dynamics messages to populate the database
 	std::cout << "Parsing mock AtoN Dynamics (FI=33) messages..." << std::endl;
-	for (uint8_t status : {1, 5, 14})
+	for (uint8_t status : {1, 5, 8, 9, 10, 14, 15})
 	{
 		auto sentences = GenerateDAC_412_FI_33(status);
 		for (const auto &vdm : sentences)
@@ -3378,6 +3595,42 @@ int main(void)
 			vdesManager.Parse(vdm.c_str(), vdm.length());
 		}
 	}
+
+	// Now simulate receiving description supplement fragment (DAC 413, FI 8) for AtoN Dynamics (MRN = 67890)
+	std::cout << "\n--- Simulating reception of Supplementary Description (FI 8) for AtoN MRN = 67890 ---" << std::endl;
+	auto atonSuppVDMs = GenerateDAC_413_FI_8(67890, 412, 33, "Updated AtoN description from supplementary fragment!");
+	for (const auto &vdm : atonSuppVDMs)
+	{
+		std::cout << "Injecting FI 8 NMEA for AtoN: " << vdm;
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Re-query database to verify update
+	std::cout << "Re-querying database to check for updated AtoN description..." << std::endl;
+	auto dbAtons = vdesManager.GetAtoNDynamics(0, 100);
+	bool atonFound = false;
+	for (const auto &n : dbAtons) {
+		for (const auto &elem : n.elements) {
+			if (elem.MRN == 67890) {
+				atonFound = true;
+				std::cout << "Persisted AtoNDynamics element after update: Element MRN: " << elem.MRN 
+						  << ", FragmentDesc: " << (int)elem.fragmentDesc
+						  << ", Desc: \"" << elem.description << "\""
+						  << ", Lat: " << elem.coordinate.GetLatitude() << ", Lon: " << elem.coordinate.GetLongitude()
+						  << ", PrevLat: " << elem.prevCoordinate.GetLatitude() << ", PrevLon: " << elem.prevCoordinate.GetLongitude()
+						  << ", RhythmName: " << (int)elem.rhythmNameCode
+						  << ", RhythmParam: " << (int)elem.rhythmParamCode
+						  << ", LightColor: " << (int)elem.lightColor
+						  << ", LightPeriod: " << (int)elem.lightPeriod
+						  << ", Range: " << (int)elem.range
+						  << ", MorseCode: " << (int)elem.morseCode << std::endl;
+			}
+		}
+	}
+	if (!atonFound) {
+		std::cout << "ERROR: Persisted AtoNDynamics Element NOT found after update!" << std::endl;
+	}
+	std::cout << "==========================================================\n" << std::endl;
 
 	std::cout << "Parsing mock AIS AtoN Dynamics (FI=34) messages..." << std::endl;
 	for (uint8_t status : {1, 3, 5})
