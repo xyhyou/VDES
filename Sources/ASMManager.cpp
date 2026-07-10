@@ -77,7 +77,7 @@ namespace VDES
 
         void ParseASMDAC413FI8(const AISBitsManager &manager);
 
-        void ParseASMDAC412FI46(const AISBitsManager &manager);
+        void ParseASMDAC412FI47(const AISBitsManager &manager);
 
         void ParseASMDAC412FI49(const AISBitsManager &manager);
 
@@ -159,7 +159,7 @@ namespace VDES
 
         m_asmParserMap.insert(std::make_pair(41308, std::bind(&Impl::ParseASMDAC413FI8, this, std::placeholders::_1)));
 
-        m_asmParserMap.insert(std::make_pair(41246, std::bind(&Impl::ParseASMDAC412FI46, this, std::placeholders::_1)));
+        m_asmParserMap.insert(std::make_pair(41247, std::bind(&Impl::ParseASMDAC412FI47, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41249, std::bind(&Impl::ParseASMDAC412FI49, this, std::placeholders::_1)));
 
@@ -897,7 +897,7 @@ namespace VDES
         asmInfo.towingMethod = static_cast<uint8_t>(manager.DecodeToNumerical(151, 2));
         asmInfo.length = manager.DecodeToNumerical(153, 12);
         asmInfo.width = static_cast<uint8_t>(manager.DecodeToNumerical(165, 7));
-        asmInfo.speed = manager.DecodeToNumerical(172, 8) / 10.0;
+        asmInfo.speed = manager.DecodeToNumerical(172, 8);
         asmInfo.timestampStart = DecodeTime(manager, 180, 20);
         asmInfo.timestampEnd = DecodeTime(manager, 200, 20);
         asmInfo.cautionCode = static_cast<uint8_t>(manager.DecodeToNumerical(220, 4));
@@ -1730,18 +1730,18 @@ namespace VDES
         m_parent->asmNotify(std::make_shared<ASM_DAC_413_FI_8>(asmInfo));
     }
 
-    void ASMManager::Impl::ParseASMDAC412FI46(const AISBitsManager &manager)
+    void ASMManager::Impl::ParseASMDAC412FI47(const AISBitsManager &manager)
     {
         if (manager.GetBitsNumberToDecode() < 77)
         {
             return;
         }
 
-        ASM_DAC_412_FI_46 asmInfo;
+        ASM_DAC_412_FI_47 asmInfo;
         Coordinate        coordinate;
 
         asmInfo.DAC = 412;
-        asmInfo.FI = 46;
+        asmInfo.FI = 47;
 
         auto rawTime = manager.DecodeToNumerical(16, 6);
         asmInfo.effectiveTime = rawTime * 0.5;
@@ -1781,7 +1781,7 @@ namespace VDES
             index += 47;
         }
 
-        m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_46>(asmInfo));
+        m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_47>(asmInfo));
     }
 
     void ASMManager::Impl::ParseASMDAC412FI49(const AISBitsManager &manager)

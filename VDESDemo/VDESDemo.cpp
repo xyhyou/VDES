@@ -2291,7 +2291,11 @@ int main(void)
 		// AIS航标动态 DAC = 412, FI = 34
 		//"$AIASM,1783258502,1,1,,1,2,0,666666666,,Ij:3nPU;n0040A<suP`hQD08,0*65\r\n",
 		// 碍航物 DAC = 412, FI = 35
-		"$AIASM,1783253640,1,1,,2,2,0,666666666,,Ij<=@b6:kDdLDu06hww`0HOw6Os4ww?wTh06f8R:80,4*44\r\n",
+		//"$AIASM,1783253640,1,1,,2,2,0,666666666,,Ij<=@b6:kDdLDu06hww`0HOw6Os4ww?wTh06f8R:80,4*44\r\n",
+		// 海上拖带 DAC = 412, FI = 37
+		//"$AIASM,1783579913,1,1,,1,2,0,666666666,,IjD8s0i>t:DF5L`r>?;:M0Id``003:O@07tt0P,4*1A\r\n",
+		//"$AIASM,1783403099,1,1,,2,2,0,666666666,,IjD8s0i>t:DF5L`r>?;4V0L`8`003:O@07tt0P,4*52\r\n",
+		//"$AIASM,1783580797,1,1,,2,2,0,666666666,,IjD0sh0OMJ0FFbPog<;>@8L@:l06@jO9f7lKPP,4*49\r\n",
 		// 船舶遇险 DAC = 412, FI = 39
 		//"$AIASM,1783259385,1,1,,1,2,0,666666666,,IjLuo`P004a5d1akpLAbh30,2*4F\r\n",
 		//"$AIASM,1783259374,1,1,,1,2,0,666666666,,IjL6;r@0T4`V30q93LAbi10,2*06\r\n",
@@ -2299,9 +2303,16 @@ int main(void)
 		//"$AIASM,1783253640,1,1,,2,2,0,666666666,,Ij<=@b6:kDdLDu06hww`0HOw6Os4ww?wTh06f8R:80,4*44\r\n",
 		// 桥梁 DAC = 412, FI = 41
 		//"$AIASM,1783259551,1,1,,1,2,0,666666666,,IjT0?H>7JTP021>@p3@gH0I05@jP,0*5C\r\n",
+		// 航道边线左侧 DAC = 412, FI = 43
+		//"$AIASM,1783259645,1,1,,2,2,0,666666666,,Ijd1sPRc?@1>g400rV0v`P01LiQpbN06@I3k;d0,2*4F\r\n",
+		// 航线推荐 DAC = 412, FI = 46
+		"$AIASM,1783646310,1,1,,1,4,0,666666666,210210210,Ijwi5M<<2LTwivS>P1`OP8da0?@T00,4*26\r\n",
+		"$AIASM,1783646512,1,1,,2,4,0,666666666,210210210,IjtQ6JmP2KelP00003Fn000006ed7uSh0G<H00,4*72\r\n",
+		//"$AIASM,1783646310,1,1,,1,4,0,666666666,210210210,Ijwi5M<<2LTwivS>P1`OP8da0?@T00,4*26\r\n",
 		// 中文短信 DAC = 413, FI = 04
 		//"$AIASM,1782977984,1,1,,1,2,0,666666666,,IlBNC2`TQrE9r?saRjIwc9w43O?=bMtVssgmTSV5Ad>WtI>LHVvsnn0,2*0A\r\n",
 		// 前端提示文字 DAC = 413, FI = 5
+		//"$AIASM,1783260323,1,1,,1,2,0,666666666,,IlD9@P4L72TT04T50`2p4T>4SPp,2*1C\r\n",
 		//"$AIASM,1783063312,1,1,,1,2,0,666666666,,IlD9Hs2rMSdqJrgoa=HwRWj0,0*62\r\n",
 
 		//"$AIASM,1782890906,1,1,,1,2,0,666666666,,Iii00003`Wv`L0drb08Wv`L0drb08Wv`L0drb80,2*15\r\n",
@@ -2324,7 +2335,7 @@ int main(void)
 	{
 		vdesManager.Parse(sen.c_str(), sen.length());
 	}
-
+#if 0
 	auto vdm45 = GenerateDAC_412_FI_45();
 	for (const auto &vdm : vdm45)
 	{
@@ -2367,7 +2378,7 @@ int main(void)
 	{
 		vdesManager.Parse(vdm.c_str(), vdm.length());
 	}
-
+#endif
 	int a;
 	a = 10;
 #if 0
@@ -3029,6 +3040,26 @@ int main(void)
 			std::cout << "    Pt " << i << ": Lat=" << cb.coordinates[i].GetLatitude()
 					  << ", Lon=" << cb.coordinates[i].GetLongitude() << std::endl;
 		}
+	}
+	std::cout << "=========================================================\n" << std::endl;
+
+	// Verify Maritime Towing (FI=37) from database
+	std::cout << "\n=== Verification: Querying Maritime Towings (FI=37) from DB ===" << std::endl;
+	auto towings = vdesManager.GetMaritimeTowings(0, 100);
+	std::cout << "Parsed and saved Maritime Towings count: " << towings.size() << std::endl;
+	for (const auto &t : towings)
+	{
+		std::cout << "  MMSI: " << t.mmsi
+				  << ", TowingMethod: " << (int)t.towingMethod
+				  << ", Length: " << t.length
+				  << ", Width: " << (int)t.width
+				  << ", Speed: " << (int)t.speed
+				  << ", StartTime: " << t.timestampStart
+				  << ", EndTime: " << t.timestampEnd << std::endl;
+		std::cout << "    StartPt: Lat=" << t.coordinateStart.GetLatitude()
+				  << ", Lon=" << t.coordinateStart.GetLongitude() << std::endl;
+		std::cout << "    EndPt: Lat=" << t.coordinateEnd.GetLatitude()
+				  << ", Lon=" << t.coordinateEnd.GetLongitude() << std::endl;
 	}
 	std::cout << "=========================================================\n" << std::endl;
 

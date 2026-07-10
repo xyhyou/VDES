@@ -1,4 +1,4 @@
-﻿#ifndef COORDINATE_H_
+#ifndef COORDINATE_H_
 #define COORDINATE_H_
 
 #include <memory>
@@ -14,9 +14,13 @@ namespace VDES
 
         Coordinate(const Coordinate &coordinate);
 
+        Coordinate(Coordinate &&coordinate) noexcept;
+
         ~Coordinate();
 
         Coordinate &operator=(const Coordinate &coordinate);
+
+        Coordinate &operator=(Coordinate &&coordinate) noexcept;
 
         bool operator==(const Coordinate &coordinate) const;
 

@@ -362,7 +362,13 @@ namespace VDES
         uint8_t    towingMethod   = 0;     // 拖带方式
         uint32_t   length         = 0;     // 总长 (m)
         uint8_t    width          = 0;     // 总宽 (m)
-        double     speed          = 0.0;   // 航速 (kn)
+        /**
+         * Speed in steps of 0.1 kn, range: 0.1 kn to 20.0 kn.
+         * 0: default value, not available.
+         * 201 to 210: not exceeding 1 to 10 kn.
+         * 211 to 255: reserved for future use.
+         */
+        uint8_t    speed          = 0;     
         uint64_t   timestampStart = 0;     // 起拖时间
         uint64_t   timestampEnd   = 0;     // 抵达时间
         uint8_t    cautionCode    = 0;     // 注意事项

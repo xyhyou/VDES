@@ -1025,22 +1025,33 @@ namespace VDES
         // 1. Mew Tropical Cyclone
         using MewTropicalCyclones = std::vector<MewTropicalCyclone>;
         using MewTropicalCyclonePtr = std::shared_ptr<MewTropicalCyclone>;
+        
         MewTropicalCyclones GetMewTropicalCyclones(const uint32_t index = 0, const size_t number = -1);
+        
         bool DeleteMewTropicalCyclones(const uint32_t index = 0, const size_t number = -1);
+        
         bool DeleteMewTropicalCyclones(const std::vector<uint32_t> &dataIDs);
+        
         MewTropicalCyclones GetMewTropicalCyclones(const BoundingBox &boundingBox);
+        
         MewTropicalCyclonePtr GetMewTropicalCyclone(const double latitude, const double longitude, const double radius);
 
         // 2. Mew Gale
         using MewGales = std::vector<MewGale>;
+        
         MewGales GetMewGales(const uint32_t index = 0, const size_t number = -1);
+        
         bool DeleteMewGales(const uint32_t index = 0, const size_t number = -1);
+        
         bool DeleteMewGales(const std::vector<uint32_t> &dataIDs);
 
         // 3. Mew Large Wave
         using MewLargeWaves = std::vector<MewLargeWave>;
+        
         MewLargeWaves GetMewLargeWaves(const uint32_t index = 0, const size_t number = -1);
+        
         bool DeleteMewLargeWaves(const uint32_t index = 0, const size_t number = -1);
+        
         bool DeleteMewLargeWaves(const std::vector<uint32_t> &dataIDs);
 
         // 4. Mew Sea Fog
@@ -1051,14 +1062,20 @@ namespace VDES
 
         // 5. Mew Storm Surge
         using MewStormSurges = std::vector<MewStormSurge>;
+        
         MewStormSurges GetMewStormSurges(const uint32_t index = 0, const size_t number = -1);
+        
         bool DeleteMewStormSurges(const uint32_t index = 0, const size_t number = -1);
+       
         bool DeleteMewStormSurges(const std::vector<uint32_t> &dataIDs);
 
         // 6. Mew Sea Ice
         using MewSeaIces = std::vector<MewSeaIce>;
+        
         MewSeaIces GetMewSeaIces(const uint32_t index = 0, const size_t number = -1);
+        
         bool DeleteMewSeaIces(const uint32_t index = 0, const size_t number = -1);
+        
         bool DeleteMewSeaIces(const std::vector<uint32_t> &dataIDs);
 
         /***********************************************************************
@@ -1084,7 +1101,9 @@ namespace VDES
         using AtoNDynamicsList = std::vector<AtoNDynamics>;
 
         AtoNDynamicsList GetAtoNDynamics(const uint32_t index = 0, const size_t number = -1);
+        
         bool DeleteAtoNDynamics(const uint32_t index = 0, const size_t number = -1);
+        
         bool DeleteAtoNDynamics(const std::vector<uint32_t> &dataIDs);
 
         /***********************************************************************
@@ -1093,7 +1112,9 @@ namespace VDES
         using AISAtoNDynamicsList = std::vector<AISAtoNDynamics>;
 
         AISAtoNDynamicsList GetAISAtoNDynamics(const uint32_t index = 0, const size_t number = -1);
+        
         bool DeleteAISAtoNDynamics(const uint32_t index = 0, const size_t number = -1);
+        
         bool DeleteAISAtoNDynamics(const std::vector<uint32_t> &dataIDs);
 
         /***********************************************************************
@@ -1103,7 +1124,9 @@ namespace VDES
         using RouteRecommendationResponsePtr = std::shared_ptr<RouteRecommendationResponse>;
 
         RouteRecommendationResponses GetRouteRecommendationResponses(const uint32_t index = 0, const size_t number = -1);
+        
         bool DeleteRouteRecommendationResponses(const uint32_t index = 0, const size_t number = -1);
+        
         bool DeleteRouteRecommendationResponses(const std::vector<uint32_t> &dataIDs);
 
         /***********************************************************************
@@ -1113,6 +1136,7 @@ namespace VDES
         using HydrometeorologyResponsePtr = std::shared_ptr<HydrometeorologyResponse>;
 
         HydrometeorologyResponses GetHydrometeorologyResponses(const uint32_t index = 0, const size_t number = -1);
+        
         void DeleteHydrometeorologyResponses(const std::vector<uint32_t> &dataIDs);
 
         /***********************************************************************
@@ -1122,6 +1146,7 @@ namespace VDES
         using OtherVesselExtendedInfoPtr = std::shared_ptr<OtherVesselExtendedInfo>;
 
         bool SetExtendedVesselInfo(const ExtendedVesselInfo &info);
+        
         ExtendedVesselInfo GetExtendedVesselInfo(void) const;
 
         OtherVesselExtendedInfos GetOtherVesselExtendedInfos(const uint32_t index = 0, const size_t number = -1);

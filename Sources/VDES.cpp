@@ -5706,9 +5706,9 @@ namespace VDES
     {
         if (asmData)
         {
-            if (asmData->DAC == 412 && asmData->FI == 46)
+            if (asmData->DAC == 412 && asmData->FI == 47)
             {
-                auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_46>(asmData);
+                auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_47>(asmData);
                 if (info)
                 {
                     RouteRecommendationResponse response;
