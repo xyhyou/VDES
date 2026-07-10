@@ -757,6 +757,20 @@ namespace VDES
         uint16_t    crewNum = 0;
         std::string chineseName;
     };
+
+    /**
+     * @brief : 指定信息 MRN 撤销 (Cancellation of specific information by MRN)
+     */
+    struct ASM_DAC_413_FI_9 : ASM_DAC_FI
+    {
+        struct Element
+        {
+            uint16_t dac = 0;
+            uint8_t  fi  = 0;
+            uint32_t mrn = 0;
+        };
+        std::vector<Element> elements;
+    };
 }
 
 #endif

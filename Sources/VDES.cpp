@@ -6071,6 +6071,7 @@ namespace VDES
                 if (info)
                 {
                     MSIObstacle obstacle;
+                    obstacle.dataID = info->MRN;
 
                     obstacle.type = info->type;
                     obstacle.coordinate = info->coordinate;
@@ -6124,6 +6125,7 @@ namespace VDES
                 if (info)
                 {
                     MSIMaritimeOperation operation;
+                    operation.dataID = info->MRN;
 
                     operation.type = info->type;
                     operation.status = 0;
@@ -6172,6 +6174,7 @@ namespace VDES
                 if (info)
                 {
                     MSIMaritimeTowing towing;
+                    towing.dataID = info->MRN;
 
                     towing.mmsi = info->mmsi;
                     towing.coordinateStart = info->node1;
@@ -6200,6 +6203,7 @@ namespace VDES
                 if (info)
                 {
                     MSIMilitaryActivity activity;
+                    activity.dataID = info->MRN;
                     
                     activity.theme = info->type;
                     activity.geometryType = info->geoType;
@@ -6247,6 +6251,7 @@ namespace VDES
                 if (info)
                 {
                     MSIMaritimeDistress distress;
+                    distress.dataID = info->MRN;
 
                     distress.type                = info->distressType;
                     distress.situation           = 0;
@@ -6277,6 +6282,7 @@ namespace VDES
                 if (info)
                 {
                     MSIDesignatedArea area;
+                    area.dataID = info->MRN;
                     area.MRN = info->MRN;
                     area.fragment = info->fragment;
                     area.areaType = info->type;
@@ -6482,6 +6488,215 @@ namespace VDES
                     catch (const SQLite::Exception &execption)
                     {
                         DatabaseErrorProcess(execption, "HandleASMMessage_SupplementaryDescription_AtoNDynamics");
+                    }
+                }
+            }
+
+            if (asmData->DAC == 413 && asmData->FI == 9)
+            {
+                auto info = std::dynamic_pointer_cast<ASM_DAC_413_FI_9>(asmData);
+                if (info && m_database)
+                {
+                    for (const auto &elem : info->elements)
+                    {
+                        uint16_t targetDAC = elem.dac;
+                        uint8_t targetFI = elem.fi;
+                        uint32_t targetMRN = elem.mrn;
+
+                        if (targetDAC == 412)
+                        {
+                            if (targetFI == 33)
+                            {
+                                try
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexAtoNDynamics);
+                                    m_database->exec(fmt::format("DELETE FROM AtoNDynamicElement WHERE MRN = {}", targetMRN));
+                                    m_database->exec("DELETE FROM AtoNDynamics WHERE ID NOT IN (SELECT DISTINCT Dynamics_ID FROM AtoNDynamicElement)");
+                                    m_parent->notifyEvent(EventType::ASM_ATON_DYNAMICS, 0);
+                                }
+                                catch (const SQLite::Exception &e)
+                                {
+                                    DatabaseErrorProcess(e, "Revocation_AtoNDynamics");
+                                }
+                            }
+                            else if (targetFI == 34)
+                            {
+                                try
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexAISAtoNDynamics);
+                                    m_database->exec(fmt::format("DELETE FROM AISAtoNDynamicElement WHERE MRN = {}", targetMRN));
+                                    m_database->exec("DELETE FROM AISAtoNDynamics WHERE ID NOT IN (SELECT DISTINCT Dynamics_ID FROM AISAtoNDynamicElement)");
+                                    m_parent->notifyEvent(EventType::ASM_AIS_ATON_DYNAMICS, 0);
+                                }
+                                catch (const SQLite::Exception &e)
+                                {
+                                    DatabaseErrorProcess(e, "Revocation_AISAtoNDynamics");
+                                }
+                            }
+                            else if (targetFI == 45)
+                            {
+                                try
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexNetSounder);
+                                    m_database->exec(fmt::format("DELETE FROM NetSounder WHERE MRN = {}", targetMRN));
+                                    m_parent->notifyEvent(EventType::ASM_NET_SOUNDER, 0);
+                                }
+                                catch (const SQLite::Exception &e)
+                                {
+                                    DatabaseErrorProcess(e, "Revocation_NetSounder");
+                                }
+                            }
+                            else if (targetFI == 41)
+                            {
+                                try
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexBridge);
+                                    m_database->exec(fmt::format("DELETE FROM Bridge WHERE MRN = {}", targetMRN));
+                                    m_parent->notifyEvent(EventType::ASM_BRIDGE, 0);
+                                }
+                                catch (const SQLite::Exception &e)
+                                {
+                                    DatabaseErrorProcess(e, "Revocation_Bridge");
+                                }
+                            }
+                            else if (targetFI == 42)
+                            {
+                                try
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexChannelCenterline);
+                                    m_database->exec(fmt::format("DELETE FROM ChannelCenterline WHERE MRN = {}", targetMRN));
+                                    m_parent->notifyEvent(EventType::ASM_CHANNEL_CENTERLINE, 0);
+                                }
+                                catch (const SQLite::Exception &e)
+                                {
+                                    DatabaseErrorProcess(e, "Revocation_ChannelCenterline");
+                                }
+                            }
+                            else if (targetFI == 43 || targetFI == 44)
+                            {
+                                try
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexChannelBoundary);
+                                    m_database->exec(fmt::format("DELETE FROM ChannelBoundary WHERE MRN = {}", targetMRN));
+                                    m_parent->notifyEvent(EventType::ASM_CHANNEL_BOUNDARY, 0);
+                                }
+                                catch (const SQLite::Exception &e)
+                                {
+                                    DatabaseErrorProcess(e, "Revocation_ChannelBoundary");
+                                }
+                            }
+                            else if (targetFI == 35)
+                            {
+                                try
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexMSIObstacle);
+                                    m_database->exec(fmt::format("DELETE FROM MSIObstacle WHERE ID = {}", targetMRN));
+                                    m_database->exec(fmt::format("DELETE FROM MSIObstacleBBox WHERE ID = {}", targetMRN));
+                                    m_parent->notifyEvent(EventType::MSI_OBSTACLE, 0);
+                                }
+                                catch (const SQLite::Exception &e)
+                                {
+                                    DatabaseErrorProcess(e, "Revocation_MSIObstacle");
+                                }
+                            }
+                            else if (targetFI == 36)
+                            {
+                                try
+                                {
+                                    {
+                                        std::lock_guard<std::mutex> lock(m_mutexMSIMaritimeOperation);
+                                        m_database->exec(fmt::format("DELETE FROM MSIMaritimeOperation WHERE ID = {}", targetMRN));
+                                        m_database->exec(fmt::format("DELETE FROM MSIMaritimeOperationBBox WHERE ID = {}", targetMRN));
+                                    }
+                                    {
+                                        std::lock_guard<std::mutex> lock(m_mutexMSIMilitaryActivity);
+                                        m_database->exec(fmt::format("DELETE FROM MSIMilitaryActivity WHERE ID = {}", targetMRN));
+                                        m_database->exec(fmt::format("DELETE FROM MSIMilitaryActivityBBox WHERE ID = {}", targetMRN));
+                                    }
+                                    {
+                                        std::lock_guard<std::mutex> lock(m_mutexMSIMaritimeDistress);
+                                        m_database->exec(fmt::format("DELETE FROM MSIMaritimeDistress WHERE ID = {}", targetMRN));
+                                        m_database->exec(fmt::format("DELETE FROM MSIMaritimeDistressBBox WHERE ID = {}", targetMRN));
+                                    }
+                                    m_parent->notifyEvent(EventType::MSI_MARITIME_OPERATION, 0);
+                                    m_parent->notifyEvent(EventType::MSI_MILITARY_ACTIVITY, 0);
+                                    m_parent->notifyEvent(EventType::MSI_MARITIME_DISTRESS, 0);
+                                }
+                                catch (const SQLite::Exception &e)
+                                {
+                                    DatabaseErrorProcess(e, "Revocation_MSI_FI36");
+                                }
+                            }
+                            else if (targetFI == 37)
+                            {
+                                try
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexMSIMaritimeTowing);
+                                    m_database->exec(fmt::format("DELETE FROM MSIMaritimeTowing WHERE ID = {}", targetMRN));
+                                    m_database->exec(fmt::format("DELETE FROM MSIMaritimeTowingBBox WHERE ID = {}", targetMRN));
+                                    m_parent->notifyEvent(EventType::ASM_MARITIME_TOWING, 0);
+                                }
+                                catch (const SQLite::Exception &e)
+                                {
+                                    DatabaseErrorProcess(e, "Revocation_MSIMaritimeTowing");
+                                }
+                            }
+                            else if (targetFI == 38)
+                            {
+                                try
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexMSIDesignatedArea);
+                                    m_database->exec(fmt::format("DELETE FROM MSIDesignatedArea WHERE ID = {}", targetMRN));
+                                    m_database->exec(fmt::format("DELETE FROM MSIDesignatedAreaBBox WHERE ID = {}", targetMRN));
+                                    m_parent->notifyEvent(EventType::MSI_DESIGNATED_AREA, 0);
+                                }
+                                catch (const SQLite::Exception &e)
+                                {
+                                    DatabaseErrorProcess(e, "Revocation_MSIDesignatedArea");
+                                }
+                            }
+                            else if (targetFI == 31)
+                            {
+                                try
+                                {
+                                    {
+                                        std::lock_guard<std::mutex> lock(m_mutexMewTropicalCyclone);
+                                        m_database->exec(fmt::format("DELETE FROM MewTropicalCyclonePoint WHERE WarningID IN (SELECT ID FROM MewTropicalCyclone WHERE MRN = {})", targetMRN));
+                                        m_database->exec(fmt::format("DELETE FROM MewTropicalCyclone WHERE MRN = {}", targetMRN));
+                                    }
+                                    {
+                                        std::lock_guard<std::mutex> lock(m_mutexMewGale);
+                                        m_database->exec(fmt::format("DELETE FROM MewGale WHERE MRN = {}", targetMRN));
+                                    }
+                                    {
+                                        std::lock_guard<std::mutex> lock(m_mutexMewLargeWave);
+                                        m_database->exec(fmt::format("DELETE FROM MewLargeWave WHERE MRN = {}", targetMRN));
+                                    }
+                                    {
+                                        std::lock_guard<std::mutex> lock(m_mutexMewSeaFog);
+                                        m_database->exec(fmt::format("DELETE FROM MewSeaFog WHERE MRN = {}", targetMRN));
+                                    }
+                                    {
+                                        std::lock_guard<std::mutex> lock(m_mutexMewStormSurge);
+                                        m_database->exec(fmt::format("DELETE FROM MewStormSurge WHERE MRN = {}", targetMRN));
+                                    }
+                                    {
+                                        std::lock_guard<std::mutex> lock(m_mutexMewSeaIce);
+                                        m_database->exec(fmt::format("DELETE FROM MewSeaIce WHERE MRN = {}", targetMRN));
+                                    }
+                                    m_parent->notifyEvent(EventType::ASM_MEW_TROPICAL_CYCLONE, 0);
+                                    m_parent->notifyEvent(EventType::ASM_MEW_GALE, 0);
+                                    m_parent->notifyEvent(EventType::ASM_MEW_LARGE_WAVE, 0);
+                                    m_parent->notifyEvent(EventType::ASM_MEW_SEA_FOG, 0);
+                                    m_parent->notifyEvent(EventType::ASM_MEW_STORM_SURGE, 0);
+                                    m_parent->notifyEvent(EventType::ASM_MEW_SEA_ICE, 0);
+                                }
+                                catch (const SQLite::Exception &e)
+                                {
+                                    DatabaseErrorProcess(e, "Revocation_MewWarnings");
+                                }
+                            }
+                        }
                     }
                 }
             }

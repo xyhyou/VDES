@@ -77,6 +77,8 @@ namespace VDES
 
         void ParseASMDAC413FI8(const AISBitsManager &manager);
 
+        void ParseASMDAC413FI9(const AISBitsManager &manager);
+
         void ParseASMDAC412FI47(const AISBitsManager &manager);
 
         void ParseASMDAC412FI50(const AISBitsManager &manager);
@@ -166,6 +168,8 @@ namespace VDES
         m_asmParserMap.insert(std::make_pair(41307, std::bind(&Impl::ParseASMDAC413FI7, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41308, std::bind(&Impl::ParseASMDAC413FI8, this, std::placeholders::_1)));  
+
+        m_asmParserMap.insert(std::make_pair(41309, std::bind(&Impl::ParseASMDAC413FI9, this, std::placeholders::_1)));  
     }
 
     ASMManager::Impl::~Impl()
@@ -1738,6 +1742,36 @@ namespace VDES
         }
 
         m_parent->asmNotify(std::make_shared<ASM_DAC_413_FI_8>(asmInfo));
+    }
+
+    void ASMManager::Impl::ParseASMDAC413FI9(const AISBitsManager &manager)
+    {
+        ASM_DAC_413_FI_9 asmInfo;
+        asmInfo.DAC = 413;
+        asmInfo.FI = 9;
+
+        uint32_t L = 36;
+        uint32_t n = 0;
+        if (manager.GetBitsNumberToDecode() >= 52)
+        {
+            n = (manager.GetBitsNumberToDecode() - 16) / L;
+        }
+        else if (manager.GetBitsNumberToDecode() >= 16)
+        {
+            n = 0;
+        }
+
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            uint32_t pos = 16 + i * L;
+            ASM_DAC_413_FI_9::Element elem;
+            elem.dac = static_cast<uint16_t>(manager.DecodeToNumerical(pos, 10));
+            elem.fi = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 10, 6));
+            elem.mrn = manager.DecodeToNumerical(pos + 16, 20);
+            asmInfo.elements.push_back(elem);
+        }
+
+        m_parent->asmNotify(std::make_shared<ASM_DAC_413_FI_9>(asmInfo));
     }
 
     void ASMManager::Impl::ParseASMDAC412FI47(const AISBitsManager &manager)

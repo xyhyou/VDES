@@ -1979,6 +1979,53 @@ static std::vector<std::string> GenerateDAC_413_FI_8(uint32_t mrn, uint16_t main
 	return results;
 }
 
+struct MockRevocationElement
+{
+	uint16_t dac;
+	uint8_t  fi;
+	uint32_t mrn;
+};
+
+static std::vector<std::string> GenerateDAC_413_FI_9(const std::vector<MockRevocationElement> &elements)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID (6 bits) = 8
+	bitsManager.Encode(8, 6);
+	// Repeat indicator (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// Source ID (30 bits) = 4123001
+	bitsManager.Encode(4123001, 30);
+	// Spare (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// DAC (10 bits) = 413
+	bitsManager.Encode(413, 10);
+	// FI (6 bits) = 9
+	bitsManager.Encode(9, 6);
+
+	for (const auto &elem : elements)
+	{
+		bitsManager.Encode(elem.dac, 10);
+		bitsManager.Encode(elem.fi, 6);
+		bitsManager.Encode(elem.mrn, 20);
+	}
+
+	auto bitsNum = bitsManager.GetBitsNumberToDecode();
+	auto spareBits = 8 - (bitsNum % 8);
+	if (spareBits < 8)
+	{
+		bitsManager.Encode(0, spareBits);
+	}
+
+	auto vdms = bitsManager.BuildPacket();
+	std::vector<std::string> results;
+	for (auto &vdm : vdms)
+	{
+		results.push_back(vdm + "\r\n");
+	}
+	return results;
+}
+
 
 int main(void)
 {
@@ -3769,6 +3816,79 @@ int main(void)
 
 		auto finalCheck = vdesManager.GetMarineEnvironmentFCSTAreas(0, 100);
 		std::cout << "Final MarineEnvironmentFCSTAreas count in DB: " << finalCheck.size() << std::endl;
+	}
+	std::cout << "================================================================================" << std::endl;
+
+	// Verify Revocation of Specific Information by MRN (DAC 413, FI 9)
+	std::cout << "\n=== Verification: Revocation of Specific Information by MRN (DAC 413, FI 9) ===" << std::endl;
+
+	// Let's populate the DB with an AtoNDynamics message (MRN=67890)
+	std::cout << "Injecting mock AtoNDynamics (FI=33, status=1, MRN=67890) message..." << std::endl;
+	auto atonVDMs = GenerateDAC_412_FI_33(1);
+	for (const auto &vdm : atonVDMs)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Let's populate the DB with a NetSounder message
+	std::cout << "Injecting mock NetSounder (FI=45) message..." << std::endl;
+	auto nsVDMs = GenerateDAC_412_FI_45();
+	for (const auto &vdm : nsVDMs)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Verify NetSounder exists in DB before revocation
+	auto beforeNS = vdesManager.GetNetSounders(0, 100);
+	std::cout << "NetSounders count in DB before revocation: " << beforeNS.size() << std::endl;
+	for (const auto &ns : beforeNS)
+	{
+		std::cout << "  NetSounder ID: " << ns.dataID << ", MRN: " << ns.MRN << std::endl;
+	}
+
+	// Verify AtoNDynamics exists in DB before revocation
+	auto beforeAton = vdesManager.GetAtoNDynamics(0, 100);
+	std::cout << "AtoNDynamics count in DB before revocation: " << beforeAton.size() << std::endl;
+	for (const auto &n : beforeAton)
+	{
+		for (const auto &elem : n.elements)
+		{
+			std::cout << "  AtoNDynamic Element MRN: " << elem.MRN << std::endl;
+		}
+	}
+
+	// Generate and parse a revocation message targeting:
+	// 1. (DAC=412, FI=33, MRN=67890) -> AtoNDynamics
+	// 2. (DAC=412, FI=45, MRN=100001) -> NetSounder
+	std::cout << "Injecting revocation (FI=9) NMEA..." << std::endl;
+	std::vector<MockRevocationElement> revElems = {
+		{ 412, 33, 67890 },
+		{ 412, 45, 100001 }
+	};
+	auto revVDMs = GenerateDAC_413_FI_9(revElems);
+	for (const auto &vdm : revVDMs)
+	{
+		std::cout << "Revocation VDM: " << vdm;
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Verify NetSounder has been revoked/deleted
+	auto afterNS = vdesManager.GetNetSounders(0, 100);
+	std::cout << "NetSounders count in DB after revocation: " << afterNS.size() << std::endl;
+	for (const auto &ns : afterNS)
+	{
+		std::cout << "  Remaining NetSounder ID: " << ns.dataID << ", MRN: " << ns.MRN << std::endl;
+	}
+
+	// Verify AtoNDynamics has been revoked/deleted
+	auto afterAton = vdesManager.GetAtoNDynamics(0, 100);
+	std::cout << "AtoNDynamics count in DB after revocation: " << afterAton.size() << std::endl;
+	for (const auto &n : afterAton)
+	{
+		for (const auto &elem : n.elements)
+		{
+			std::cout << "  Remaining AtoNDynamic Element MRN: " << elem.MRN << std::endl;
+		}
 	}
 	std::cout << "================================================================================" << std::endl;
 
