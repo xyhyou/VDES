@@ -786,8 +786,18 @@ namespace VDES
         struct Span
         {
             Coordinate center;
-            double     height           = 0.0;
-            double     width            = 0.0;
+            /**
+             * Vertical clearance of navigation span in steps of 1/10 m (0.1 m). 
+             * Value 1 to 1022 represents 0.1 m to 102.2 m, 1023: greater than 
+             * 102.2 m, 0: default (not available).
+             */
+            uint16_t   height           = 0;
+            /**
+             * Horizontal clearance of navigation span in steps of 1 m. 
+             * Value 1 to 1022 represents 1 m to 1022 m, 1023: greater than 
+             * 1022 m, 0: default (not available).
+             */
+            uint16_t   width            = 0;
             uint16_t   directionToPass  = 0;
             uint8_t    passAbility      = 0;
             bool       enableMeeting    = false;
@@ -830,6 +840,7 @@ namespace VDES
         uint8_t                 fragment = 0;
         uint16_t                width    = 0;
         std::vector<Coordinate> coordinates;
+        std::string             description;
     };
 
     /**
@@ -841,6 +852,7 @@ namespace VDES
         uint8_t                 fragment = 0;
         std::vector<Coordinate> leftCoordinates;
         std::vector<Coordinate> rightCoordinates;
+        std::string             description;
     };
 
     /**

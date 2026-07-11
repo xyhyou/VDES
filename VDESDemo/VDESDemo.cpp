@@ -1302,6 +1302,77 @@ static std::vector<std::string> GenerateDAC_412_FI_33(uint8_t status)
 	return vdms;
 }
 
+static std::vector<std::string> GenerateDAC_412_FI_33_WithMRN(uint8_t status, uint32_t headerMRN, uint32_t elementMRN)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID
+	bitsManager.Encode(8, 6);
+	// Repeat indicator
+	bitsManager.Encode(0, 2);
+	// Source ID
+	bitsManager.Encode(4123001, 30);
+	// Spare
+	bitsManager.Encode(0, 2);
+	// DAC
+	bitsManager.Encode(412, 10);
+	// FI	
+	bitsManager.Encode(33, 6);
+
+	// MRN
+	bitsManager.Encode(headerMRN, 17);
+	// 片段描述
+	bitsManager.Encode(0, 2);
+	// 状态
+	bitsManager.Encode(status, 5);
+
+	if (status == 1)
+	{
+		// 新设: Table 62 (112 bits)
+		// MRN
+		bitsManager.Encode(elementMRN, 17);
+		// 片段描述 (1: 需要额外的文本补充片段)
+		bitsManager.Encode(1, 2);
+		// 航标类型
+		bitsManager.Encode(5, 5);
+		// 经度 (step 1/10000', 119.5432 degrees)
+		bitsManager.Encode(static_cast<uint32_t>(119.5432 * 600000.0), 28);
+		// 纬度 (24.3210 degrees)
+		bitsManager.Encode(static_cast<uint32_t>(24.3210 * 600000.0), 27);
+		// 航标助航状态
+		bitsManager.Encode(1, 5);
+		// 灯质名称代号
+		bitsManager.Encode(0, 4);
+		// 灯质参数代号
+		bitsManager.Encode(0, 4);
+		// 灯光颜色代号
+		bitsManager.Encode(0, 3);
+		// 闪光周期
+		bitsManager.Encode(0, 6);
+		// 射程
+		bitsManager.Encode(0, 5);
+		// 备用
+		bitsManager.Encode(0, 6);
+	}
+	else
+	{
+		bitsManager.Encode(elementMRN, 17);
+		bitsManager.Encode(0, 2);
+		bitsManager.Encode(static_cast<uint32_t>(119.5432 * 600000.0), 28);
+		bitsManager.Encode(static_cast<uint32_t>(24.3210 * 600000.0), 27);
+	}
+
+	// 注意事项 (precaution)
+	bitsManager.Encode(3, 4);
+
+	auto bitsNum = bitsManager.GetBitsNumberToDecode();
+	auto spareBits = 8 - (bitsNum % 8);
+	bitsManager.Encode(0, spareBits);
+	auto vdms = bitsManager.BuildPacket();
+	return vdms;
+}
+
+
 static std::vector<std::string> GenerateDAC_412_FI_34(uint8_t status)
 {
 	VDES::AISBitsManager bitsManager;
@@ -2016,6 +2087,38 @@ static std::vector<std::string> GenerateDAC_413_FI_9(const std::vector<MockRevoc
 	{
 		bitsManager.Encode(0, spareBits);
 	}
+
+	auto vdms = bitsManager.BuildPacket();
+	std::vector<std::string> results;
+	for (auto &vdm : vdms)
+	{
+		results.push_back(vdm + "\r\n");
+	}
+	return results;
+}
+
+static std::vector<std::string> GenerateDAC_413_FI_10(uint16_t targetDAC, uint8_t targetFI, uint32_t startMRN, uint32_t endMRN)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID (6 bits) = 8
+	bitsManager.Encode(8, 6);
+	// Repeat indicator (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// Source ID (30 bits) = 4123001
+	bitsManager.Encode(4123001, 30);
+	// Spare (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// DAC (10 bits) = 413
+	bitsManager.Encode(413, 10);
+	// FI (6 bits) = 10
+	bitsManager.Encode(10, 6);
+
+	bitsManager.Encode(targetDAC, 10);
+	bitsManager.Encode(targetFI, 6);
+	bitsManager.Encode(startMRN, 20);
+	bitsManager.Encode(endMRN, 20);
+	bitsManager.Encode(0, 24); // Spare 24 bits
 
 	auto vdms = bitsManager.BuildPacket();
 	std::vector<std::string> results;
@@ -3890,6 +3993,221 @@ int main(void)
 			std::cout << "  Remaining AtoNDynamic Element MRN: " << elem.MRN << std::endl;
 		}
 	}
+	std::cout << "================================================================================" << std::endl;
+
+	// Verify Revocation of Continuous MRN Range Information (DAC 413, FI 10)
+	std::cout << "\n=== Verification: Revocation of Continuous MRN Range Information (DAC 413, FI 10) ===" << std::endl;
+
+	// Populate database with NetSounder message
+	std::cout << "Injecting mock NetSounder (FI=45) message..." << std::endl;
+	auto rangeNsVDMs = GenerateDAC_412_FI_45();
+	for (const auto &vdm : rangeNsVDMs)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Populate database with 3 separate AtoNDynamics messages
+	std::cout << "Injecting mock AtoNDynamics elements with MRNs 60001, 60002, 60003..." << std::endl;
+	for (uint32_t mrn : {60001, 60002, 60003})
+	{
+		auto atonVDMs = GenerateDAC_412_FI_33_WithMRN(1, 12300 + mrn % 100, mrn);
+		for (const auto &vdm : atonVDMs)
+		{
+			vdesManager.Parse(vdm.c_str(), vdm.length());
+		}
+	}
+
+	// Verify NetSounders count in DB before range revocation
+	auto beforeRangeNS = vdesManager.GetNetSounders(0, 100);
+	std::cout << "NetSounders count before range revocation: " << beforeRangeNS.size() << std::endl;
+	for (const auto &ns : beforeRangeNS)
+	{
+		std::cout << "  NetSounder ID: " << ns.dataID << ", MRN: " << ns.MRN << std::endl;
+	}
+
+	// Verify AtoNDynamics count in DB before range revocation
+	auto beforeRangeAton = vdesManager.GetAtoNDynamics(0, 100);
+	std::cout << "AtoNDynamics count before range revocation: " << beforeRangeAton.size() << std::endl;
+	for (const auto &n : beforeRangeAton)
+	{
+		for (const auto &elem : n.elements)
+		{
+			std::cout << "  AtoNDynamic Element MRN: " << elem.MRN << std::endl;
+		}
+	}
+
+	// Generate and parse range revocation message targeting range [100001, 100002]
+	std::cout << "Injecting range revocation (FI=10) NMEA for NetSounder targeting range [100001, 100002]..." << std::endl;
+	auto rangeRevVDMs1 = GenerateDAC_413_FI_10(412, 45, 100001, 100002);
+	for (const auto &vdm : rangeRevVDMs1)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Generate and parse range revocation message targeting range [60001, 60002]
+	std::cout << "Injecting range revocation (FI=10) NMEA for AtoNDynamics targeting range [60001, 60002]..." << std::endl;
+	auto rangeRevVDMs2 = GenerateDAC_413_FI_10(412, 33, 60001, 60002);
+	for (const auto &vdm : rangeRevVDMs2)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Verify NetSounders count in DB after range revocation
+	auto afterRangeNS = vdesManager.GetNetSounders(0, 100);
+	std::cout << "NetSounders count after range revocation: " << afterRangeNS.size() << std::endl;
+	for (const auto &ns : afterRangeNS)
+	{
+		std::cout << "  Remaining NetSounder ID: " << ns.dataID << ", MRN: " << ns.MRN << std::endl;
+	}
+
+	// Verify AtoNDynamics count in DB after range revocation
+	auto afterRangeAton = vdesManager.GetAtoNDynamics(0, 100);
+	std::cout << "AtoNDynamics count after range revocation: " << afterRangeAton.size() << std::endl;
+	for (const auto &n : afterRangeAton)
+	{
+		for (const auto &elem : n.elements)
+		{
+			std::cout << "  Remaining AtoNDynamic Element MRN: " << elem.MRN << std::endl;
+		}
+	}
+	std::cout << "================================================================================" << std::endl;
+
+	// Verify Channel Centerlines and Boundaries Deletion APIs
+	std::cout << "\n=== Verification: Channel Centerlines & Channel Boundaries Deletion ===" << std::endl;
+
+	// Populate database with mock Channel Centerlines and Boundaries messages
+	std::cout << "Injecting mock Channel Centerline (FI=42) and Channel Boundary (FI=43/44) messages..." << std::endl;
+	auto centerlinesVDM = GenerateDAC_412_FI_42();
+	for (const auto &vdm : centerlinesVDM)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+	auto boundariesLeftVDM = GenerateDAC_412_FI_43(0);
+	for (const auto &vdm : boundariesLeftVDM)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+	auto boundariesRightVDM = GenerateDAC_412_FI_43(1);
+	for (const auto &vdm : boundariesRightVDM)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Verify they exist in DB before deletion
+	auto beforeCenterlines = vdesManager.GetChannelCenterlines(0, 100);
+	std::cout << "Channel Centerlines count before deletion: " << beforeCenterlines.size() << std::endl;
+	for (const auto &c : beforeCenterlines)
+	{
+		std::cout << "  Centerline ID: " << c.dataID << ", MRN: " << c.MRN << ", Width: " << c.width << std::endl;
+	}
+
+	auto beforeBoundaries = vdesManager.GetChannelBoundaries(0, 100);
+	std::cout << "Channel Boundaries count before deletion: " << beforeBoundaries.size() << std::endl;
+	for (const auto &b : beforeBoundaries)
+	{
+		std::cout << "  Boundary ID: " << b.dataID << ", MRN: " << b.MRN << std::endl;
+	}
+
+	// Delete them using IDs
+	if (!beforeCenterlines.empty())
+	{
+		std::vector<uint32_t> ids { beforeCenterlines.front().dataID };
+		std::cout << "Deleting Centerline ID: " << ids[0] << std::endl;
+		bool delSuccess = vdesManager.DeleteChannelCenterlines(ids);
+		std::cout << "Delete result: " << (delSuccess ? "SUCCESS" : "FAILED") << std::endl;
+	}
+
+	if (!beforeBoundaries.empty())
+	{
+		std::vector<uint32_t> ids { beforeBoundaries.front().dataID };
+		std::cout << "Deleting Boundary ID: " << ids[0] << std::endl;
+		bool delSuccess = vdesManager.DeleteChannelBoundaries(ids);
+		std::cout << "Delete result: " << (delSuccess ? "SUCCESS" : "FAILED") << std::endl;
+	}
+
+	// Verify post-deletion counts
+	auto afterCenterlines = vdesManager.GetChannelCenterlines(0, 100);
+	std::cout << "Channel Centerlines count after ID deletion: " << afterCenterlines.size() << std::endl;
+
+	auto afterBoundaries = vdesManager.GetChannelBoundaries(0, 100);
+	std::cout << "Channel Boundaries count after ID deletion: " << afterBoundaries.size() << std::endl;
+
+	// Verify paginated range deletion
+	std::cout << "Deleting remaining Channel Centerlines by index/number..." << std::endl;
+	vdesManager.DeleteChannelCenterlines(0, 100);
+	std::cout << "Deleting remaining Channel Boundaries by index/number..." << std::endl;
+	vdesManager.DeleteChannelBoundaries(0, 100);
+
+	auto finalCenterlines = vdesManager.GetChannelCenterlines(0, 100);
+	std::cout << "Final Channel Centerlines count: " << finalCenterlines.size() << std::endl;
+
+	auto finalBoundaries = vdesManager.GetChannelBoundaries(0, 100);
+	std::cout << "Final Channel Boundaries count: " << finalBoundaries.size() << std::endl;
+	std::cout << "================================================================================" << std::endl;
+
+	// Verify Channel Centerlines and Boundaries Supplementary Descriptions (FI 8)
+	std::cout << "\n=== Verification: Channel Centerlines & Channel Boundaries Supplementary Descriptions (FI 8) ===" << std::endl;
+
+	// Populate database with mock Channel Centerlines and Boundaries messages
+	std::cout << "Injecting mock Channel Centerline (MRN=301) and Channel Boundary (MRN=302) messages..." << std::endl;
+	for (const auto &vdm : centerlinesVDM)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+	for (const auto &vdm : boundariesLeftVDM)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Verify they exist in DB before supplementary descriptions
+	auto testCenterlines = vdesManager.GetChannelCenterlines(0, 100);
+	std::cout << "Centerlines before FI 8: count = " << testCenterlines.size() << std::endl;
+	for (const auto &c : testCenterlines)
+	{
+		std::cout << "  Centerline MRN: " << c.MRN << ", Description: '" << c.description << "'" << std::endl;
+	}
+
+	auto testBoundaries = vdesManager.GetChannelBoundaries(0, 100);
+	std::cout << "Boundaries before FI 8: count = " << testBoundaries.size() << std::endl;
+	for (const auto &b : testBoundaries)
+	{
+		std::cout << "  Boundary MRN: " << b.MRN << ", Description: '" << b.description << "'" << std::endl;
+	}
+
+	// Inject supplementary description for Centerline (MRN=301, mainFI=42)
+	std::cout << "Injecting FI 8 text description for Centerline MRN=301..." << std::endl;
+	auto centerlineDescVDM = GenerateDAC_413_FI_8(301, 412, 42, "Channel Centerline Supplementary Text Description");
+	for (const auto &vdm : centerlineDescVDM)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Inject supplementary description for Boundary (MRN=302, mainFI=43)
+	std::cout << "Injecting FI 8 text description for Boundary MRN=302..." << std::endl;
+	auto boundaryDescVDM = GenerateDAC_413_FI_8(302, 412, 43, "Channel Boundary Supplementary Text Description");
+	for (const auto &vdm : boundaryDescVDM)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Verify they are updated in DB
+	auto testCenterlinesAfter = vdesManager.GetChannelCenterlines(0, 100);
+	std::cout << "Centerlines after FI 8: count = " << testCenterlinesAfter.size() << std::endl;
+	for (const auto &c : testCenterlinesAfter)
+	{
+		std::cout << "  Centerline MRN: " << c.MRN << ", Description: '" << c.description << "'" << std::endl;
+	}
+
+	auto testBoundariesAfter = vdesManager.GetChannelBoundaries(0, 100);
+	std::cout << "Boundaries after FI 8: count = " << testBoundariesAfter.size() << std::endl;
+	for (const auto &b : testBoundariesAfter)
+	{
+		std::cout << "  Boundary MRN: " << b.MRN << ", Description: '" << b.description << "'" << std::endl;
+	}
+
+	// Clean up database for next test run
+	vdesManager.DeleteChannelCenterlines(0, 100);
+	vdesManager.DeleteChannelBoundaries(0, 100);
 	std::cout << "================================================================================" << std::endl;
 
 	return 0;

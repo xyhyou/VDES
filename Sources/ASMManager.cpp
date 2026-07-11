@@ -79,6 +79,8 @@ namespace VDES
 
         void ParseASMDAC413FI9(const AISBitsManager &manager);
 
+        void ParseASMDAC413FI10(const AISBitsManager &manager);
+
         void ParseASMDAC412FI47(const AISBitsManager &manager);
 
         void ParseASMDAC412FI50(const AISBitsManager &manager);
@@ -170,6 +172,8 @@ namespace VDES
         m_asmParserMap.insert(std::make_pair(41308, std::bind(&Impl::ParseASMDAC413FI8, this, std::placeholders::_1)));  
 
         m_asmParserMap.insert(std::make_pair(41309, std::bind(&Impl::ParseASMDAC413FI9, this, std::placeholders::_1)));  
+
+        m_asmParserMap.insert(std::make_pair(41310, std::bind(&Impl::ParseASMDAC413FI10, this, std::placeholders::_1)));  
     }
 
     ASMManager::Impl::~Impl()
@@ -1455,7 +1459,7 @@ namespace VDES
             auto latitude = UtilityInterface::ConvertComplementCodeToInteger(value, 27);
             span.center.SetLatitude(latitude / 600000.0);
 
-            span.height = manager.DecodeToNumerical(index + 55, 10) / 10.0;
+            span.height = manager.DecodeToNumerical(index + 55, 10);
             span.width = manager.DecodeToNumerical(index + 65, 10);
             span.passAbility = static_cast<uint8_t>(manager.DecodeToNumerical(index + 75, 2));
             span.directionToPass = static_cast<uint16_t>(manager.DecodeToNumerical(index + 77, 9));
@@ -1772,6 +1776,25 @@ namespace VDES
         }
 
         m_parent->asmNotify(std::make_shared<ASM_DAC_413_FI_9>(asmInfo));
+    }
+
+    void ASMManager::Impl::ParseASMDAC413FI10(const AISBitsManager &manager)
+    {
+        if (manager.GetBitsNumberToDecode() < 96)
+        {
+            return;
+        }
+
+        ASM_DAC_413_FI_10 asmInfo;
+        asmInfo.DAC = 413;
+        asmInfo.FI = 10;
+
+        asmInfo.targetDAC = static_cast<uint16_t>(manager.DecodeToNumerical(16, 10));
+        asmInfo.targetFI = static_cast<uint8_t>(manager.DecodeToNumerical(26, 6));
+        asmInfo.startMRN = manager.DecodeToNumerical(32, 20);
+        asmInfo.endMRN = manager.DecodeToNumerical(52, 20);
+
+        m_parent->asmNotify(std::make_shared<ASM_DAC_413_FI_10>(asmInfo));
     }
 
     void ASMManager::Impl::ParseASMDAC412FI47(const AISBitsManager &manager)

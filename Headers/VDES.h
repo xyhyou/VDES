@@ -1,4 +1,4 @@
-#ifndef VDES_H_
+﻿#ifndef VDES_H_
 #define VDES_H_
 
 #include "VDESDTD.h"
@@ -1002,6 +1002,10 @@ namespace VDES
         
         ChannelCenterlines GetChannelCenterlines(const uint32_t index = 0, const size_t number = -1);
 
+        bool DeleteChannelCenterlines(const uint32_t index = 0, const size_t number = -1);
+
+        bool DeleteChannelCenterlines(const std::vector<uint32_t> &dataIDs);
+
 
         /***********************************************************************
         * ASM - Channel Boundary
@@ -1009,6 +1013,10 @@ namespace VDES
         using ChannelBoundaries = std::vector<ChannelBoundary>;
         
         ChannelBoundaries GetChannelBoundaries(const uint32_t index = 0, const size_t number = -1);
+
+        bool DeleteChannelBoundaries(const uint32_t index = 0, const size_t number = -1);
+
+        bool DeleteChannelBoundaries(const std::vector<uint32_t> &dataIDs);
 
         /***********************************************************************
         * ASM - Frontend Prompt Text (前端提示文字)

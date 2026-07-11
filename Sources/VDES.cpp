@@ -1172,8 +1172,14 @@ namespace VDES
                 "Fragment INT, "
                 "Width INT, "
                 "Coordinates BLOB, "
+                "Description TEXT, "
                 "[Timestamp Receive] INTEGER"
                 ")");
+            try
+            {
+                m_database->exec("ALTER TABLE ChannelCenterline ADD COLUMN Description TEXT");
+            }
+            catch (...) {}
         }
         catch (const SQLite::Exception &execption)
         {
@@ -1190,8 +1196,14 @@ namespace VDES
                 "Fragment INT, "
                 "LeftCoordinates BLOB, "
                 "RightCoordinates BLOB, "
+                "Description TEXT, "
                 "[Timestamp Receive] INTEGER"
                 ")");
+            try
+            {
+                m_database->exec("ALTER TABLE ChannelBoundary ADD COLUMN Description TEXT");
+            }
+            catch (...) {}
         }
         catch (const SQLite::Exception &execption)
         {
@@ -3167,6 +3179,7 @@ namespace VDES
         centerline.fragment = static_cast<uint8_t>(query.getColumn("Fragment").getUInt());
         centerline.width = static_cast<uint16_t>(query.getColumn("Width").getUInt());
         centerline.timestamp = query.getColumn("Timestamp Receive").getInt64();
+        centerline.description = query.getColumn("Description").getText();
 
         SQLite::Column column = query.getColumn("Coordinates");
         auto size = column.getBytes();
@@ -3189,6 +3202,7 @@ namespace VDES
         boundary.MRN = query.getColumn("MRN").getUInt();
         boundary.fragment = static_cast<uint8_t>(query.getColumn("Fragment").getUInt());
         boundary.timestamp = query.getColumn("Timestamp Receive").getInt64();
+        boundary.description = query.getColumn("Description").getText();
 
         SQLite::Column colLeft = query.getColumn("LeftCoordinates");
         auto sizeLeft = colLeft.getBytes();
@@ -4034,8 +4048,8 @@ namespace VDES
         {
             try
             {
-                auto sql = "INSERT INTO ChannelCenterline (MRN, Fragment, Width, Coordinates, [Timestamp Receive]) "
-                           "VALUES (@MRN, @Fragment, @Width, @Coordinates, @TimestampRcv)";
+                auto sql = "INSERT INTO ChannelCenterline (MRN, Fragment, Width, Coordinates, Description, [Timestamp Receive]) "
+                           "VALUES (@MRN, @Fragment, @Width, @Coordinates, @Description, @TimestampRcv)";
                 auto stmt = m_database->buildStatement(sql);
 
                 stmt.bind("@MRN", centerline.MRN);
@@ -4051,6 +4065,7 @@ namespace VDES
                     blob[i].longitude = centerline.coordinates[i].GetLongitude();
                 }
                 stmt.bind("@Coordinates", blob.get(), size);
+                stmt.bind("@Description", centerline.description);
                 stmt.bind("@TimestampRcv", centerline.timestamp);
 
                 stmt.exec();
@@ -4068,8 +4083,8 @@ namespace VDES
         {
             try
             {
-                auto sql = "REPLACE INTO ChannelBoundary (MRN, Fragment, LeftCoordinates, RightCoordinates, [Timestamp Receive]) "
-                           "VALUES (@MRN, @Fragment, @LeftCoords, @RightCoords, @TimestampRcv)";
+                auto sql = "REPLACE INTO ChannelBoundary (MRN, Fragment, LeftCoordinates, RightCoordinates, Description, [Timestamp Receive]) "
+                           "VALUES (@MRN, @Fragment, @LeftCoords, @RightCoords, @Description, @TimestampRcv)";
                 auto stmt = m_database->buildStatement(sql);
 
                 stmt.bind("@MRN", boundary.MRN);
@@ -4095,6 +4110,7 @@ namespace VDES
                 }
                 stmt.bind("@RightCoords", blobR.get(), static_cast<int>(sizeR));
 
+                stmt.bind("@Description", boundary.description);
                 stmt.bind("@TimestampRcv", boundary.timestamp);
 
                 stmt.exec();
@@ -6490,6 +6506,50 @@ namespace VDES
                         DatabaseErrorProcess(execption, "HandleASMMessage_SupplementaryDescription_AtoNDynamics");
                     }
                 }
+
+                if (info && info->mainDAC == 412 && info->mainFI == 42)
+                {
+                    try
+                    {
+                        if (m_database)
+                        {
+                            std::unique_lock<std::mutex> lock(m_mutexChannelCenterline);
+                            SQLite::Statement updateStmt(*m_database.get(), "UPDATE ChannelCenterline SET Description = ? WHERE MRN = ?");
+                            updateStmt.bind(1, info->description);
+                            updateStmt.bind(2, static_cast<int64_t>(info->MRN));
+                            updateStmt.exec();
+                            lock.unlock();
+
+                            m_parent->notifyEvent(EventType::ASM_CHANNEL_CENTERLINE, 0);
+                        }
+                    }
+                    catch (const SQLite::Exception &execption)
+                    {
+                        DatabaseErrorProcess(execption, "HandleASMMessage_SupplementaryDescription_ChannelCenterline");
+                    }
+                }
+
+                if (info && info->mainDAC == 412 && (info->mainFI == 43 || info->mainFI == 44))
+                {
+                    try
+                    {
+                        if (m_database)
+                        {
+                            std::unique_lock<std::mutex> lock(m_mutexChannelBoundary);
+                            SQLite::Statement updateStmt(*m_database.get(), "UPDATE ChannelBoundary SET Description = ? WHERE MRN = ?");
+                            updateStmt.bind(1, info->description);
+                            updateStmt.bind(2, static_cast<int64_t>(info->MRN));
+                            updateStmt.exec();
+                            lock.unlock();
+
+                            m_parent->notifyEvent(EventType::ASM_CHANNEL_BOUNDARY, 0);
+                        }
+                    }
+                    catch (const SQLite::Exception &execption)
+                    {
+                        DatabaseErrorProcess(execption, "HandleASMMessage_SupplementaryDescription_ChannelBoundary");
+                    }
+                }
             }
 
             if (asmData->DAC == 413 && asmData->FI == 9)
@@ -6701,6 +6761,213 @@ namespace VDES
                 }
             }
 
+            if (asmData->DAC == 413 && asmData->FI == 10)
+            {
+                auto info = std::dynamic_pointer_cast<ASM_DAC_413_FI_10>(asmData);
+                if (info && m_database)
+                {
+                    uint16_t targetDAC = info->targetDAC;
+                    uint8_t targetFI = info->targetFI;
+                    uint32_t startMRN = info->startMRN;
+                    uint32_t endMRN = info->endMRN;
+
+                    if (targetDAC == 412)
+                    {
+                        if (targetFI == 33)
+                        {
+                            try
+                            {
+                                std::lock_guard<std::mutex> lock(m_mutexAtoNDynamics);
+                                m_database->exec(fmt::format("DELETE FROM AtoNDynamicElement WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                m_database->exec("DELETE FROM AtoNDynamics WHERE ID NOT IN (SELECT DISTINCT Dynamics_ID FROM AtoNDynamicElement)");
+                                m_parent->notifyEvent(EventType::ASM_ATON_DYNAMICS, 0);
+                            }
+                            catch (const SQLite::Exception &e)
+                            {
+                                DatabaseErrorProcess(e, "RangeRevocation_AtoNDynamics");
+                            }
+                        }
+                        else if (targetFI == 34)
+                        {
+                            try
+                            {
+                                std::lock_guard<std::mutex> lock(m_mutexAISAtoNDynamics);
+                                m_database->exec(fmt::format("DELETE FROM AISAtoNDynamicElement WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                m_database->exec("DELETE FROM AISAtoNDynamics WHERE ID NOT IN (SELECT DISTINCT Dynamics_ID FROM AISAtoNDynamicElement)");
+                                m_parent->notifyEvent(EventType::ASM_AIS_ATON_DYNAMICS, 0);
+                            }
+                            catch (const SQLite::Exception &e)
+                            {
+                                DatabaseErrorProcess(e, "RangeRevocation_AISAtoNDynamics");
+                            }
+                        }
+                        else if (targetFI == 45)
+                        {
+                            try
+                            {
+                                std::lock_guard<std::mutex> lock(m_mutexNetSounder);
+                                m_database->exec(fmt::format("DELETE FROM NetSounder WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                m_parent->notifyEvent(EventType::ASM_NET_SOUNDER, 0);
+                            }
+                            catch (const SQLite::Exception &e)
+                            {
+                                DatabaseErrorProcess(e, "RangeRevocation_NetSounder");
+                            }
+                        }
+                        else if (targetFI == 41)
+                        {
+                            try
+                            {
+                                std::lock_guard<std::mutex> lock(m_mutexBridge);
+                                m_database->exec(fmt::format("DELETE FROM Bridge WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                m_parent->notifyEvent(EventType::ASM_BRIDGE, 0);
+                            }
+                            catch (const SQLite::Exception &e)
+                            {
+                                DatabaseErrorProcess(e, "RangeRevocation_Bridge");
+                            }
+                        }
+                        else if (targetFI == 42)
+                        {
+                            try
+                            {
+                                std::lock_guard<std::mutex> lock(m_mutexChannelCenterline);
+                                m_database->exec(fmt::format("DELETE FROM ChannelCenterline WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                m_parent->notifyEvent(EventType::ASM_CHANNEL_CENTERLINE, 0);
+                            }
+                            catch (const SQLite::Exception &e)
+                            {
+                                DatabaseErrorProcess(e, "RangeRevocation_ChannelCenterline");
+                            }
+                        }
+                        else if (targetFI == 43 || targetFI == 44)
+                        {
+                            try
+                            {
+                                std::lock_guard<std::mutex> lock(m_mutexChannelBoundary);
+                                m_database->exec(fmt::format("DELETE FROM ChannelBoundary WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                m_parent->notifyEvent(EventType::ASM_CHANNEL_BOUNDARY, 0);
+                            }
+                            catch (const SQLite::Exception &e)
+                            {
+                                DatabaseErrorProcess(e, "RangeRevocation_ChannelBoundary");
+                            }
+                        }
+                        else if (targetFI == 35)
+                        {
+                            try
+                            {
+                                std::lock_guard<std::mutex> lock(m_mutexMSIObstacle);
+                                m_database->exec(fmt::format("DELETE FROM MSIObstacle WHERE ID >= {0} AND ID <= {1}", startMRN, endMRN));
+                                m_database->exec(fmt::format("DELETE FROM MSIObstacleBBox WHERE ID >= {0} AND ID <= {1}", startMRN, endMRN));
+                                m_parent->notifyEvent(EventType::MSI_OBSTACLE, 0);
+                            }
+                            catch (const SQLite::Exception &e)
+                            {
+                                DatabaseErrorProcess(e, "RangeRevocation_MSIObstacle");
+                            }
+                        }
+                        else if (targetFI == 36)
+                        {
+                            try
+                            {
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexMSIMaritimeOperation);
+                                    m_database->exec(fmt::format("DELETE FROM MSIMaritimeOperation WHERE ID >= {0} AND ID <= {1}", startMRN, endMRN));
+                                    m_database->exec(fmt::format("DELETE FROM MSIMaritimeOperationBBox WHERE ID >= {0} AND ID <= {1}", startMRN, endMRN));
+                                }
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexMSIMilitaryActivity);
+                                    m_database->exec(fmt::format("DELETE FROM MSIMilitaryActivity WHERE ID >= {0} AND ID <= {1}", startMRN, endMRN));
+                                    m_database->exec(fmt::format("DELETE FROM MSIMilitaryActivityBBox WHERE ID >= {0} AND ID <= {1}", startMRN, endMRN));
+                                }
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexMSIMaritimeDistress);
+                                    m_database->exec(fmt::format("DELETE FROM MSIMaritimeDistress WHERE ID >= {0} AND ID <= {1}", startMRN, endMRN));
+                                    m_database->exec(fmt::format("DELETE FROM MSIMaritimeDistressBBox WHERE ID >= {0} AND ID <= {1}", startMRN, endMRN));
+                                }
+                                m_parent->notifyEvent(EventType::MSI_MARITIME_OPERATION, 0);
+                                m_parent->notifyEvent(EventType::MSI_MILITARY_ACTIVITY, 0);
+                                m_parent->notifyEvent(EventType::MSI_MARITIME_DISTRESS, 0);
+                            }
+                            catch (const SQLite::Exception &e)
+                            {
+                                DatabaseErrorProcess(e, "RangeRevocation_MSI_FI36");
+                            }
+                        }
+                        else if (targetFI == 37)
+                        {
+                            try
+                            {
+                                std::lock_guard<std::mutex> lock(m_mutexMSIMaritimeTowing);
+                                m_database->exec(fmt::format("DELETE FROM MSIMaritimeTowing WHERE ID >= {0} AND ID <= {1}", startMRN, endMRN));
+                                m_database->exec(fmt::format("DELETE FROM MSIMaritimeTowingBBox WHERE ID >= {0} AND ID <= {1}", startMRN, endMRN));
+                                m_parent->notifyEvent(EventType::ASM_MARITIME_TOWING, 0);
+                            }
+                            catch (const SQLite::Exception &e)
+                            {
+                                DatabaseErrorProcess(e, "RangeRevocation_MSIMaritimeTowing");
+                            }
+                        }
+                        else if (targetFI == 38)
+                        {
+                            try
+                            {
+                                std::lock_guard<std::mutex> lock(m_mutexMSIDesignatedArea);
+                                m_database->exec(fmt::format("DELETE FROM MSIDesignatedArea WHERE ID >= {0} AND ID <= {1}", startMRN, endMRN));
+                                m_database->exec(fmt::format("DELETE FROM MSIDesignatedAreaBBox WHERE ID >= {0} AND ID <= {1}", startMRN, endMRN));
+                                m_parent->notifyEvent(EventType::MSI_DESIGNATED_AREA, 0);
+                            }
+                            catch (const SQLite::Exception &e)
+                            {
+                                DatabaseErrorProcess(e, "RangeRevocation_MSIDesignatedArea");
+                            }
+                        }
+                        else if (targetFI == 31)
+                        {
+                            try
+                            {
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexMewTropicalCyclone);
+                                    m_database->exec(fmt::format("DELETE FROM MewTropicalCyclonePoint WHERE WarningID IN (SELECT ID FROM MewTropicalCyclone WHERE MRN >= {0} AND MRN <= {1})", startMRN, endMRN));
+                                    m_database->exec(fmt::format("DELETE FROM MewTropicalCyclone WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                }
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexMewGale);
+                                    m_database->exec(fmt::format("DELETE FROM MewGale WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                }
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexMewLargeWave);
+                                    m_database->exec(fmt::format("DELETE FROM MewLargeWave WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                }
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexMewSeaFog);
+                                    m_database->exec(fmt::format("DELETE FROM MewSeaFog WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                }
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexMewStormSurge);
+                                    m_database->exec(fmt::format("DELETE FROM MewStormSurge WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                }
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexMewSeaIce);
+                                    m_database->exec(fmt::format("DELETE FROM MewSeaIce WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                }
+                                m_parent->notifyEvent(EventType::ASM_MEW_TROPICAL_CYCLONE, 0);
+                                m_parent->notifyEvent(EventType::ASM_MEW_GALE, 0);
+                                m_parent->notifyEvent(EventType::ASM_MEW_LARGE_WAVE, 0);
+                                m_parent->notifyEvent(EventType::ASM_MEW_SEA_FOG, 0);
+                                m_parent->notifyEvent(EventType::ASM_MEW_STORM_SURGE, 0);
+                                m_parent->notifyEvent(EventType::ASM_MEW_SEA_ICE, 0);
+                            }
+                            catch (const SQLite::Exception &e)
+                            {
+                                DatabaseErrorProcess(e, "RangeRevocation_MewWarnings");
+                            }
+                        }
+                    }
+                }
+            }
+
             if (asmData->DAC == 412 && asmData->FI == 42)
             {
                 auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_42>(asmData);
@@ -6713,11 +6980,18 @@ namespace VDES
                     centerline.coordinates = info->coordinates;
 					centerline.timestamp = UtilityInterface::GetCurrentTimeStamp();
 
+                    std::string existingDesc;
                     std::unique_lock<std::mutex> lock(m_mutexChannelCenterline);
                     try
                     {
                         if (m_database)
                         {
+                            auto sqlQuery = fmt::format("SELECT Description FROM ChannelCenterline WHERE MRN = {}", info->MRN);
+                            SQLite::Statement query(*m_database.get(), sqlQuery);
+                            if (query.executeStep())
+                            {
+                                existingDesc = query.getColumn("Description").getText();
+                            }
                             auto sqlDel = fmt::format("DELETE FROM ChannelCenterline WHERE MRN = {}", info->MRN);
                             m_database->exec(sqlDel);
                         }
@@ -6727,6 +7001,7 @@ namespace VDES
                         DatabaseErrorProcess(execption, "HandleASMMessage_DeleteChannelCenterline");
                     }
 
+                    centerline.description = existingDesc;
                     SaveChannelCenterline(centerline);
                     lock.unlock();
 
@@ -6744,6 +7019,7 @@ namespace VDES
                 {
                     std::vector<Coordinate> leftCoords;
                     std::vector<Coordinate> rightCoords;
+                    std::string existingDesc;
                     
                     try
                     {
@@ -6753,6 +7029,7 @@ namespace VDES
                             SQLite::Statement query(*m_database.get(), sqlQuery);
                             if (query.executeStep())
                             {
+                                existingDesc = query.getColumn("Description").getText();
                                 SQLite::Column colLeft = query.getColumn("LeftCoordinates");
                                 auto sizeLeft = colLeft.getBytes();
                                 if (sizeLeft > 0)
@@ -6799,6 +7076,7 @@ namespace VDES
                     boundary.fragment = info->fragment;
                     boundary.leftCoordinates = leftCoords;
                     boundary.rightCoordinates = rightCoords;
+                    boundary.description = existingDesc;
                     boundary.timestamp = UtilityInterface::GetCurrentTimeStamp();
 
                     std::unique_lock<std::mutex> lock(m_mutexChannelBoundary);
@@ -11726,6 +12004,104 @@ namespace VDES
             }
         }
         return container;
+    }
+
+    bool VDESManager::DeleteChannelCenterlines(const uint32_t index, const size_t number)
+    {
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelCenterline);
+
+                auto sqlCmd = fmt::format("DELETE FROM ChannelCenterline WHERE ID IN ("
+                                          "SELECT ID FROM ChannelCenterline ORDER BY [Timestamp Receive] DESC LIMIT {0} OFFSET {1})",
+                                          (number == -1) ? "-1" : fmt::format("{}", number), index);
+                m_impl->m_database->exec(sqlCmd);
+
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteChannelCenterlines(index, number)");
+            }
+        }
+        return false;
+    }
+
+    bool VDESManager::DeleteChannelCenterlines(const std::vector<uint32_t> &dataIDs)
+    {
+        if (dataIDs.empty())
+        {
+            return true;
+        }
+
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelCenterline);
+
+                auto sqlCmd = fmt::format("DELETE FROM ChannelCenterline WHERE ID IN ({})", fmt::join(dataIDs, ", "));
+                m_impl->m_database->exec(sqlCmd);
+
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteChannelCenterlines(dataIDs)");
+            }
+        }
+        return false;
+    }
+
+    bool VDESManager::DeleteChannelBoundaries(const uint32_t index, const size_t number)
+    {
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelBoundary);
+
+                auto sqlCmd = fmt::format("DELETE FROM ChannelBoundary WHERE MRN IN ("
+                                          "SELECT MRN FROM ChannelBoundary ORDER BY [Timestamp Receive] DESC LIMIT {0} OFFSET {1})",
+                                          (number == -1) ? "-1" : fmt::format("{}", number), index);
+                m_impl->m_database->exec(sqlCmd);
+
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteChannelBoundaries(index, number)");
+            }
+        }
+        return false;
+    }
+
+    bool VDESManager::DeleteChannelBoundaries(const std::vector<uint32_t> &dataIDs)
+    {
+        if (dataIDs.empty())
+        {
+            return true;
+        }
+
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelBoundary);
+
+                auto sqlCmd = fmt::format("DELETE FROM ChannelBoundary WHERE MRN IN ({})", fmt::join(dataIDs, ", "));
+                m_impl->m_database->exec(sqlCmd);
+
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteChannelBoundaries(dataIDs)");
+            }
+        }
+        return false;
     }
 
     VDESManager::FrontendPrompts VDESManager::GetFrontendPrompts(const uint32_t index, const size_t number)

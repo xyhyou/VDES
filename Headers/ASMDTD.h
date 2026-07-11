@@ -606,8 +606,8 @@ namespace VDES
         struct BridgeSpan 
         {
             Coordinate center;
-            double     height           = 0.0;
-            double     width            = 0.0;
+            uint16_t   height           = 0;
+            uint16_t   width            = 0;
             uint16_t   directionToPass  = 0;
             uint8_t    passAbility      = 0;
             bool       enableMeeting    = 0;
@@ -770,6 +770,17 @@ namespace VDES
             uint32_t mrn = 0;
         };
         std::vector<Element> elements;
+    };
+
+    /**
+     * @brief : 连续 MRN 信息撤销 (Cancellation of continuous MRN range information)
+     */
+    struct ASM_DAC_413_FI_10 : ASM_DAC_FI
+    {
+        uint16_t targetDAC = 0;
+        uint8_t  targetFI  = 0;
+        uint32_t startMRN  = 0;
+        uint32_t endMRN    = 0;
     };
 }
 
