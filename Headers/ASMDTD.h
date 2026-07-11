@@ -329,17 +329,19 @@ namespace VDES
         struct GeneralWarningElement
         {
             uint32_t MRN = 0;          // 17 bits
-            uint8_t seaAreaCode = 0;   // 7 bits
-            uint8_t warningLevel = 0;  // 2 bits
+            uint8_t  fragment = 0;     // 2 bits
+            uint8_t  seaAreaCode = 0;  // 7 bits
+            uint8_t  warningLevel = 0; // 2 bits
         };
 
         // Storm surge element (warningType = 5)
         struct StormSurgeElement
         {
             uint32_t MRN = 0;          // 17 bits
-            uint8_t cityCode = 0;      // 6 bits
-            double  surgeHeight = 0.0; // 5 bits, 10cm step
-            uint8_t warningLevel = 0;  // 2 bits
+            uint8_t  fragment = 0;     // 2 bits
+            uint8_t  cityCode = 0;     // 6 bits
+            uint8_t  surgeHeight = 0;  // 5 bits, 10cm step
+            uint8_t  warningLevel = 0; // 2 bits
         };
 
         // Ice warning element (warningType = 6)

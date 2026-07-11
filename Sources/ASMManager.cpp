@@ -1,4 +1,4 @@
-﻿#include "ASMManager.h"
+#include "ASMManager.h"
 
 #include <map>
 #include <cstdlib>
@@ -832,30 +832,32 @@ namespace VDES
         else if (asmInfo.warningType >= 2 && asmInfo.warningType <= 4)
         {
             auto totalBitsNum = manager.GetBitsNumberToDecode();
-            auto numElements = (totalBitsNum - 89) / 26;
+            auto numElements = (totalBitsNum - 89) / 28;
             for (auto i = 0U; i < numElements; i++)
             {
                 ASM_DAC_412_FI_31::GeneralWarningElement elem;
                 elem.MRN = manager.DecodeToNumerical(index, 17);
-                elem.seaAreaCode = static_cast<uint8_t>(manager.DecodeToNumerical(index + 17, 7));
-                elem.warningLevel = static_cast<uint8_t>(manager.DecodeToNumerical(index + 24, 2));
+                elem.fragment = static_cast<uint8_t>(manager.DecodeToNumerical(index + 17, 2));
+                elem.seaAreaCode = static_cast<uint8_t>(manager.DecodeToNumerical(index + 19, 7));
+                elem.warningLevel = static_cast<uint8_t>(manager.DecodeToNumerical(index + 26, 2));
                 asmInfo.generalWarnings.push_back(elem);
-                index += 26;
+                index += 28;
             }
         }
         else if (asmInfo.warningType == 5)
         {
             auto totalBitsNum = manager.GetBitsNumberToDecode();
-            auto numElements = (totalBitsNum - 89) / 30;
+            auto numElements = (totalBitsNum - 89) / 32;
             for (auto i = 0U; i < numElements; i++)
             {
                 ASM_DAC_412_FI_31::StormSurgeElement elem;
                 elem.MRN = manager.DecodeToNumerical(index, 17);
-                elem.cityCode = static_cast<uint8_t>(manager.DecodeToNumerical(index + 17, 6));
-                elem.surgeHeight = manager.DecodeToNumerical(index + 23, 5) * 0.1;
-                elem.warningLevel = static_cast<uint8_t>(manager.DecodeToNumerical(index + 28, 2));
+                elem.fragment = static_cast<uint8_t>(manager.DecodeToNumerical(index + 17, 2));
+                elem.cityCode = static_cast<uint8_t>(manager.DecodeToNumerical(index + 19, 6));
+                elem.surgeHeight = manager.DecodeToNumerical(index + 25, 5);
+                elem.warningLevel = static_cast<uint8_t>(manager.DecodeToNumerical(index + 30, 2));
                 asmInfo.stormSurges.push_back(elem);
-                index += 30;
+                index += 32;
             }
         }
         else if (asmInfo.warningType == 6)

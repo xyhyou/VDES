@@ -1,4 +1,4 @@
-﻿#include "VDES.h"
+#include "VDES.h"
 #include "BoundingBox.h"
 #include "VDESConfigure.h"
 #include "UtilityInterface.h"
@@ -1674,10 +1674,12 @@ static std::vector<std::string> GenerateDAC_412_FI_31(uint8_t warningType)
 		// General Warnings
 		// Element 1
 		bitsManager.Encode(201, 17); // MRN
+		bitsManager.Encode(1, 2); // Fragment Description
 		bitsManager.Encode(5, 7); // Sea Area Code
 		bitsManager.Encode(2, 2); // Warning Level
 		// Element 2
 		bitsManager.Encode(202, 17); // MRN
+		bitsManager.Encode(0, 2); // Fragment Description
 		bitsManager.Encode(12, 7); // Sea Area Code
 		bitsManager.Encode(3, 2); // Warning Level
 	}
@@ -1686,11 +1688,13 @@ static std::vector<std::string> GenerateDAC_412_FI_31(uint8_t warningType)
 		// Storm Surge
 		// Element 1
 		bitsManager.Encode(301, 17); // MRN
+		bitsManager.Encode(0, 2); // Fragment Description
 		bitsManager.Encode(15, 6); // City Code
 		bitsManager.Encode(25, 5); // Surge Height (raw 25 * 0.1 = 2.5m)
 		bitsManager.Encode(1, 2); // Warning Level
 		// Element 2
 		bitsManager.Encode(302, 17); // MRN
+		bitsManager.Encode(1, 2); // Fragment Description
 		bitsManager.Encode(32, 6); // City Code
 		bitsManager.Encode(12, 5); // Surge Height (raw 12 * 0.1 = 1.2m)
 		bitsManager.Encode(3, 2); // Warning Level
@@ -2211,6 +2215,7 @@ int main(void)
 	{
 		std::cout << "  Warning ID: " << ew.dataID
 				  << ", MRN: " << ew.MRN
+				  << ", Fragment: " << (int)ew.fragment
 				  << ", Area Code: " << (int)ew.areaCode
 				  << ", Warning Level: " << (int)ew.warningLevel
 				  << ", Published: " << ew.timestampPublished << std::endl;
@@ -2228,6 +2233,7 @@ int main(void)
 	{
 		std::cout << "  Warning ID: " << ew.dataID
 				  << ", MRN: " << ew.MRN
+				  << ", Fragment: " << (int)ew.fragment
 				  << ", City Code: " << (int)ew.cityCode
 				  << ", Surge Height: " << ew.surgeHeight
 				  << ", Warning Level: " << (int)ew.warningLevel
@@ -2571,6 +2577,11 @@ int main(void)
 		//"$AIASM,1782891146,1,1,,1,2,0,666666666,,Iiq1P1wpt52Uhg9H37Pj80,4*2D\r\n",
 		//"$AIASM,1782891172,1,1,,1,2,0,666666666,,Iiq1P1bVB52Uhg9H37Pj80,4*2F\r\n",
 		// 海洋气象环境预警 DAC = 412, FI = 31
+		"$AIASM,1783406998,1,1,,1,2,0,666666666,,IiuT=i003VD0qh0>Q@0:,0*01\r\n",
+		"$AIASM,1783741085,1,1,,1,2,0,666666666,,IiuD=g0@Q3Kp=q@o0;QT=hP0=k:0Lp07@p04P0,4*41\r\n",
+		"$AIASM,1783741063,1,1,,2,2,0,666666666,,Iitl=bP8@nd1E3JpUT=d3g@nj0=k:0Lp07@p2mP,2*5D\r\n",
+		"$AIASM,1783740907,1,1,,1,2,0,666666666,,IitT=`0E@nR1Q3J@U4=aSi@n`05k:0Lp07@p04P,2*33\r\n",
+		"$AIASM,1783740861,1,1,,1,2,0,666666666,,Iit@00QVn5?Lh6@j567=qKe4tTqP0037P0ip4@,4*6E\r\n",
 		//"$AIASM,1783402405,1,1,,1,2,0,666666666,,IitD=VQVn5?Lh6@j567=kKeB9HqP0>I@3WD02@,4*5B\r\n",
 		//"$AIASM,1783256655,1,1,,1,2,0,666666666,,IiuT=i01k:0Lp07@`050,0*5F\r\n",
 		//"$AIASM,1783256514,1,1,,1,2,0,666666666,,IitD=VQVn5?Lh6@j567=kKeB9HqP0>I@3WD02@,4*5D\r\n",
@@ -3091,6 +3102,7 @@ int main(void)
 	for (const auto &ew : gales)
 	{
 		std::cout << "  MRN: " << ew.MRN
+				  << ", Fragment: " << (int)ew.fragment
 				  << ", Area Code: " << (int)ew.areaCode
 				  << ", Warning Level: " << (int)ew.warningLevel
 				  << ", Published: " << ew.timestampPublished << std::endl;
@@ -4204,6 +4216,84 @@ int main(void)
 	{
 		std::cout << "  Boundary MRN: " << b.MRN << ", Description: '" << b.description << "'" << std::endl;
 	}
+
+	// Verify Marine Meteorology and Environmental Warnings (FI 31)
+	std::cout << "\n=== Verification: Marine Meteorology & Environmental Warnings (FI=31) ===" << std::endl;
+	
+	// Clean up tables first
+	vdesManager.DeleteMewTropicalCyclones(0, 100);
+	vdesManager.DeleteMewGales(0, 100);
+	vdesManager.DeleteMewLargeWaves(0, 100);
+	vdesManager.DeleteMewSeaFogs(0, 100);
+	vdesManager.DeleteMewStormSurges(0, 100);
+	vdesManager.DeleteMewSeaIces(0, 100);
+
+	// Parse Type 1 (Cyclone)
+	auto cycloneVDMs = GenerateDAC_412_FI_31(1);
+	for (const auto &vdm : cycloneVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	// Parse Type 2 (Gale)
+	auto galeVDMs = GenerateDAC_412_FI_31(2);
+	for (const auto &vdm : galeVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	// Parse Type 5 (Storm Surge)
+	auto surgeVDMs = GenerateDAC_412_FI_31(5);
+	for (const auto &vdm : surgeVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	// Parse Type 6 (Sea Ice)
+	auto iceVDMs = GenerateDAC_412_FI_31(6);
+	for (const auto &vdm : iceVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	// Retrieve and print from database to verify Fragment and other fields
+	auto dbCyclones = vdesManager.GetMewTropicalCyclones(0, 100);
+	std::cout << "MewTropicalCyclones from DB: " << dbCyclones.size() << std::endl;
+	for (const auto &ew : dbCyclones)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Fragment: " << (int)ew.fragment << ", Path points: " << ew.pathPoints.size() << std::endl;
+	}
+
+	auto dbGales = vdesManager.GetMewGales(0, 100);
+	std::cout << "MewGales from DB: " << dbGales.size() << std::endl;
+	for (const auto &ew : dbGales)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Fragment: " << (int)ew.fragment << ", Area: " << (int)ew.areaCode << ", Level: " << (int)ew.warningLevel << std::endl;
+	}
+
+	auto dbSurges = vdesManager.GetMewStormSurges(0, 100);
+	std::cout << "MewStormSurges from DB: " << dbSurges.size() << std::endl;
+	for (const auto &ew : dbSurges)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Fragment: " << (int)ew.fragment << ", City: " << (int)ew.cityCode << ", Height: " << (int)ew.surgeHeight << ", Level: " << (int)ew.warningLevel << std::endl;
+	}
+
+	auto dbIces = vdesManager.GetMewSeaIces(0, 100);
+	std::cout << "MewSeaIces from DB: " << dbIces.size() << std::endl;
+	for (const auto &ew : dbIces)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Region: " << (int)ew.regionCode << ", Level: " << (int)ew.warningLevel << std::endl;
+	}
+
+	// Inject FI 8 text description for Gale Warning (MRN=201, mainFI=31)
+	std::cout << "Injecting FI 8 text description for Gale Warning MRN=201..." << std::endl;
+	auto galeDescVDM = GenerateDAC_413_FI_8(201, 412, 31, "Gale Supplementary Text Description");
+	for (const auto &vdm : galeDescVDM) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	// Retrieve again and verify description
+	dbGales = vdesManager.GetMewGales(0, 100);
+	std::cout << "MewGales from DB after FI 8 update:" << std::endl;
+	for (const auto &ew : dbGales)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	// Clean up FI 31 warnings
+	vdesManager.DeleteMewTropicalCyclones(0, 100);
+	vdesManager.DeleteMewGales(0, 100);
+	vdesManager.DeleteMewLargeWaves(0, 100);
+	vdesManager.DeleteMewSeaFogs(0, 100);
+	vdesManager.DeleteMewStormSurges(0, 100);
+	vdesManager.DeleteMewSeaIces(0, 100);
+	std::cout << "================================================================================" << std::endl;
 
 	// Clean up database for next test run
 	vdesManager.DeleteChannelCenterlines(0, 100);

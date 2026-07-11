@@ -1002,6 +1002,8 @@ namespace VDES
         
         ChannelCenterlines GetChannelCenterlines(const uint32_t index = 0, const size_t number = -1);
 
+        bool DeleteChannelCenterline(const uint32_t dataID);
+
         bool DeleteChannelCenterlines(const uint32_t index = 0, const size_t number = -1);
 
         bool DeleteChannelCenterlines(const std::vector<uint32_t> &dataIDs);
@@ -1013,6 +1015,8 @@ namespace VDES
         using ChannelBoundaries = std::vector<ChannelBoundary>;
         
         ChannelBoundaries GetChannelBoundaries(const uint32_t index = 0, const size_t number = -1);
+
+        bool DeleteChannelBoundary(const uint32_t dataID);
 
         bool DeleteChannelBoundaries(const uint32_t index = 0, const size_t number = -1);
 
@@ -1109,6 +1113,8 @@ namespace VDES
         using AtoNDynamicsList = std::vector<AtoNDynamics>;
 
         AtoNDynamicsList GetAtoNDynamics(const uint32_t index = 0, const size_t number = -1);
+
+        bool DeleteAtoNDynamic(const uint32_t dataID);
         
         bool DeleteAtoNDynamics(const uint32_t index = 0, const size_t number = -1);
         
@@ -1120,6 +1126,8 @@ namespace VDES
         using AISAtoNDynamicsList = std::vector<AISAtoNDynamics>;
 
         AISAtoNDynamicsList GetAISAtoNDynamics(const uint32_t index = 0, const size_t number = -1);
+
+        bool DeleteAISAtoNDynamic(const uint32_t dataID);
         
         bool DeleteAISAtoNDynamics(const uint32_t index = 0, const size_t number = -1);
         

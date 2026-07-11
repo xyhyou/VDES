@@ -1,4 +1,4 @@
-﻿#include "VDES.h"
+#include "VDES.h"
 
 #include <cmath>
 #include <map>
@@ -1582,7 +1582,8 @@ namespace VDES
                     "[Warning Duration]      INT       NOT NULL DEFAULT 0,"
                     "[Info Source]           INT       NOT NULL DEFAULT 0,"
                     "[Timestamp Receive]     INTEGER   NOT NULL DEFAULT 0,"
-                    "Read                    BOOLEAN   NOT NULL DEFAULT 0)");
+                    "Read                    BOOLEAN   NOT NULL DEFAULT 0,"
+                    "Description             TEXT      NOT NULL DEFAULT '')");
                 m_database->exec(sql);
 
                 if (!m_database->indexExists("MewCycloneTimeRcvIndex", "MewTropicalCyclone"))
@@ -1626,6 +1627,7 @@ namespace VDES
                 auto sql = fmt::format("CREATE TABLE MewGale ("
                     "ID                      INTEGER   PRIMARY KEY AUTOINCREMENT,"
                     "MRN                     INT       NOT NULL DEFAULT 0,"
+                    "Fragment                INT       NOT NULL DEFAULT 0,"
                     "[Area Code]             INT       NOT NULL DEFAULT 0,"
                     "[Warning Level]         INT       NOT NULL DEFAULT 0,"
                     "[Timestamp Published]   INTEGER   NOT NULL DEFAULT 0,"
@@ -1634,7 +1636,8 @@ namespace VDES
                     "[Warning Duration]      INT       NOT NULL DEFAULT 0,"
                     "[Info Source]           INT       NOT NULL DEFAULT 0,"
                     "[Timestamp Receive]     INTEGER   NOT NULL DEFAULT 0,"
-                    "Read                    BOOLEAN   NOT NULL DEFAULT 0)");
+                    "Read                    BOOLEAN   NOT NULL DEFAULT 0,"
+                    "Description             TEXT      NOT NULL DEFAULT '')");
                 m_database->exec(sql);
 
                 if (!m_database->indexExists("MewGaleTimeRcvIndex", "MewGale"))
@@ -1648,6 +1651,7 @@ namespace VDES
                 auto sql = fmt::format("CREATE TABLE MewLargeWave ("
                     "ID                      INTEGER   PRIMARY KEY AUTOINCREMENT,"
                     "MRN                     INT       NOT NULL DEFAULT 0,"
+                    "Fragment                INT       NOT NULL DEFAULT 0,"
                     "[Area Code]             INT       NOT NULL DEFAULT 0,"
                     "[Warning Level]         INT       NOT NULL DEFAULT 0,"
                     "[Timestamp Published]   INTEGER   NOT NULL DEFAULT 0,"
@@ -1656,7 +1660,8 @@ namespace VDES
                     "[Warning Duration]      INT       NOT NULL DEFAULT 0,"
                     "[Info Source]           INT       NOT NULL DEFAULT 0,"
                     "[Timestamp Receive]     INTEGER   NOT NULL DEFAULT 0,"
-                    "Read                    BOOLEAN   NOT NULL DEFAULT 0)");
+                    "Read                    BOOLEAN   NOT NULL DEFAULT 0,"
+                    "Description             TEXT      NOT NULL DEFAULT '')");
                 m_database->exec(sql);
 
                 if (!m_database->indexExists("MewLargeWaveTimeRcvIndex", "MewLargeWave"))
@@ -1670,6 +1675,7 @@ namespace VDES
                 auto sql = fmt::format("CREATE TABLE MewSeaFog ("
                     "ID                      INTEGER   PRIMARY KEY AUTOINCREMENT,"
                     "MRN                     INT       NOT NULL DEFAULT 0,"
+                    "Fragment                INT       NOT NULL DEFAULT 0,"
                     "[Area Code]             INT       NOT NULL DEFAULT 0,"
                     "[Warning Level]         INT       NOT NULL DEFAULT 0,"
                     "[Timestamp Published]   INTEGER   NOT NULL DEFAULT 0,"
@@ -1678,7 +1684,8 @@ namespace VDES
                     "[Warning Duration]      INT       NOT NULL DEFAULT 0,"
                     "[Info Source]           INT       NOT NULL DEFAULT 0,"
                     "[Timestamp Receive]     INTEGER   NOT NULL DEFAULT 0,"
-                    "Read                    BOOLEAN   NOT NULL DEFAULT 0)");
+                    "Read                    BOOLEAN   NOT NULL DEFAULT 0,"
+                    "Description             TEXT      NOT NULL DEFAULT '')");
                 m_database->exec(sql);
 
                 if (!m_database->indexExists("MewSeaFogTimeRcvIndex", "MewSeaFog"))
@@ -1692,8 +1699,9 @@ namespace VDES
                 auto sql = fmt::format("CREATE TABLE MewStormSurge ("
                     "ID                      INTEGER   PRIMARY KEY AUTOINCREMENT,"
                     "MRN                     INT       NOT NULL DEFAULT 0,"
+                    "Fragment                INT       NOT NULL DEFAULT 0,"
                     "[City Code]             INT       NOT NULL DEFAULT 0,"
-                    "[Surge Height]          DOUBLE    NOT NULL DEFAULT 0.0,"
+                    "[Surge Height]          INT       NOT NULL DEFAULT 0,"
                     "[Warning Level]         INT       NOT NULL DEFAULT 0,"
                     "[Timestamp Published]   INTEGER   NOT NULL DEFAULT 0,"
                     "[Timestamp Start]       INTEGER   NOT NULL DEFAULT 0,"
@@ -1701,7 +1709,8 @@ namespace VDES
                     "[Warning Duration]      INT       NOT NULL DEFAULT 0,"
                     "[Info Source]           INT       NOT NULL DEFAULT 0,"
                     "[Timestamp Receive]     INTEGER   NOT NULL DEFAULT 0,"
-                    "Read                    BOOLEAN   NOT NULL DEFAULT 0)");
+                    "Read                    BOOLEAN   NOT NULL DEFAULT 0,"
+                    "Description             TEXT      NOT NULL DEFAULT '')");
                 m_database->exec(sql);
 
                 if (!m_database->indexExists("MewStormSurgeTimeRcvIndex", "MewStormSurge"))
@@ -1723,12 +1732,45 @@ namespace VDES
                     "[Warning Duration]      INT       NOT NULL DEFAULT 0,"
                     "[Info Source]           INT       NOT NULL DEFAULT 0,"
                     "[Timestamp Receive]     INTEGER   NOT NULL DEFAULT 0,"
-                    "Read                    BOOLEAN   NOT NULL DEFAULT 0)");
+                    "Read                    BOOLEAN   NOT NULL DEFAULT 0,"
+                    "Description             TEXT      NOT NULL DEFAULT '')");
                 m_database->exec(sql);
 
                 if (!m_database->indexExists("MewSeaIceTimeRcvIndex", "MewSeaIce"))
                 {
                     m_database->exec("CREATE INDEX MewSeaIceTimeRcvIndex ON MewSeaIce ([Timestamp Receive])");
+                }
+            }
+
+            // Dynamic Migration for existing tables: check and add Fragment and Description columns
+            std::vector<std::string> warningTables = {"MewTropicalCyclone", "MewGale", "MewLargeWave", "MewSeaFog", "MewStormSurge", "MewSeaIce"};
+            for (const auto& tableName : warningTables)
+            {
+                if (m_database->tableExists(tableName))
+                {
+                    bool hasFragment = false;
+                    bool hasDescription = false;
+                    SQLite::Statement query(*m_database.get(), fmt::format("PRAGMA table_info({})", tableName));
+                    while (query.executeStep())
+                    {
+                        std::string colName = query.getColumn("name").getText();
+                        if (colName == "Fragment")
+                        {
+                            hasFragment = true;
+                        }
+                        if (colName == "Description")
+                        {
+                            hasDescription = true;
+                        }
+                    }
+                    if (!hasFragment && tableName != "MewSeaIce")
+                    {
+                        m_database->exec(fmt::format("ALTER TABLE {} ADD COLUMN Fragment INT NOT NULL DEFAULT 0", tableName));
+                    }
+                    if (!hasDescription)
+                    {
+                        m_database->exec(fmt::format("ALTER TABLE {} ADD COLUMN Description TEXT NOT NULL DEFAULT ''", tableName));
+                    }
                 }
             }
         }
@@ -4638,7 +4680,7 @@ namespace VDES
                 SQLite::Transaction transaction(*m_database.get());
 
                 auto sql = fmt::format("INSERT INTO MewTropicalCyclone VALUES (NULL, {MRN}, {Fragment}, "
-                    "{TimestampPublished}, {TimestampStart}, {TimestampEnd}, {WarningDuration}, {InfoSource}, {TimestampRcv}, {Read})",
+                    "{TimestampPublished}, {TimestampStart}, {TimestampEnd}, {WarningDuration}, {InfoSource}, {TimestampRcv}, {Read}, '{Description}')",
                     fmt::arg("MRN", ew.MRN),
                     fmt::arg("Fragment", ew.fragment),
                     fmt::arg("TimestampPublished", ew.timestampPublished),
@@ -4647,7 +4689,8 @@ namespace VDES
                     fmt::arg("WarningDuration", ew.warningDuration),
                     fmt::arg("InfoSource", ew.infoSource),
                     fmt::arg("TimestampRcv", ew.timestamp),
-                    fmt::arg("Read", ew.read ? 1 : 0));
+                    fmt::arg("Read", ew.read ? 1 : 0),
+                    fmt::arg("Description", ew.description));
                 m_database->exec(sql);
                 auto rowID = m_database->getLastInsertRowid();
 
@@ -4713,6 +4756,7 @@ namespace VDES
         ew.infoSource = static_cast<uint8_t>(query.getColumn("Info Source").getInt());
         ew.timestamp = query.getColumn("Timestamp Receive").getInt64();
         ew.read = query.getColumn("Read").getInt() == 1;
+        ew.description = query.getColumn("Description").getText();
 
         auto sql = fmt::format("SELECT * FROM MewTropicalCyclonePoint WHERE Warning_ID = {};", ID);
         SQLite::Statement queryTC(*m_database.get(), sql);
@@ -4742,9 +4786,10 @@ namespace VDES
             {
                 SQLite::Transaction transaction(*m_database.get());
 
-                auto sql = fmt::format("INSERT INTO MewGale VALUES (NULL, {MRN}, {AreaCode}, {WarningLevel}, "
-                    "{TimestampPublished}, {TimestampStart}, {TimestampEnd}, {WarningDuration}, {InfoSource}, {TimestampRcv}, {Read})",
+                auto sql = fmt::format("INSERT INTO MewGale VALUES (NULL, {MRN}, {Fragment}, {AreaCode}, {WarningLevel}, "
+                    "{TimestampPublished}, {TimestampStart}, {TimestampEnd}, {WarningDuration}, {InfoSource}, {TimestampRcv}, {Read}, '{Description}')",
                     fmt::arg("MRN", ew.MRN),
+                    fmt::arg("Fragment", ew.fragment),
                     fmt::arg("AreaCode", ew.areaCode),
                     fmt::arg("WarningLevel", ew.warningLevel),
                     fmt::arg("TimestampPublished", ew.timestampPublished),
@@ -4753,7 +4798,8 @@ namespace VDES
                     fmt::arg("WarningDuration", ew.warningDuration),
                     fmt::arg("InfoSource", ew.infoSource),
                     fmt::arg("TimestampRcv", ew.timestamp),
-                    fmt::arg("Read", ew.read ? 1 : 0));
+                    fmt::arg("Read", ew.read ? 1 : 0),
+                    fmt::arg("Description", ew.description));
                 m_database->exec(sql);
 
                 transaction.commit();
@@ -4769,6 +4815,7 @@ namespace VDES
     {
         ew.dataID = static_cast<uint32_t>(query.getColumn("ID").getInt());
         ew.MRN = static_cast<uint32_t>(query.getColumn("MRN").getInt());
+        ew.fragment = static_cast<uint8_t>(query.getColumn("Fragment").getInt());
         ew.areaCode = static_cast<uint8_t>(query.getColumn("Area Code").getInt());
         ew.warningLevel = static_cast<uint8_t>(query.getColumn("Warning Level").getInt());
         ew.timestampPublished = query.getColumn("Timestamp Published").getInt64();
@@ -4778,6 +4825,7 @@ namespace VDES
         ew.infoSource = static_cast<uint8_t>(query.getColumn("Info Source").getInt());
         ew.timestamp = query.getColumn("Timestamp Receive").getInt64();
         ew.read = query.getColumn("Read").getInt() == 1;
+        ew.description = query.getColumn("Description").getText();
     }
 
     void VDESManager::Impl::SaveMewLargeWave(const MewLargeWave &ew)
@@ -4788,9 +4836,10 @@ namespace VDES
             {
                 SQLite::Transaction transaction(*m_database.get());
 
-                auto sql = fmt::format("INSERT INTO MewLargeWave VALUES (NULL, {MRN}, {AreaCode}, {WarningLevel}, "
-                    "{TimestampPublished}, {TimestampStart}, {TimestampEnd}, {WarningDuration}, {InfoSource}, {TimestampRcv}, {Read})",
+                auto sql = fmt::format("INSERT INTO MewLargeWave VALUES (NULL, {MRN}, {Fragment}, {AreaCode}, {WarningLevel}, "
+                    "{TimestampPublished}, {TimestampStart}, {TimestampEnd}, {WarningDuration}, {InfoSource}, {TimestampRcv}, {Read}, '{Description}')",
                     fmt::arg("MRN", ew.MRN),
+                    fmt::arg("Fragment", ew.fragment),
                     fmt::arg("AreaCode", ew.areaCode),
                     fmt::arg("WarningLevel", ew.warningLevel),
                     fmt::arg("TimestampPublished", ew.timestampPublished),
@@ -4799,7 +4848,8 @@ namespace VDES
                     fmt::arg("WarningDuration", ew.warningDuration),
                     fmt::arg("InfoSource", ew.infoSource),
                     fmt::arg("TimestampRcv", ew.timestamp),
-                    fmt::arg("Read", ew.read ? 1 : 0));
+                    fmt::arg("Read", ew.read ? 1 : 0),
+                    fmt::arg("Description", ew.description));
                 m_database->exec(sql);
 
                 transaction.commit();
@@ -4815,6 +4865,7 @@ namespace VDES
     {
         ew.dataID = static_cast<uint32_t>(query.getColumn("ID").getInt());
         ew.MRN = static_cast<uint32_t>(query.getColumn("MRN").getInt());
+        ew.fragment = static_cast<uint8_t>(query.getColumn("Fragment").getInt());
         ew.areaCode = static_cast<uint8_t>(query.getColumn("Area Code").getInt());
         ew.warningLevel = static_cast<uint8_t>(query.getColumn("Warning Level").getInt());
         ew.timestampPublished = query.getColumn("Timestamp Published").getInt64();
@@ -4824,6 +4875,7 @@ namespace VDES
         ew.infoSource = static_cast<uint8_t>(query.getColumn("Info Source").getInt());
         ew.timestamp = query.getColumn("Timestamp Receive").getInt64();
         ew.read = query.getColumn("Read").getInt() == 1;
+        ew.description = query.getColumn("Description").getText();
     }
 
     void VDESManager::Impl::SaveMewSeaFog(const MewSeaFog &ew)
@@ -4834,9 +4886,10 @@ namespace VDES
             {
                 SQLite::Transaction transaction(*m_database.get());
 
-                auto sql = fmt::format("INSERT INTO MewSeaFog VALUES (NULL, {MRN}, {AreaCode}, {WarningLevel}, "
-                    "{TimestampPublished}, {TimestampStart}, {TimestampEnd}, {WarningDuration}, {InfoSource}, {TimestampRcv}, {Read})",
+                auto sql = fmt::format("INSERT INTO MewSeaFog VALUES (NULL, {MRN}, {Fragment}, {AreaCode}, {WarningLevel}, "
+                    "{TimestampPublished}, {TimestampStart}, {TimestampEnd}, {WarningDuration}, {InfoSource}, {TimestampRcv}, {Read}, '{Description}')",
                     fmt::arg("MRN", ew.MRN),
+                    fmt::arg("Fragment", ew.fragment),
                     fmt::arg("AreaCode", ew.areaCode),
                     fmt::arg("WarningLevel", ew.warningLevel),
                     fmt::arg("TimestampPublished", ew.timestampPublished),
@@ -4845,7 +4898,8 @@ namespace VDES
                     fmt::arg("WarningDuration", ew.warningDuration),
                     fmt::arg("InfoSource", ew.infoSource),
                     fmt::arg("TimestampRcv", ew.timestamp),
-                    fmt::arg("Read", ew.read ? 1 : 0));
+                    fmt::arg("Read", ew.read ? 1 : 0),
+                    fmt::arg("Description", ew.description));
                 m_database->exec(sql);
 
                 transaction.commit();
@@ -4861,6 +4915,7 @@ namespace VDES
     {
         ew.dataID = static_cast<uint32_t>(query.getColumn("ID").getInt());
         ew.MRN = static_cast<uint32_t>(query.getColumn("MRN").getInt());
+        ew.fragment = static_cast<uint8_t>(query.getColumn("Fragment").getInt());
         ew.areaCode = static_cast<uint8_t>(query.getColumn("Area Code").getInt());
         ew.warningLevel = static_cast<uint8_t>(query.getColumn("Warning Level").getInt());
         ew.timestampPublished = query.getColumn("Timestamp Published").getInt64();
@@ -4870,6 +4925,7 @@ namespace VDES
         ew.infoSource = static_cast<uint8_t>(query.getColumn("Info Source").getInt());
         ew.timestamp = query.getColumn("Timestamp Receive").getInt64();
         ew.read = query.getColumn("Read").getInt() == 1;
+        ew.description = query.getColumn("Description").getText();
     }
 
     void VDESManager::Impl::SaveMewStormSurge(const MewStormSurge &ew)
@@ -4880,9 +4936,10 @@ namespace VDES
             {
                 SQLite::Transaction transaction(*m_database.get());
 
-                auto sql = fmt::format("INSERT INTO MewStormSurge VALUES (NULL, {MRN}, {CityCode}, {SurgeHeight}, {WarningLevel}, "
-                    "{TimestampPublished}, {TimestampStart}, {TimestampEnd}, {WarningDuration}, {InfoSource}, {TimestampRcv}, {Read})",
+                auto sql = fmt::format("INSERT INTO MewStormSurge VALUES (NULL, {MRN}, {Fragment}, {CityCode}, {SurgeHeight}, {WarningLevel}, "
+                    "{TimestampPublished}, {TimestampStart}, {TimestampEnd}, {WarningDuration}, {InfoSource}, {TimestampRcv}, {Read}, '{Description}')",
                     fmt::arg("MRN", ew.MRN),
+                    fmt::arg("Fragment", ew.fragment),
                     fmt::arg("CityCode", ew.cityCode),
                     fmt::arg("SurgeHeight", ew.surgeHeight),
                     fmt::arg("WarningLevel", ew.warningLevel),
@@ -4892,7 +4949,8 @@ namespace VDES
                     fmt::arg("WarningDuration", ew.warningDuration),
                     fmt::arg("InfoSource", ew.infoSource),
                     fmt::arg("TimestampRcv", ew.timestamp),
-                    fmt::arg("Read", ew.read ? 1 : 0));
+                    fmt::arg("Read", ew.read ? 1 : 0),
+                    fmt::arg("Description", ew.description));
                 m_database->exec(sql);
 
                 transaction.commit();
@@ -4908,8 +4966,9 @@ namespace VDES
     {
         ew.dataID = static_cast<uint32_t>(query.getColumn("ID").getInt());
         ew.MRN = static_cast<uint32_t>(query.getColumn("MRN").getInt());
+        ew.fragment = static_cast<uint8_t>(query.getColumn("Fragment").getInt());
         ew.cityCode = static_cast<uint8_t>(query.getColumn("City Code").getInt());
-        ew.surgeHeight = query.getColumn("Surge Height").getDouble();
+        ew.surgeHeight = static_cast<uint8_t>(query.getColumn("Surge Height").getInt());
         ew.warningLevel = static_cast<uint8_t>(query.getColumn("Warning Level").getInt());
         ew.timestampPublished = query.getColumn("Timestamp Published").getInt64();
         ew.timestampStart = query.getColumn("Timestamp Start").getInt64();
@@ -4918,6 +4977,7 @@ namespace VDES
         ew.infoSource = static_cast<uint8_t>(query.getColumn("Info Source").getInt());
         ew.timestamp = query.getColumn("Timestamp Receive").getInt64();
         ew.read = query.getColumn("Read").getInt() == 1;
+        ew.description = query.getColumn("Description").getText();
     }
 
     void VDESManager::Impl::SaveMewSeaIce(const MewSeaIce &ew)
@@ -4929,7 +4989,7 @@ namespace VDES
                 SQLite::Transaction transaction(*m_database.get());
 
                 auto sql = fmt::format("INSERT INTO MewSeaIce VALUES (NULL, {MRN}, {RegionCode}, {WarningLevel}, "
-                    "{TimestampPublished}, {TimestampStart}, {TimestampEnd}, {WarningDuration}, {InfoSource}, {TimestampRcv}, {Read})",
+                    "{TimestampPublished}, {TimestampStart}, {TimestampEnd}, {WarningDuration}, {InfoSource}, {TimestampRcv}, {Read}, '{Description}')",
                     fmt::arg("MRN", ew.MRN),
                     fmt::arg("RegionCode", ew.regionCode),
                     fmt::arg("WarningLevel", ew.warningLevel),
@@ -4939,7 +4999,8 @@ namespace VDES
                     fmt::arg("WarningDuration", ew.warningDuration),
                     fmt::arg("InfoSource", ew.infoSource),
                     fmt::arg("TimestampRcv", ew.timestamp),
-                    fmt::arg("Read", ew.read ? 1 : 0));
+                    fmt::arg("Read", ew.read ? 1 : 0),
+                    fmt::arg("Description", ew.description));
                 m_database->exec(sql);
 
                 transaction.commit();
@@ -4964,6 +5025,7 @@ namespace VDES
         ew.infoSource = static_cast<uint8_t>(query.getColumn("Info Source").getInt());
         ew.timestamp = query.getColumn("Timestamp Receive").getInt64();
         ew.read = query.getColumn("Read").getInt() == 1;
+        ew.description = query.getColumn("Description").getText();
     }
 
     void VDESManager::Impl::SaveTideForecast(const TideForecast &forecast)
@@ -6550,6 +6612,80 @@ namespace VDES
                         DatabaseErrorProcess(execption, "HandleASMMessage_SupplementaryDescription_ChannelBoundary");
                     }
                 }
+
+                if (info && info->mainDAC == 412 && info->mainFI == 31)
+                {
+                    try
+                    {
+                        if (m_database)
+                        {
+                            // 1. MewTropicalCyclone
+                            {
+                                std::unique_lock<std::mutex> lock(m_mutexMewTropicalCyclone);
+                                SQLite::Statement updateStmt(*m_database.get(), "UPDATE MewTropicalCyclone SET Description = ? WHERE MRN = ?");
+                                updateStmt.bind(1, info->description);
+                                updateStmt.bind(2, static_cast<int64_t>(info->MRN));
+                                updateStmt.exec();
+                            }
+                            
+                            // 2. MewGale
+                            {
+                                std::unique_lock<std::mutex> lock(m_mutexMewGale);
+                                SQLite::Statement updateStmt(*m_database.get(), "UPDATE MewGale SET Description = ? WHERE MRN = ?");
+                                updateStmt.bind(1, info->description);
+                                updateStmt.bind(2, static_cast<int64_t>(info->MRN));
+                                updateStmt.exec();
+                            }
+                            
+                            // 3. MewLargeWave
+                            {
+                                std::unique_lock<std::mutex> lock(m_mutexMewLargeWave);
+                                SQLite::Statement updateStmt(*m_database.get(), "UPDATE MewLargeWave SET Description = ? WHERE MRN = ?");
+                                updateStmt.bind(1, info->description);
+                                updateStmt.bind(2, static_cast<int64_t>(info->MRN));
+                                updateStmt.exec();
+                            }
+                            
+                            // 4. MewSeaFog
+                            {
+                                std::unique_lock<std::mutex> lock(m_mutexMewSeaFog);
+                                SQLite::Statement updateStmt(*m_database.get(), "UPDATE MewSeaFog SET Description = ? WHERE MRN = ?");
+                                updateStmt.bind(1, info->description);
+                                updateStmt.bind(2, static_cast<int64_t>(info->MRN));
+                                updateStmt.exec();
+                            }
+                            
+                            // 5. MewStormSurge
+                            {
+                                std::unique_lock<std::mutex> lock(m_mutexMewStormSurge);
+                                SQLite::Statement updateStmt(*m_database.get(), "UPDATE MewStormSurge SET Description = ? WHERE MRN = ?");
+                                updateStmt.bind(1, info->description);
+                                updateStmt.bind(2, static_cast<int64_t>(info->MRN));
+                                updateStmt.exec();
+                            }
+                            
+                            // 6. MewSeaIce
+                            {
+                                std::unique_lock<std::mutex> lock(m_mutexMewSeaIce);
+                                SQLite::Statement updateStmt(*m_database.get(), "UPDATE MewSeaIce SET Description = ? WHERE MRN = ?");
+                                updateStmt.bind(1, info->description);
+                                updateStmt.bind(2, static_cast<int64_t>(info->MRN));
+                                updateStmt.exec();
+                            }
+                            
+                            m_parent->notifyEvent(EventType::ASM_MEW_TROPICAL_CYCLONE, 0);
+                            m_parent->notifyEvent(EventType::ASM_MEW_GALE, 0);
+                            m_parent->notifyEvent(EventType::ASM_MEW_LARGE_WAVE, 0);
+                            m_parent->notifyEvent(EventType::ASM_MEW_SEA_FOG, 0);
+                            m_parent->notifyEvent(EventType::ASM_MEW_STORM_SURGE, 0);
+                            m_parent->notifyEvent(EventType::ASM_MEW_SEA_ICE, 0);
+                        }
+                    }
+                    catch (const SQLite::Exception &execption)
+                    {
+                        DatabaseErrorProcess(execption, "HandleASMMessage_SupplementaryDescription_EarlyWarning");
+                    }
+                }
             }
 
             if (asmData->DAC == 413 && asmData->FI == 9)
@@ -7141,6 +7277,7 @@ namespace VDES
                             ew.DAC = info->DAC;
                             ew.FI = info->FI;
                             ew.MRN = elem.MRN;
+                            ew.fragment = elem.fragment;
                             ew.areaCode = elem.seaAreaCode;
                             ew.warningLevel = elem.warningLevel;
                             ew.timestampPublished = info->publishTime;
@@ -7165,6 +7302,7 @@ namespace VDES
                             ew.DAC = info->DAC;
                             ew.FI = info->FI;
                             ew.MRN = elem.MRN;
+                            ew.fragment = elem.fragment;
                             ew.areaCode = elem.seaAreaCode;
                             ew.warningLevel = elem.warningLevel;
                             ew.timestampPublished = info->publishTime;
@@ -7189,6 +7327,7 @@ namespace VDES
                             ew.DAC = info->DAC;
                             ew.FI = info->FI;
                             ew.MRN = elem.MRN;
+                            ew.fragment = elem.fragment;
                             ew.areaCode = elem.seaAreaCode;
                             ew.warningLevel = elem.warningLevel;
                             ew.timestampPublished = info->publishTime;
@@ -7213,6 +7352,7 @@ namespace VDES
                             ew.DAC = info->DAC;
                             ew.FI = info->FI;
                             ew.MRN = elem.MRN;
+                            ew.fragment = elem.fragment;
                             ew.cityCode = elem.cityCode;
                             ew.surgeHeight = elem.surgeHeight;
                             ew.warningLevel = elem.warningLevel;
@@ -11433,6 +11573,34 @@ namespace VDES
         return container;
     }
 
+    bool VDESManager::DeleteAtoNDynamic(const uint32_t dataID)
+    {
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexAtoNDynamics);
+
+                auto sqlElement = fmt::format("DELETE FROM AtoNDynamicElement WHERE Dynamics_ID = {}", dataID);
+                m_impl->m_database->exec(sqlElement);
+
+                auto sqlDynamics = fmt::format("DELETE FROM AtoNDynamics WHERE ID = {}", dataID);
+                m_impl->m_database->exec(sqlDynamics);
+
+                if (notifyEvent)
+                {
+                    notifyEvent(EventType::ASM_ATON_DYNAMICS, 0);
+                }
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteAtoNDynamic(dataID)");
+            }
+        }
+        return false;
+    }
+
     bool VDESManager::DeleteAtoNDynamics(const uint32_t index, const size_t number)
     {
         if (m_impl->m_database)
@@ -11485,6 +11653,34 @@ namespace VDES
             catch (const SQLite::Exception &execption)
             {
                 m_impl->DatabaseErrorProcess(execption, "DeleteAtoNDynamics(dataIDs)");
+            }
+        }
+        return false;
+    }
+
+    bool VDESManager::DeleteAISAtoNDynamic(const uint32_t dataID)
+    {
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexAISAtoNDynamics);
+
+                auto sqlElement = fmt::format("DELETE FROM AISAtoNDynamicElement WHERE Dynamics_ID = {}", dataID);
+                m_impl->m_database->exec(sqlElement);
+
+                auto sqlDynamics = fmt::format("DELETE FROM AISAtoNDynamics WHERE ID = {}", dataID);
+                m_impl->m_database->exec(sqlDynamics);
+
+                if (notifyEvent)
+                {
+                    notifyEvent(EventType::ASM_AIS_ATON_DYNAMICS, 0);
+                }
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteAISAtoNDynamic(dataID)");
             }
         }
         return false;
@@ -12006,6 +12202,31 @@ namespace VDES
         return container;
     }
 
+    bool VDESManager::DeleteChannelCenterline(const uint32_t dataID)
+    {
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelCenterline);
+
+                auto sqlCmd = fmt::format("DELETE FROM ChannelCenterline WHERE ID = {}", dataID);
+                m_impl->m_database->exec(sqlCmd);
+
+                if (notifyEvent)
+                {
+                    notifyEvent(EventType::ASM_CHANNEL_CENTERLINE, 0);
+                }
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteChannelCenterline(dataID)");
+            }
+        }
+        return false;
+    }
+
     bool VDESManager::DeleteChannelCenterlines(const uint32_t index, const size_t number)
     {
         if (m_impl->m_database)
@@ -12019,6 +12240,10 @@ namespace VDES
                                           (number == -1) ? "-1" : fmt::format("{}", number), index);
                 m_impl->m_database->exec(sqlCmd);
 
+                if (notifyEvent)
+                {
+                    notifyEvent(EventType::ASM_CHANNEL_CENTERLINE, 0);
+                }
                 return true;
             }
             catch (const SQLite::Exception &execption)
@@ -12045,11 +12270,40 @@ namespace VDES
                 auto sqlCmd = fmt::format("DELETE FROM ChannelCenterline WHERE ID IN ({})", fmt::join(dataIDs, ", "));
                 m_impl->m_database->exec(sqlCmd);
 
+                if (notifyEvent)
+                {
+                    notifyEvent(EventType::ASM_CHANNEL_CENTERLINE, 0);
+                }
                 return true;
             }
             catch (const SQLite::Exception &execption)
             {
                 m_impl->DatabaseErrorProcess(execption, "DeleteChannelCenterlines(dataIDs)");
+            }
+        }
+        return false;
+    }
+
+    bool VDESManager::DeleteChannelBoundary(const uint32_t dataID)
+    {
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelBoundary);
+
+                auto sqlCmd = fmt::format("DELETE FROM ChannelBoundary WHERE MRN = {}", dataID);
+                m_impl->m_database->exec(sqlCmd);
+
+                if (notifyEvent)
+                {
+                    notifyEvent(EventType::ASM_CHANNEL_BOUNDARY, 0);
+                }
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteChannelBoundary(dataID)");
             }
         }
         return false;
@@ -12068,6 +12322,10 @@ namespace VDES
                                           (number == -1) ? "-1" : fmt::format("{}", number), index);
                 m_impl->m_database->exec(sqlCmd);
 
+                if (notifyEvent)
+                {
+                    notifyEvent(EventType::ASM_CHANNEL_BOUNDARY, 0);
+                }
                 return true;
             }
             catch (const SQLite::Exception &execption)
@@ -12094,6 +12352,10 @@ namespace VDES
                 auto sqlCmd = fmt::format("DELETE FROM ChannelBoundary WHERE MRN IN ({})", fmt::join(dataIDs, ", "));
                 m_impl->m_database->exec(sqlCmd);
 
+                if (notifyEvent)
+                {
+                    notifyEvent(EventType::ASM_CHANNEL_BOUNDARY, 0);
+                }
                 return true;
             }
             catch (const SQLite::Exception &execption)

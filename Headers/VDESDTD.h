@@ -1,4 +1,4 @@
-﻿#ifndef VDES_DTD_H_
+#ifndef VDES_DTD_H_
 #define VDES_DTD_H_
 
 #include "Coordinate.h"
@@ -894,6 +894,7 @@ namespace VDES
         uint64_t timestampEnd       = 0;
         uint8_t  warningDuration    = 0;
         uint8_t  infoSource         = 0;
+        std::string description;
     };
 
     /**
@@ -902,6 +903,7 @@ namespace VDES
     struct MewGale : ASMAttribute
     {
         uint32_t MRN          = 0;
+        uint8_t  fragment     = 0;
         uint8_t  areaCode     = 0;
         uint8_t  warningLevel = 0;
 
@@ -910,6 +912,7 @@ namespace VDES
         uint64_t timestampEnd       = 0;
         uint8_t  warningDuration    = 0;
         uint8_t  infoSource         = 0;
+        std::string description;
     };
 
     /**
@@ -918,6 +921,7 @@ namespace VDES
     struct MewLargeWave : ASMAttribute
     {
         uint32_t MRN          = 0;
+        uint8_t  fragment     = 0;
         uint8_t  areaCode     = 0;
         uint8_t  warningLevel = 0;
 
@@ -926,6 +930,7 @@ namespace VDES
         uint64_t timestampEnd       = 0;
         uint8_t  warningDuration    = 0;
         uint8_t  infoSource         = 0;
+        std::string description;
     };
 
     /**
@@ -934,6 +939,7 @@ namespace VDES
     struct MewSeaFog : ASMAttribute
     {
         uint32_t MRN          = 0;
+        uint8_t  fragment     = 0;
         uint8_t  areaCode     = 0;
         uint8_t  warningLevel = 0;
 
@@ -942,6 +948,7 @@ namespace VDES
         uint64_t timestampEnd       = 0;
         uint8_t  warningDuration    = 0;
         uint8_t  infoSource         = 0;
+        std::string description;
     };
 
     /**
@@ -950,15 +957,20 @@ namespace VDES
     struct MewStormSurge : ASMAttribute
     {
         uint32_t MRN          = 0;
+        uint8_t  fragment     = 0;
         uint8_t  cityCode     = 0;
-        double   surgeHeight  = 0.0;
-        uint8_t  warningLevel = 0;
-
-        uint64_t timestampPublished = 0;
-        uint64_t timestampStart     = 0;
-        uint64_t timestampEnd       = 0;
-        uint8_t  warningDuration    = 0;
-        uint8_t  infoSource         = 0;
+        /**
+         * Storm surge height in 10 cm steps, range: 10 cm - 300 cm.
+         * 0: default (not available), 31: exceeding 300 cm.
+         */
+        uint8_t     surgeHeight        = 0;
+        uint8_t     warningLevel       = 0;
+        uint64_t    timestampPublished = 0;
+        uint64_t    timestampStart     = 0;
+        uint64_t    timestampEnd       = 0;
+        uint8_t     warningDuration    = 0;
+        uint8_t     infoSource         = 0;
+        std::string description;
     };
 
     /**
@@ -975,6 +987,7 @@ namespace VDES
         uint64_t timestampEnd       = 0;
         uint8_t  warningDuration    = 0;
         uint8_t  infoSource         = 0;
+        std::string description;
     };
 
     /**
