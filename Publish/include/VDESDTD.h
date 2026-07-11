@@ -963,14 +963,13 @@ namespace VDES
          * Storm surge height in 10 cm steps, range: 10 cm - 300 cm.
          * 0: default (not available), 31: exceeding 300 cm.
          */
-        uint8_t  surgeHeight  = 0;
-        uint8_t  warningLevel = 0;
-
-        uint64_t timestampPublished = 0;
-        uint64_t timestampStart     = 0;
-        uint64_t timestampEnd       = 0;
-        uint8_t  warningDuration    = 0;
-        uint8_t  infoSource         = 0;
+        uint8_t     surgeHeight        = 0;
+        uint8_t     warningLevel       = 0;
+        uint64_t    timestampPublished = 0;
+        uint64_t    timestampStart     = 0;
+        uint64_t    timestampEnd       = 0;
+        uint8_t     warningDuration    = 0;
+        uint8_t     infoSource         = 0;
         std::string description;
     };
 

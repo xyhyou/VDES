@@ -3178,6 +3178,7 @@ namespace VDES
     void VDESManager::Impl::LoadBridgeFromQueryResult(Bridge &bridge, 
         const SQLite::Statement &query)
     {
+        bridge.dataID = query.getColumn("MRN").getUInt();
         bridge.MRN = query.getColumn("MRN").getUInt();
         bridge.fragment = static_cast<uint8_t>(query.getColumn("Fragment").getUInt());
         bridge.status = 0;
@@ -12109,6 +12110,63 @@ namespace VDES
         return container;
     }
 
+    bool VDESManager::DeleteBridge(const uint32_t dataID)
+    {
+        if (m_impl->m_database)
+        {
+            try
+            {
+                {
+                    std::lock_guard<std::mutex> lock(m_impl->m_mutexBridge);
+                    auto sqlCmd = fmt::format("DELETE FROM Bridge WHERE MRN = {}", dataID);
+                    m_impl->m_database->exec(sqlCmd);
+                }
+
+                if (notifyEvent)
+                {
+                    notifyEvent(EventType::ASM_BRIDGE, 0);
+                }
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteBridge");
+            }
+        }
+        return false;
+    }
+
+    bool VDESManager::DeleteBridges(const std::vector<uint32_t> &dataIDs)
+    {
+        if (dataIDs.empty())
+        {
+            return true;
+        }
+
+        if (m_impl->m_database)
+        {
+            try
+            {
+                {
+                    std::lock_guard<std::mutex> lock(m_impl->m_mutexBridge);
+                    auto sqlCmd = fmt::format("DELETE FROM Bridge WHERE MRN IN ({})", fmt::join(dataIDs, ", "));
+                    m_impl->m_database->exec(sqlCmd);
+                }
+
+                if (notifyEvent)
+                {
+                    notifyEvent(EventType::ASM_BRIDGE, 0);
+                }
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteBridges");
+            }
+        }
+        return false;
+    }
+
     VDESManager::NetSounders VDESManager::GetNetSounders(const uint32_t index, const size_t number)
     {
         NetSounders container;
@@ -12208,10 +12266,11 @@ namespace VDES
         {
             try
             {
-                std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelCenterline);
-
-                auto sqlCmd = fmt::format("DELETE FROM ChannelCenterline WHERE ID = {}", dataID);
-                m_impl->m_database->exec(sqlCmd);
+                {
+                    std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelCenterline);
+                    auto sqlCmd = fmt::format("DELETE FROM ChannelCenterline WHERE ID = {}", dataID);
+                    m_impl->m_database->exec(sqlCmd);
+                }
 
                 if (notifyEvent)
                 {
@@ -12233,12 +12292,13 @@ namespace VDES
         {
             try
             {
-                std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelCenterline);
-
-                auto sqlCmd = fmt::format("DELETE FROM ChannelCenterline WHERE ID IN ("
-                                          "SELECT ID FROM ChannelCenterline ORDER BY [Timestamp Receive] DESC LIMIT {0} OFFSET {1})",
-                                          (number == -1) ? "-1" : fmt::format("{}", number), index);
-                m_impl->m_database->exec(sqlCmd);
+                {
+                    std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelCenterline);
+                    auto sqlCmd = fmt::format("DELETE FROM ChannelCenterline WHERE ID IN ("
+                                              "SELECT ID FROM ChannelCenterline ORDER BY [Timestamp Receive] DESC LIMIT {0} OFFSET {1})",
+                                              (number == -1) ? "-1" : fmt::format("{}", number), index);
+                    m_impl->m_database->exec(sqlCmd);
+                }
 
                 if (notifyEvent)
                 {
@@ -12265,10 +12325,11 @@ namespace VDES
         {
             try
             {
-                std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelCenterline);
-
-                auto sqlCmd = fmt::format("DELETE FROM ChannelCenterline WHERE ID IN ({})", fmt::join(dataIDs, ", "));
-                m_impl->m_database->exec(sqlCmd);
+                {
+                    std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelCenterline);
+                    auto sqlCmd = fmt::format("DELETE FROM ChannelCenterline WHERE ID IN ({})", fmt::join(dataIDs, ", "));
+                    m_impl->m_database->exec(sqlCmd);
+                }
 
                 if (notifyEvent)
                 {
@@ -12290,10 +12351,11 @@ namespace VDES
         {
             try
             {
-                std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelBoundary);
-
-                auto sqlCmd = fmt::format("DELETE FROM ChannelBoundary WHERE MRN = {}", dataID);
-                m_impl->m_database->exec(sqlCmd);
+                {
+                    std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelBoundary);
+                    auto sqlCmd = fmt::format("DELETE FROM ChannelBoundary WHERE MRN = {}", dataID);
+                    m_impl->m_database->exec(sqlCmd);
+                }
 
                 if (notifyEvent)
                 {
@@ -12315,12 +12377,13 @@ namespace VDES
         {
             try
             {
-                std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelBoundary);
-
-                auto sqlCmd = fmt::format("DELETE FROM ChannelBoundary WHERE MRN IN ("
-                                          "SELECT MRN FROM ChannelBoundary ORDER BY [Timestamp Receive] DESC LIMIT {0} OFFSET {1})",
-                                          (number == -1) ? "-1" : fmt::format("{}", number), index);
-                m_impl->m_database->exec(sqlCmd);
+                {
+                    std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelBoundary);
+                    auto sqlCmd = fmt::format("DELETE FROM ChannelBoundary WHERE MRN IN ("
+                                              "SELECT MRN FROM ChannelBoundary ORDER BY [Timestamp Receive] DESC LIMIT {0} OFFSET {1})",
+                                              (number == -1) ? "-1" : fmt::format("{}", number), index);
+                    m_impl->m_database->exec(sqlCmd);
+                }
 
                 if (notifyEvent)
                 {
@@ -12347,10 +12410,11 @@ namespace VDES
         {
             try
             {
-                std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelBoundary);
-
-                auto sqlCmd = fmt::format("DELETE FROM ChannelBoundary WHERE MRN IN ({})", fmt::join(dataIDs, ", "));
-                m_impl->m_database->exec(sqlCmd);
+                {
+                    std::lock_guard<std::mutex> lock(m_impl->m_mutexChannelBoundary);
+                    auto sqlCmd = fmt::format("DELETE FROM ChannelBoundary WHERE MRN IN ({})", fmt::join(dataIDs, ", "));
+                    m_impl->m_database->exec(sqlCmd);
+                }
 
                 if (notifyEvent)
                 {

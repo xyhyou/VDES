@@ -1,4 +1,4 @@
-﻿#ifndef VDES_H_
+#ifndef VDES_H_
 #define VDES_H_
 
 #include "VDESDTD.h"
@@ -985,6 +985,9 @@ namespace VDES
         using Bridges = std::vector<Bridge>;
         
         Bridges GetBridges(const uint32_t index = 0, const size_t number = -1);
+        
+        bool DeleteBridge(const uint32_t dataID);
+        bool DeleteBridges(const std::vector<uint32_t> &dataIDs);
 
 
         /***********************************************************************

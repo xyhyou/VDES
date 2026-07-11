@@ -2577,11 +2577,11 @@ int main(void)
 		//"$AIASM,1782891146,1,1,,1,2,0,666666666,,Iiq1P1wpt52Uhg9H37Pj80,4*2D\r\n",
 		//"$AIASM,1782891172,1,1,,1,2,0,666666666,,Iiq1P1bVB52Uhg9H37Pj80,4*2F\r\n",
 		// 海洋气象环境预警 DAC = 412, FI = 31
-		"$AIASM,1783406998,1,1,,1,2,0,666666666,,IiuT=i003VD0qh0>Q@0:,0*01\r\n",
-		"$AIASM,1783741085,1,1,,1,2,0,666666666,,IiuD=g0@Q3Kp=q@o0;QT=hP0=k:0Lp07@p04P0,4*41\r\n",
-		"$AIASM,1783741063,1,1,,2,2,0,666666666,,Iitl=bP8@nd1E3JpUT=d3g@nj0=k:0Lp07@p2mP,2*5D\r\n",
-		"$AIASM,1783740907,1,1,,1,2,0,666666666,,IitT=`0E@nR1Q3J@U4=aSi@n`05k:0Lp07@p04P,2*33\r\n",
-		"$AIASM,1783740861,1,1,,1,2,0,666666666,,Iit@00QVn5?Lh6@j567=qKe4tTqP0037P0ip4@,4*6E\r\n",
+		//"$AIASM,1783406998,1,1,,1,2,0,666666666,,IiuT=i003VD0qh0>Q@0:,0*01\r\n",
+		//"$AIASM,1783741085,1,1,,1,2,0,666666666,,IiuD=g0@Q3Kp=q@o0;QT=hP0=k:0Lp07@p04P0,4*41\r\n",
+		//"$AIASM,1783741063,1,1,,2,2,0,666666666,,Iitl=bP8@nd1E3JpUT=d3g@nj0=k:0Lp07@p2mP,2*5D\r\n",
+		//"$AIASM,1783740907,1,1,,1,2,0,666666666,,IitT=`0E@nR1Q3J@U4=aSi@n`05k:0Lp07@p04P,2*33\r\n",
+		//"$AIASM,1783740861,1,1,,1,2,0,666666666,,Iit@00QVn5?Lh6@j567=qKe4tTqP0037P0ip4@,4*6E\r\n",
 		//"$AIASM,1783402405,1,1,,1,2,0,666666666,,IitD=VQVn5?Lh6@j567=kKeB9HqP0>I@3WD02@,4*5B\r\n",
 		//"$AIASM,1783256655,1,1,,1,2,0,666666666,,IiuT=i01k:0Lp07@`050,0*5F\r\n",
 		//"$AIASM,1783256514,1,1,,1,2,0,666666666,,IitD=VQVn5?Lh6@j567=kKeB9HqP0>I@3WD02@,4*5D\r\n",
@@ -2600,6 +2600,7 @@ int main(void)
 		//"$AIASM,1782977859,1,1,,1,2,0,666666666,,Ij31jnpg7mL;jFG2t<R0,0*23\r\n",
 		//"$AIASM,1782977882,1,1,,1,2,0,666666666,,Ij11jnpg?eL;jFG2t<R0,0*27\r\n",
 		// 航标动态（非AIS) DAC = 412, FI = 33
+		"$AIASM,1783749926,1,1,,1,2,0,666666666,,Ij480I@j6a0B5Rq5Q@@Ra@01V38JPP8F;S;634U40P0,2*25\r\n",
 		//"$AIASM,1782978051,1,1,,1,2,0,666666666,,IlBNC2`TQrE9r?saRjIwc9dwHCum<Vt?Aw9N?ed,2*2C\r\n",
 		//"$AIASM,1782978012,1,1,,2,2,0,666666666,,Ij4Gmr40IpDHHEP8o`80@14GP0039665H0000008008D,0*39\r\n",
 		//"$AIASM,1782978015,1,1,,1,2,0,666666666,,IlBNC2`TQrE9r?saRjIwc9w43O?=bMtVssgmTSV5Ad>WtI>LHVvsnn0,2*04\r\n",
@@ -2951,6 +2952,15 @@ int main(void)
 				  << ", Pass Ability: " << (int)bridge.passAbility
 				  << ", Enable Meeting: " << bridge.enableMeeting
 				  << ", Enable Overtaking: " << bridge.enableOvertaking << std::endl;
+	}
+
+	if (!bridges.empty())
+	{
+		uint32_t targetID = bridges[0].dataID;
+		std::cout << "Testing DeleteBridge with dataID (MRN): " << targetID << std::endl;
+		vdesManager.DeleteBridge(targetID);
+		auto bridgesAfter = vdesManager.GetBridges(0, 100);
+		std::cout << "After DeleteBridge, parsed bridges count: " << bridgesAfter.size() << std::endl;
 	}
 
 	// --- Channel Centerlines (FI = 42) ---
@@ -4295,9 +4305,41 @@ int main(void)
 	vdesManager.DeleteMewSeaIces(0, 100);
 	std::cout << "================================================================================" << std::endl;
 
-	// Clean up database for next test run
 	vdesManager.DeleteChannelCenterlines(0, 100);
 	vdesManager.DeleteChannelBoundaries(0, 100);
+
+	// Verify Bridge deletion
+	std::cout << "\n=== Verification: Bridge Deletion ===" << std::endl;
+	auto testBridgesList = GenerateDAC_412_FI_41();
+	for (const auto &vdm : testBridgesList) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto dbBridgesBefore = vdesManager.GetBridges(0, 100);
+	std::cout << "Bridges count before delete: " << dbBridgesBefore.size() << std::endl;
+	for (const auto &b : dbBridgesBefore)
+	{
+		std::cout << "  Bridge MRN: " << b.MRN << ", dataID: " << b.dataID << ", Spans: " << b.spans.size() << std::endl;
+	}
+
+	if (!dbBridgesBefore.empty())
+	{
+		uint32_t targetID = dbBridgesBefore[0].dataID;
+		std::cout << "Calling DeleteBridge with dataID: " << targetID << std::endl;
+		vdesManager.DeleteBridge(targetID);
+		
+		auto dbBridgesAfter = vdesManager.GetBridges(0, 100);
+		std::cout << "Bridges count after delete: " << dbBridgesAfter.size() << std::endl;
+	}
+	
+	// Clean up bridge table
+	if (!vdesManager.GetBridges(0, 100).empty())
+	{
+		std::vector<uint32_t> ids;
+		for (const auto &b : vdesManager.GetBridges(0, 100)) ids.push_back(b.dataID);
+		vdesManager.DeleteBridges(ids);
+	}
+	std::cout << "Bridges count after batch delete: " << vdesManager.GetBridges(0, 100).size() << std::endl;
+	std::cout << "========================================" << std::endl;
+
 	std::cout << "================================================================================" << std::endl;
 
 	return 0;
