@@ -1123,10 +1123,6 @@ static std::vector<std::string> GenerateDAC_412_FI_33(uint8_t status)
 	// FI	
 	bitsManager.Encode(33, 6);
 
-	// MRN
-	bitsManager.Encode(12345, 17);
-	// 片段描述
-	bitsManager.Encode(0, 2);
 	// 状态
 	bitsManager.Encode(status, 5);
 
@@ -1319,10 +1315,6 @@ static std::vector<std::string> GenerateDAC_412_FI_33_WithMRN(uint8_t status, ui
 	// FI	
 	bitsManager.Encode(33, 6);
 
-	// MRN
-	bitsManager.Encode(headerMRN, 17);
-	// 片段描述
-	bitsManager.Encode(0, 2);
 	// 状态
 	bitsManager.Encode(status, 5);
 
@@ -3177,9 +3169,7 @@ int main(void)
 	std::cout << "Parsed " << atonDynamicsList.size() << " AtoN Dynamics (FI=33):" << std::endl;
 	for (const auto &atonDyn : atonDynamicsList)
 	{
-		std::cout << "  MRN: " << atonDyn.MRN
-				  << ", Fragment: " << (int)atonDyn.fragment
-				  << ", Status: " << (int)atonDyn.status
+		std::cout << "  Status: " << (int)atonDyn.status
 				  << ", Precaution: " << (int)atonDyn.precaution
 				  << ", Elements count: " << atonDyn.elements.size() << std::endl;
 		for (const auto &elem : atonDyn.elements)
@@ -3823,7 +3813,7 @@ int main(void)
 		for (const auto &item : atons)
 		{
 			idsToDelete.push_back(item.dataID);
-			std::cout << "  AtoNDynamic Record ID to delete: " << item.dataID << " (MRN=" << item.MRN << ")" << std::endl;
+			std::cout << "  AtoNDynamic Record ID to delete: " << item.dataID << std::endl;
 		}
 
 		bool deleteSuccess = vdesManager.DeleteAtoNDynamics(idsToDelete);

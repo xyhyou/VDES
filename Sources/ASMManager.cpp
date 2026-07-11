@@ -1141,9 +1141,7 @@ namespace VDES
         asmInfo.DAC = 412;
         asmInfo.FI = 33;
 
-        asmInfo.MRN = manager.DecodeToNumerical(16, 17);
-        asmInfo.fragment = static_cast<uint8_t>(manager.DecodeToNumerical(33, 2));
-        asmInfo.status = static_cast<uint8_t>(manager.DecodeToNumerical(35, 5));
+        asmInfo.status = static_cast<uint8_t>(manager.DecodeToNumerical(16, 5));
 
         uint32_t L = 0;
         switch (asmInfo.status)
@@ -1167,14 +1165,14 @@ namespace VDES
         }
 
         uint32_t n = 0;
-        if (L > 0 && manager.GetBitsNumberToDecode() >= 44)
+        if (L > 0 && manager.GetBitsNumberToDecode() >= 25)
         {
-            n = (manager.GetBitsNumberToDecode() - 44) / L;
+            n = (manager.GetBitsNumberToDecode() - 25) / L;
         }
 
         for (uint32_t i = 0; i < n; ++i)
         {
-            uint32_t pos = 40 + i * L;
+            uint32_t pos = 21 + i * L;
             ASM_DAC_412_FI_33::Element elem;
 
             switch (asmInfo.status)
@@ -1197,7 +1195,6 @@ namespace VDES
                     elem.morseCode = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 107, 5));
                 }
                 break;
-
             case 2:
             case 3:
             case 6:
@@ -1325,7 +1322,7 @@ namespace VDES
             asmInfo.elements.push_back(elem);
         }
 
-        uint32_t posEnd = 40 + n * L;
+        uint32_t posEnd = 21 + n * L;
         if (manager.GetBitsNumberToDecode() >= posEnd + 4)
         {
             asmInfo.precaution = static_cast<uint8_t>(manager.DecodeToNumerical(posEnd, 4));

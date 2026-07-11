@@ -1044,12 +1044,9 @@ namespace VDES
             uint64_t timestampEnd   = 0;
         };
 
-        uint32_t             MRN        = 0;
-        uint8_t              fragment   = 0;
         uint8_t              status     = 0;
         uint8_t              precaution = 0;
         std::vector<Element> elements;
-        std::string          description;
     };
 
     /**

@@ -1834,8 +1834,6 @@ namespace VDES
             {
                 auto sql = fmt::format("CREATE TABLE AtoNDynamics ("
                     "ID                      INTEGER   PRIMARY KEY AUTOINCREMENT,"
-                    "MRN                     INT       NOT NULL DEFAULT 0,"
-                    "Fragment                INT       NOT NULL DEFAULT 0,"
                     "Status                  INT       NOT NULL DEFAULT 0,"
                     "Precaution              INT       NOT NULL DEFAULT 0,"
                     "[Timestamp Receive]     INTEGER   NOT NULL DEFAULT 0,"
@@ -5103,9 +5101,7 @@ namespace VDES
 
                 for (const auto &elem : dynamics.elements)
                 {
-                    auto sql = fmt::format("INSERT INTO AtoNDynamics VALUES (NULL, {MRN}, {Fragment}, {Status}, {Precaution}, {TimestampRcv}, {Read})",
-                                           fmt::arg("MRN", dynamics.MRN),
-                                           fmt::arg("Fragment", dynamics.fragment),
+                    auto sql = fmt::format("INSERT INTO AtoNDynamics VALUES (NULL, {Status}, {Precaution}, {TimestampRcv}, {Read})",
                                            fmt::arg("Status", dynamics.status),
                                            fmt::arg("Precaution", dynamics.precaution),
                                            fmt::arg("TimestampRcv", dynamics.timestamp),
@@ -5155,8 +5151,6 @@ namespace VDES
     {
         auto ID = static_cast<uint32_t>(query.getColumn("ID").getInt());
         dynamics.dataID = ID;
-        dynamics.MRN = static_cast<uint32_t>(query.getColumn("MRN").getInt());
-        dynamics.fragment = static_cast<uint8_t>(query.getColumn("Fragment").getInt());
         dynamics.status = static_cast<uint8_t>(query.getColumn("Status").getInt());
         dynamics.precaution = static_cast<uint8_t>(query.getColumn("Precaution").getInt());
         dynamics.timestamp = query.getColumn("Timestamp Receive").getInt64();
@@ -7450,8 +7444,6 @@ namespace VDES
                     AtoNDynamics dynamics;
                     dynamics.DAC = info->DAC;
                     dynamics.FI = info->FI;
-                    dynamics.MRN = info->MRN;
-                    dynamics.fragment = info->fragment;
                     dynamics.status = info->status;
                     dynamics.precaution = info->precaution;
                     dynamics.timestamp = UtilityInterface::GetCurrentTimeStamp();
