@@ -316,6 +316,7 @@ namespace VDES
 
     /**
      * Maritime Safety Information - Military activity
+     * DAC = 412, FI = 38
      */
     struct MSIMilitaryActivity : BusinessAttribute
     {
@@ -349,6 +350,8 @@ namespace VDES
         * 5 - 15 = reserved
         */
         uint8_t cautionCode = 0;
+
+        std::string description;
     };
 
     /**
@@ -820,10 +823,9 @@ namespace VDES
             double   latitude = 0.0;
             double   longitude = 0.0;
             uint8_t  fragmentDesc = 0;
+            std::string description;
         };
 
-        uint32_t             MRN = 0;
-        uint8_t              fragment = 0;
         uint8_t              type = 0;
         bool                 isContinous = 0;
         std::vector<NetInfo> nets;

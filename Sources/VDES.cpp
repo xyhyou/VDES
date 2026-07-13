@@ -276,15 +276,21 @@ namespace VDES
         void BroadcastExtendedVesselInfo(void);
 
         void SaveMarineMeteorologyFCSTArea(const MarineMeteorologyFCSTAreas &container);
+        
         void InitializeMarineMeteorologyFCSTAreaTable(void);
+        
         void LoadMarineMeteorologyFCSTAreaFromQueryResult(MarineMeteorologyFCSTArea &area, const SQLite::Statement &query);
 
         void SaveMarineEnvironmentFCSTArea(const MarineEnvironmentFCSTAreas &container);
+        
         void InitializeMarineEnvironmentFCSTAreaTable(void);
+        
         void LoadMarineEnvironmentFCSTAreaFromQueryResult(MarineEnvironmentFCSTArea &area, const SQLite::Statement &query);
 
         void SaveMarineEnvironmentFCSTAlongshore(const MarineEnvironmentFCSTAlongshores &container);
+        
         void InitializeMarineEnvironmentFCSTAlongshoreTable(void);
+        
         void LoadMarineEnvironmentFCSTAlongshoreFromQueryResult(MarineEnvironmentFCSTAlongshore &area, const SQLite::Statement &query);
 
         void ParseOneLineData(const std::string &sentence);
@@ -968,6 +974,11 @@ namespace VDES
                 auto sql = fmt::format("ALTER TABLE MSIMilitaryActivity ADD TimeType INT NOT NULL DEFAULT 0");
                 m_database->exec(sql);
             }
+            if (!m_database->fieldExists("Description", "MSIMilitaryActivity"))
+            {
+                auto sql = fmt::format("ALTER TABLE MSIMilitaryActivity ADD Description TEXT");
+                m_database->exec(sql);
+            }
         }
         catch (const SQLite::Exception &execption)
         {
@@ -1215,26 +1226,36 @@ namespace VDES
     {
         try
         {
-            m_database->exec("CREATE TABLE IF NOT EXISTS NetSounder ("
+            m_database->exec("DROP TABLE IF EXISTS NetSounderElement");
+            m_database->exec("DROP TABLE IF EXISTS NetSounder");
+
+            m_database->exec("CREATE TABLE NetSounder ("
                 "ID INTEGER PRIMARY KEY AUTOINCREMENT, "
-                "MRN INT, "
-                "Fragment INT, "
                 "Type INT, "
                 "IsContinous INT, "
-                "Coordinates BLOB, "
                 "[Timestamp Receive] INTEGER, "
                 "[Description] TEXT, "
                 "[IsOwnShip] INTEGER NOT NULL DEFAULT 0"
                 ")");
 
-            if (m_database && !m_database->fieldExists("[Description]", "NetSounder"))
-            {
-                m_database->exec("ALTER TABLE NetSounder ADD [Description] TEXT");
-            }
+            m_database->exec("CREATE TABLE NetSounderElement ("
+                "ID INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "NetSounder_ID INTEGER NOT NULL, "
+                "MRN INTEGER NOT NULL, "
+                "Latitude DOUBLE, "
+                "Longitude DOUBLE, "
+                "FragmentDesc INTEGER, "
+                "Description TEXT, "
+                "FOREIGN KEY(NetSounder_ID) REFERENCES NetSounder(ID) ON DELETE CASCADE"
+                ")");
 
-            if (m_database && !m_database->fieldExists("[IsOwnShip]", "NetSounder"))
+            if (!m_database->indexExists("NetSounderElementIDIndex", "NetSounderElement"))
             {
-                m_database->exec("ALTER TABLE NetSounder ADD [IsOwnShip] INTEGER NOT NULL DEFAULT 0");
+                m_database->exec("CREATE INDEX NetSounderElementIDIndex ON NetSounderElement (NetSounder_ID)");
+            }
+            if (!m_database->indexExists("NetSounderElementMRNIndex", "NetSounderElement"))
+            {
+                m_database->exec("CREATE INDEX NetSounderElementMRNIndex ON NetSounderElement (MRN)");
             }
         }
         catch (const SQLite::Exception &execption)
@@ -1830,6 +1851,12 @@ namespace VDES
     {
         try
         {
+            if (m_database->tableExists("AtoNDynamics") && m_database->fieldExists("MRN", "AtoNDynamics"))
+            {
+                m_database->exec("DROP TABLE IF EXISTS AtoNDynamicElement");
+                m_database->exec("DROP TABLE IF EXISTS AtoNDynamics");
+            }
+
             if (!m_database->tableExists("AtoNDynamics"))
             {
                 auto sql = fmt::format("CREATE TABLE AtoNDynamics ("
@@ -3084,6 +3111,7 @@ namespace VDES
         activity.isCertified = query.getColumn("Certified").getInt() == 1;
         activity.timestamp = query.getColumn("Timestamp Receive").getInt64();
         activity.read = query.getColumn("Read").getInt() == 1;
+        activity.description = query.getColumn("Description").getText();
     }
 
     void VDESManager::Impl::LoadMSIMaritimeDistressFromQueryResult(MSIMaritimeDistress &distress, 
@@ -3276,8 +3304,6 @@ namespace VDES
         const SQLite::Statement &query)
     {
         netSounder.dataID = query.getColumn("ID").getUInt();
-        netSounder.MRN = query.getColumn("MRN").getUInt();
-        netSounder.fragment = static_cast<uint8_t>(query.getColumn("Fragment").getUInt());
         netSounder.type = static_cast<uint8_t>(query.getColumn("Type").getUInt());
         netSounder.isContinous = query.getColumn("IsContinous").getUInt() != 0;
         netSounder.timestamp = query.getColumn("Timestamp Receive").getInt64();
@@ -3300,39 +3326,23 @@ namespace VDES
             netSounder.isOwn = false;
         }
 
-        SQLite::Column column = query.getColumn("Coordinates");
-        auto size = column.getBytes();
-        if (size > 0)
+        netSounder.nets.clear();
+        try
         {
-            netSounder.nets.clear();
-            if (size % sizeof(NetInfoStruct) == 0)
+            auto sqlElement = fmt::format("SELECT * FROM NetSounderElement WHERE NetSounder_ID = {}", netSounder.dataID);
+            SQLite::Statement elementQuery(*m_database.get(), sqlElement);
+            while (elementQuery.executeStep())
             {
-                auto ptr = (const NetInfoStruct *)column.getBlob();
-                auto count = size / sizeof(NetInfoStruct);
-                for (auto i = 0U; i < count; i++)
-                {
-                    NetSounder::NetInfo net;
-                    net.MRN = ptr[i].MRN;
-                    net.latitude = ptr[i].latitude;
-                    net.longitude = ptr[i].longitude;
-                    net.fragmentDesc = ptr[i].fragmentDesc;
-                    netSounder.nets.push_back(net);
-                }
-            }
-            else if (size % sizeof(CoordinateStruct) == 0)
-            {
-                auto ptr = (const CoordinateStruct *)column.getBlob();
-                auto count = size / sizeof(CoordinateStruct);
-                for (auto i = 0U; i < count; i++)
-                {
-                    NetSounder::NetInfo net;
-                    net.MRN = netSounder.MRN;
-                    net.latitude = ptr[i].latitude;
-                    net.longitude = ptr[i].longitude;
-                    netSounder.nets.push_back(net);
-                }
+                NetSounder::NetInfo net;
+                net.MRN = elementQuery.getColumn("MRN").getUInt();
+                net.latitude = elementQuery.getColumn("Latitude").getDouble();
+                net.longitude = elementQuery.getColumn("Longitude").getDouble();
+                net.fragmentDesc = static_cast<uint8_t>(elementQuery.getColumn("FragmentDesc").getUInt());
+                net.description = elementQuery.getColumn("Description").getText();
+                netSounder.nets.push_back(net);
             }
         }
+        catch (...) {}
     }
 
     void VDESManager::Impl::LoadFrontendPromptFromQueryResult(FrontendPrompt &prompt, 
@@ -3749,67 +3759,70 @@ namespace VDES
             {
                 SQLite::Transaction transaction(*m_database.get());
                 std::unique_ptr<BoundingBox> bbox;
-
-                auto sql = "REPLACE INTO MSIMilitaryActivity VALUES (@ID, @Theme, @Duration, @Polygon,"
-                    "@TimestampStart, @TimestampEnd, @Caution, @Certified, @TimestampRcv, @Read, "
-                    "@GeometryType, @SectorStartAngle, @SectorEndAngle, @Range, @TimeType)";
+                auto sql = "REPLACE INTO MSIMilitaryActivity (ID, Theme, Duration, Coordinates, [Timestamp Start], "
+                            "[Timestamp End], Caution, Certified, [Timestamp Receive], Read, GeometryType, "
+                            "SectorStartAngle, SectorEndAngle, Range, TimeType, Description) "
+                            "VALUES (@ID, @Theme, @Duration, @Polygon, @TimestampStart, @TimestampEnd, @Caution, "
+                            "@Certified, @TimestampRcv, @Read, @GeometryType, @SectorStartAngle, @SectorEndAngle, "
+                            "@Range, @TimeType, @Description)";
                 auto stmt = m_database->buildStatement(sql);
-                
-                if (activity.dataID != 0)
-                {
-                    stmt.bind("@ID", activity.dataID);
-                }
-                stmt.bind("@Theme", activity.theme);
-                stmt.bind("@Duration", activity.isContinuing);
+                 
+                 if (activity.dataID != 0)
+                 {
+                     stmt.bind("@ID", activity.dataID);
+                 }
+                 stmt.bind("@Theme", activity.theme);
+                 stmt.bind("@Duration", activity.isContinuing);
 
-                // Handle coordinates blob and bbox
-                std::vector<Coordinate> pts = activity.polygon;
-                if ((activity.geometryType == 0 || activity.geometryType == 1) && pts.empty())
-                {
-                    pts.push_back(activity.coordinateNE);
-                }
+                 // Handle coordinates blob and bbox
+                 std::vector<Coordinate> pts = activity.polygon;
+                 if ((activity.geometryType == 0 || activity.geometryType == 1) && pts.empty())
+                 {
+                     pts.push_back(activity.coordinateNE);
+                 }
 
-                auto polygon = std::unique_ptr<CoordinateStruct[]>(new CoordinateStruct[pts.size()]);
-                if (polygon)
-                {
-                    for (auto i = 0U; i < pts.size(); i++)
-                    {
-                        polygon[i].latitude = pts[i].GetLatitude();
-                        polygon[i].longitude = pts[i].GetLongitude();
-                    }
-                    auto size = pts.size() * sizeof(CoordinateStruct);
-                    stmt.bind("@Polygon", (const uint8_t *)polygon.get(), static_cast<int>(size));
-                }
+                 auto polygon = std::unique_ptr<CoordinateStruct[]>(new CoordinateStruct[pts.size()]);
+                 if (polygon)
+                 {
+                     for (auto i = 0U; i < pts.size(); i++)
+                     {
+                         polygon[i].latitude = pts[i].GetLatitude();
+                         polygon[i].longitude = pts[i].GetLongitude();
+                     }
+                     auto size = pts.size() * sizeof(CoordinateStruct);
+                     stmt.bind("@Polygon", (const uint8_t *)polygon.get(), static_cast<int>(size));
+                 }
 
-                if (activity.geometryType == 0 || activity.geometryType == 1)
-                {
-                    bbox = UtilityInterface::MakeUnique<BoundingBox>(BoundingBox::Build(activity.coordinateNE.GetLatitude(), 
-                                                                             activity.coordinateNE.GetLongitude(), 
-                                                                             activity.range));
-                }
-                else
-                {
-                    bbox = UtilityInterface::MakeUnique<BoundingBox>();
-                    for (const auto &pt : pts)
-                    {
-                        bbox->Update(pt.GetLatitude(), pt.GetLongitude());
-                    }
-                }
+                 if (activity.geometryType == 0 || activity.geometryType == 1)
+                 {
+                     bbox = UtilityInterface::MakeUnique<BoundingBox>(BoundingBox::Build(activity.coordinateNE.GetLatitude(), 
+                                                                              activity.coordinateNE.GetLongitude(), 
+                                                                              activity.range));
+                 }
+                 else
+                 {
+                     bbox = UtilityInterface::MakeUnique<BoundingBox>();
+                     for (const auto &pt : pts)
+                     {
+                         bbox->Update(pt.GetLatitude(), pt.GetLongitude());
+                     }
+                 }
 
-                stmt.bind("@TimestampStart", activity.timestampStart);
-                stmt.bind("@TimestampEnd", activity.timestampEnd);
-                stmt.bind("@Caution", activity.cautionCode);
-                stmt.bind("@Certified", activity.isCertified ? 1 : 0);
-                stmt.bind("@TimestampRcv", activity.timestamp);
-                stmt.bind("@Read", activity.read ? 1 : 0);
+                 stmt.bind("@TimestampStart", activity.timestampStart);
+                 stmt.bind("@TimestampEnd", activity.timestampEnd);
+                 stmt.bind("@Caution", activity.cautionCode);
+                 stmt.bind("@Certified", activity.isCertified ? 1 : 0);
+                 stmt.bind("@TimestampRcv", activity.timestamp);
+                 stmt.bind("@Read", activity.read ? 1 : 0);
 
-                stmt.bind("@GeometryType", activity.geometryType);
-                stmt.bind("@SectorStartAngle", activity.sectorStartAngle);
-                stmt.bind("@SectorEndAngle", activity.sectorEndAngle);
-                stmt.bind("@Range", activity.range);
-                stmt.bind("@TimeType", activity.timeType);
+                 stmt.bind("@GeometryType", activity.geometryType);
+                 stmt.bind("@SectorStartAngle", activity.sectorStartAngle);
+                 stmt.bind("@SectorEndAngle", activity.sectorEndAngle);
+                 stmt.bind("@Range", activity.range);
+                 stmt.bind("@TimeType", activity.timeType);
+                 stmt.bind("@Description", activity.description);
 
-                stmt.exec();
+                 stmt.exec();
 
                 auto lastRowID = m_database->getLastInsertRowid();
 
@@ -4169,31 +4182,32 @@ namespace VDES
         {
             try
             {
-                auto sql = "INSERT INTO NetSounder (MRN, Fragment, Type, IsContinous, Coordinates, [Timestamp Receive], [Description], [IsOwnShip]) "
-                           "VALUES (@MRN, @Fragment, @Type, @IsContinous, @Coordinates, @TimestampRcv, @Description, @IsOwnShip)";
+                auto sql = "INSERT INTO NetSounder (Type, IsContinous, [Timestamp Receive], [Description], [IsOwnShip]) "
+                           "VALUES (@Type, @IsContinous, @TimestampRcv, @Description, @IsOwnShip)";
                 auto stmt = m_database->buildStatement(sql);
 
-                stmt.bind("@MRN", netSounder.MRN);
-                stmt.bind("@Fragment", netSounder.fragment);
                 stmt.bind("@Type", netSounder.type);
                 stmt.bind("@IsContinous", netSounder.isContinous ? 1 : 0);
-
-                auto pointsCount = netSounder.nets.size();
-                auto size = pointsCount * sizeof(NetInfoStruct);
-                auto blob = std::unique_ptr<NetInfoStruct[]>(new NetInfoStruct[pointsCount]);
-                for (size_t i = 0; i < pointsCount; ++i)
-                {
-                    blob[i].MRN = netSounder.nets[i].MRN;
-                    blob[i].latitude = netSounder.nets[i].latitude;
-                    blob[i].longitude = netSounder.nets[i].longitude;
-                    blob[i].fragmentDesc = netSounder.nets[i].fragmentDesc;
-                }
-                stmt.bind("@Coordinates", blob.get(), static_cast<int>(size));
                 stmt.bind("@TimestampRcv", netSounder.timestamp);
                 stmt.bind("@Description", netSounder.description);
                 stmt.bind("@IsOwnShip", netSounder.isOwn ? 1 : 0);
 
                 stmt.exec();
+                auto parentID = m_database->getLastInsertRowid();
+
+                for (const auto &net : netSounder.nets)
+                {
+                    auto sqlElement = "INSERT INTO NetSounderElement (NetSounder_ID, MRN, Latitude, Longitude, FragmentDesc, Description) "
+                                      "VALUES (@ParentID, @MRN, @Lat, @Lon, @FragmentDesc, @Description)";
+                    auto stmtElement = m_database->buildStatement(sqlElement);
+                    stmtElement.bind("@ParentID", static_cast<int64_t>(parentID));
+                    stmtElement.bind("@MRN", net.MRN);
+                    stmtElement.bind("@Lat", net.latitude);
+                    stmtElement.bind("@Lon", net.longitude);
+                    stmtElement.bind("@FragmentDesc", net.fragmentDesc);
+                    stmtElement.bind("@Description", net.description);
+                    stmtElement.exec();
+                }
             }
             catch (const SQLite::Exception &execption)
             {
@@ -4539,6 +4553,7 @@ namespace VDES
         area.infoSource = static_cast<uint8_t>(query.getColumn("Info Source").getInt());
         area.timestampFCST = query.getColumn("Timestamp Forecast").getInt64();
         area.timestamp = query.getColumn("Timestamp Receive").getInt64();
+        area.dataID = area.areaCode;
     }
 
     void VDESManager::Impl::SaveMarineEnvironmentFCSTArea(const MarineEnvironmentFCSTAreas &container)
@@ -4603,6 +4618,7 @@ namespace VDES
         area.infoSource = static_cast<uint8_t>(query.getColumn("Info Source").getInt());
         area.timestampFCST = query.getColumn("Timestamp Forecast").getInt64();
         area.timestamp = query.getColumn("Timestamp Receive").getInt64();
+        area.dataID = area.areaCode;
     }
 
     void VDESManager::Impl::SaveMarineEnvironmentFCSTAlongshore(const MarineEnvironmentFCSTAlongshores &container)
@@ -4656,7 +4672,6 @@ namespace VDES
     void VDESManager::Impl::LoadMarineEnvironmentFCSTAlongshoreFromQueryResult(MarineEnvironmentFCSTAlongshore &area, const SQLite::Statement &query)
     {
         area.areaCode = static_cast<uint8_t>(query.getColumn("Area Code").getInt());
-        area.dataID = area.areaCode;
         area.temperatureLow = static_cast<uint16_t>(query.getColumn("Temperature Low").getInt());
         area.temperatureHigh = static_cast<uint8_t>(query.getColumn("Temperature High").getInt());
         area.waveHeightLow = static_cast<uint8_t>(query.getColumn("Wave Height Low").getInt());
@@ -4668,6 +4683,7 @@ namespace VDES
         area.infoSource = static_cast<uint8_t>(query.getColumn("Info Source").getInt());
         area.timestampFCST = query.getColumn("Timestamp Forecast").getInt64();
         area.timestamp = query.getColumn("Timestamp Receive").getInt64();
+        area.dataID = area.areaCode;
     }
 
     void VDESManager::Impl::SaveMewTropicalCyclone(const MewTropicalCyclone &ew)
@@ -5099,16 +5115,16 @@ namespace VDES
             {
                 SQLite::Transaction transaction(*m_database.get());
 
+                auto sql = fmt::format("INSERT INTO AtoNDynamics (Status, Precaution, [Timestamp Receive], Read) VALUES ({Status}, {Precaution}, {TimestampRcv}, {Read})",
+                    fmt::arg("Status", dynamics.status),
+                    fmt::arg("Precaution", dynamics.precaution),
+                    fmt::arg("TimestampRcv", dynamics.timestamp),
+                    fmt::arg("Read", dynamics.read ? 1 : 0));
+                m_database->exec(sql);
+                auto rowID = m_database->getLastInsertRowid();
+
                 for (const auto &elem : dynamics.elements)
                 {
-                    auto sql = fmt::format("INSERT INTO AtoNDynamics VALUES (NULL, {Status}, {Precaution}, {TimestampRcv}, {Read})",
-                                           fmt::arg("Status", dynamics.status),
-                                           fmt::arg("Precaution", dynamics.precaution),
-                                           fmt::arg("TimestampRcv", dynamics.timestamp),
-                                           fmt::arg("Read", dynamics.read ? 1 : 0));
-                    m_database->exec(sql);
-                    auto rowID = m_database->getLastInsertRowid();
-
                     SQLite::Statement insertElem(*m_database.get(), 
                         "INSERT INTO AtoNDynamicElement (Dynamics_ID, MRN, [Fragment Desc], Type, Longitude, Latitude, "
                         "[Rhythm Name Code], [Rhythm Param Code], [Body Color], [Light Color], [Light Period], "
@@ -5194,7 +5210,7 @@ namespace VDES
 
                 for (const auto &elem : dynamics.elements)
                 {
-                    auto sql = fmt::format("INSERT INTO AISAtoNDynamics VALUES (NULL, {MRN}, {Fragment}, {AtoNAttribute}, {Status}, {Precaution}, {TimestampRcv}, {Read})",
+                    auto sql = fmt::format("INSERT INTO AISAtoNDynamics (MRN, Fragment, AtoNAttribute, Status, Precaution, [Timestamp Receive], Read) VALUES ({MRN}, {Fragment}, {AtoNAttribute}, {Status}, {Precaution}, {TimestampRcv}, {Read})",
                                            fmt::arg("MRN", dynamics.MRN),
                                            fmt::arg("Fragment", dynamics.fragment),
                                            fmt::arg("AtoNAttribute", dynamics.atonAttribute),
@@ -5205,7 +5221,7 @@ namespace VDES
                     m_database->exec(sql);
                     auto rowID = m_database->getLastInsertRowid();
 
-                    sql = fmt::format("INSERT INTO AISAtoNDynamicElement VALUES ({DynamicsID}, {MMSI}, {MRN}, {Type}, {Lon}, {Lat}, "
+                    sql = fmt::format("INSERT INTO AISAtoNDynamicElement (Dynamics_ID, MMSI, MRN, Type, Longitude, Latitude, Range, [Prev Longitude], [Prev Latitude], [Is Rough Position]) VALUES ({DynamicsID}, {MMSI}, {MRN}, {Type}, {Lon}, {Lat}, "
                                       "{Range}, {PrevLon}, {PrevLat}, {IsRoughPosition})",
                                       fmt::arg("DynamicsID", rowID),
                                       fmt::arg("MMSI", elem.mmsi),
@@ -6310,7 +6326,30 @@ namespace VDES
                     activity.isCertified = true;
                     activity.timestamp = UtilityInterface::GetCurrentTimeStamp();
 
+                    std::string existingDesc;
                     std::unique_lock<std::mutex> lock(m_mutexMSIMilitaryActivity);
+                    try
+                    {
+                        if (m_database)
+                        {
+                            auto sqlQuery = fmt::format("SELECT Description FROM MSIMilitaryActivity WHERE ID = {}", info->MRN);
+                            SQLite::Statement query(*m_database.get(), sqlQuery);
+                            if (query.executeStep())
+                            {
+                                existingDesc = query.getColumn("Description").getText();
+                            }
+                            auto sqlDel = fmt::format("DELETE FROM MSIMilitaryActivity WHERE ID = {}", info->MRN);
+                            m_database->exec(sqlDel);
+                            auto sqlDelBBox = fmt::format("DELETE FROM MSIMilitaryActivityBBox WHERE ID = {}", info->MRN);
+                            m_database->exec(sqlDelBBox);
+                        }
+                    }
+                    catch (const SQLite::Exception &execption)
+                    {
+                        DatabaseErrorProcess(execption, "HandleASMMessage_DeleteMSIMilitaryActivity");
+                    }
+
+                    activity.description = existingDesc;
                     SaveMSIMilitaryActivity(activity);
                     lock.unlock();
                     SPDLOG_DEBUG("Send event:MSI_MILITARY_ACTIVITY");
@@ -6425,8 +6464,6 @@ namespace VDES
                 if (info)
                 {
                     NetSounder netSounder;
-                    netSounder.MRN = info->nets.empty() ? 0 : info->nets[0].MRN;
-                    netSounder.fragment = info->fragment;
                     netSounder.type = info->type;
                     netSounder.isContinous = info->isContinous;
                     netSounder.description = info->description;
@@ -6437,6 +6474,22 @@ namespace VDES
                         net.fragmentDesc = netInfo.fragmentDesc;
                         net.latitude = netInfo.coordinate.GetLatitude();
                         net.longitude = netInfo.coordinate.GetLongitude();
+
+                        std::string existingNetDesc;
+                        if (m_database)
+                        {
+                            try
+                            {
+                                auto sqlFindDesc = fmt::format("SELECT Description FROM NetSounderElement WHERE MRN = {}", net.MRN);
+                                SQLite::Statement descQuery(*m_database.get(), sqlFindDesc);
+                                if (descQuery.executeStep())
+                                {
+                                    existingNetDesc = descQuery.getColumn("Description").getText();
+                                }
+                            }
+                            catch (...) {}
+                        }
+                        net.description = existingNetDesc;
                         netSounder.nets.push_back(net);
                     }
                     netSounder.timestamp = UtilityInterface::GetCurrentTimeStamp();
@@ -6446,8 +6499,22 @@ namespace VDES
                     {
                         if (m_database)
                         {
-                            auto sqlDel = fmt::format("DELETE FROM NetSounder WHERE MRN = {}", netSounder.MRN);
-                            m_database->exec(sqlDel);
+                            uint32_t firstMRN = info->nets.empty() ? 0 : info->nets[0].MRN;
+                            if (firstMRN != 0)
+                            {
+                                auto sqlFind = fmt::format("SELECT NetSounder_ID FROM NetSounderElement WHERE MRN = {}", firstMRN);
+                                SQLite::Statement findQuery(*m_database.get(), sqlFind);
+                                std::vector<int64_t> pids;
+                                while (findQuery.executeStep())
+                                {
+                                    pids.push_back(findQuery.getColumn("NetSounder_ID").getInt64());
+                                }
+                                for (auto pid : pids)
+                                {
+                                    m_database->exec(fmt::format("DELETE FROM NetSounder WHERE ID = {}", pid));
+                                    m_database->exec(fmt::format("DELETE FROM NetSounderElement WHERE NetSounder_ID = {}", pid));
+                                }
+                            }
                         }
                     }
                     catch (const SQLite::Exception &execption)
@@ -6493,47 +6560,14 @@ namespace VDES
                     {
                         if (m_database)
                         {
-                            std::vector<NetSounder> netSoundersToUpdate;
-                            {
-                                std::lock_guard<std::mutex> dbLock(m_mutexNetSounder);
-                                auto sqlCmd = "SELECT * FROM NetSounder";
-                                SQLite::Statement query(*m_database.get(), sqlCmd);
-                                while (query.executeStep())
-                                {
-                                    NetSounder ns;
-                                    LoadNetSounderFromQueryResult(ns, query);
-                                    
-                                    bool hasMatch = false;
-                                    for (const auto &net : ns.nets)
-                                    {
-                                        if (net.MRN == info->MRN)
-                                        {
-                                            hasMatch = true;
-                                            break;
-                                        }
-                                    }
-                                    
-                                    if (hasMatch)
-                                    {
-                                        ns.description = info->description;
-                                        netSoundersToUpdate.push_back(ns);
-                                    }
-                                }
-                            }
+                            std::unique_lock<std::mutex> lock(m_mutexNetSounder);
+                            SQLite::Statement updateStmt(*m_database.get(), "UPDATE NetSounderElement SET Description = ? WHERE MRN = ?");
+                            updateStmt.bind(1, info->description);
+                            updateStmt.bind(2, static_cast<int64_t>(info->MRN));
+                            updateStmt.exec();
+                            lock.unlock();
 
-                            if (!netSoundersToUpdate.empty())
-                            {
-                                std::unique_lock<std::mutex> writeLock(m_mutexNetSounder);
-                                for (auto &ns : netSoundersToUpdate)
-                                {
-                                    auto sqlDel = fmt::format("DELETE FROM NetSounder WHERE MRN = {}", ns.MRN);
-                                    m_database->exec(sqlDel);
-                                    SaveNetSounder(ns);
-                                }
-                                writeLock.unlock();
-                                
-                                m_parent->notifyEvent(EventType::ASM_NET_SOUNDER, 0);
-                            }
+                            m_parent->notifyEvent(EventType::ASM_NET_SOUNDER, 0);
                         }
                     }
                     catch (const SQLite::Exception &execption)
@@ -6681,6 +6715,165 @@ namespace VDES
                         DatabaseErrorProcess(execption, "HandleASMMessage_SupplementaryDescription_EarlyWarning");
                     }
                 }
+
+                if (info && info->mainDAC == 412 && info->mainFI == 38)
+                {
+                    try
+                    {
+                        if (m_database)
+                        {
+                            std::unique_lock<std::mutex> lock(m_mutexMSIMilitaryActivity);
+                            SQLite::Statement updateStmt(*m_database.get(), "UPDATE MSIMilitaryActivity SET Description = ? WHERE ID = ?");
+                            updateStmt.bind(1, info->description);
+                            updateStmt.bind(2, static_cast<int64_t>(info->MRN));
+                            updateStmt.exec();
+                            lock.unlock();
+
+                            m_parent->notifyEvent(EventType::MSI_MILITARY_ACTIVITY, 0);
+                        }
+                    }
+                    catch (const SQLite::Exception &execption)
+                    {
+                        DatabaseErrorProcess(execption, "HandleASMMessage_SupplementaryDescription_MilitaryActivity");
+                    }
+                }
+            }
+
+            if (asmData->DAC == 413 && asmData->FI == 7)
+            {
+                auto info = std::dynamic_pointer_cast<ASM_DAC_413_FI_7>(asmData);
+                if (info && info->mainDAC == 412 && info->mainFI == 42)
+                {
+                    try
+                    {
+                        if (m_database)
+                        {
+                            std::unique_lock<std::mutex> lock(m_mutexChannelCenterline);
+                            auto sqlCmd = fmt::format("SELECT rowid, * FROM ChannelCenterline WHERE MRN = {}", info->MRN);
+                            SQLite::Statement query(*m_database.get(), sqlCmd);
+                            if (query.executeStep())
+                            {
+                                ChannelCenterline centerline;
+                                LoadChannelCenterlineFromQueryResult(centerline, query);
+
+                                if (!centerline.coordinates.empty())
+                                {
+                                    Coordinate prevCoord = centerline.coordinates.back();
+                                    for (const auto &delta : info->coordinates)
+                                    {
+                                        Coordinate nextCoord;
+                                        nextCoord.SetLongitude(prevCoord.GetLongitude() + delta.GetLongitude());
+                                        nextCoord.SetLatitude(prevCoord.GetLatitude() + delta.GetLatitude());
+                                        centerline.coordinates.push_back(nextCoord);
+                                        prevCoord = nextCoord;
+                                    }
+
+                                    auto pointsCount = centerline.coordinates.size();
+                                    auto size = pointsCount * sizeof(CoordinateStruct);
+                                    auto blob = std::unique_ptr<CoordinateStruct[]>(new CoordinateStruct[pointsCount]);
+                                    for (size_t i = 0; i < pointsCount; ++i)
+                                    {
+                                        blob[i].latitude = centerline.coordinates[i].GetLatitude();
+                                        blob[i].longitude = centerline.coordinates[i].GetLongitude();
+                                    }
+
+                                    SQLite::Statement updateStmt(*m_database.get(),
+                                        "UPDATE ChannelCenterline SET Coordinates = ? WHERE MRN = ?");
+                                    updateStmt.bind(1, blob.get(), size);
+                                    updateStmt.bind(2, static_cast<int64_t>(info->MRN));
+                                    updateStmt.exec();
+                                }
+                            }
+                            lock.unlock();
+
+                            m_parent->notifyEvent(EventType::ASM_CHANNEL_CENTERLINE, 0);
+                        }
+                    }
+                    catch (const SQLite::Exception &execption)
+                    {
+                        DatabaseErrorProcess(execption, "HandleASMMessage_SupplementaryInformation_ChannelCenterline");
+                    }
+                }
+
+                if (info && info->mainDAC == 412 && (info->mainFI == 43 || info->mainFI == 44))
+                {
+                    try
+                    {
+                        if (m_database)
+                        {
+                            std::unique_lock<std::mutex> lock(m_mutexChannelBoundary);
+                            auto sqlCmd = fmt::format("SELECT rowid, * FROM ChannelBoundary WHERE MRN = {}", info->MRN);
+                            SQLite::Statement query(*m_database.get(), sqlCmd);
+                            if (query.executeStep())
+                            {
+                                ChannelBoundary boundary;
+                                LoadChannelBoundaryFromQueryResult(boundary, query);
+
+                                if (info->mainFI == 43 && !boundary.leftCoordinates.empty())
+                                {
+                                    Coordinate prevCoord = boundary.leftCoordinates.back();
+                                    for (const auto &delta : info->coordinates)
+                                    {
+                                        Coordinate nextCoord;
+                                        nextCoord.SetLongitude(prevCoord.GetLongitude() + delta.GetLongitude());
+                                        nextCoord.SetLatitude(prevCoord.GetLatitude() + delta.GetLatitude());
+                                        boundary.leftCoordinates.push_back(nextCoord);
+                                        prevCoord = nextCoord;
+                                    }
+
+                                    auto pointsCount = boundary.leftCoordinates.size();
+                                    auto size = pointsCount * sizeof(CoordinateStruct);
+                                    auto blob = std::unique_ptr<CoordinateStruct[]>(new CoordinateStruct[pointsCount]);
+                                    for (size_t i = 0; i < pointsCount; ++i)
+                                    {
+                                        blob[i].latitude = boundary.leftCoordinates[i].GetLatitude();
+                                        blob[i].longitude = boundary.leftCoordinates[i].GetLongitude();
+                                    }
+
+                                    SQLite::Statement updateStmt(*m_database.get(),
+                                        "UPDATE ChannelBoundary SET LeftCoordinates = ? WHERE MRN = ?");
+                                    updateStmt.bind(1, blob.get(), static_cast<int>(size));
+                                    updateStmt.bind(2, static_cast<int64_t>(info->MRN));
+                                    updateStmt.exec();
+                                }
+                                else if (info->mainFI == 44 && !boundary.rightCoordinates.empty())
+                                {
+                                    Coordinate prevCoord = boundary.rightCoordinates.back();
+                                    for (const auto &delta : info->coordinates)
+                                    {
+                                        Coordinate nextCoord;
+                                        nextCoord.SetLongitude(prevCoord.GetLongitude() + delta.GetLongitude());
+                                        nextCoord.SetLatitude(prevCoord.GetLatitude() + delta.GetLatitude());
+                                        boundary.rightCoordinates.push_back(nextCoord);
+                                        prevCoord = nextCoord;
+                                    }
+
+                                    auto pointsCount = boundary.rightCoordinates.size();
+                                    auto size = pointsCount * sizeof(CoordinateStruct);
+                                    auto blob = std::unique_ptr<CoordinateStruct[]>(new CoordinateStruct[pointsCount]);
+                                    for (size_t i = 0; i < pointsCount; ++i)
+                                    {
+                                        blob[i].latitude = boundary.rightCoordinates[i].GetLatitude();
+                                        blob[i].longitude = boundary.rightCoordinates[i].GetLongitude();
+                                    }
+
+                                    SQLite::Statement updateStmt(*m_database.get(),
+                                        "UPDATE ChannelBoundary SET RightCoordinates = ? WHERE MRN = ?");
+                                    updateStmt.bind(1, blob.get(), static_cast<int>(size));
+                                    updateStmt.bind(2, static_cast<int64_t>(info->MRN));
+                                    updateStmt.exec();
+                                }
+                            }
+                            lock.unlock();
+
+                            m_parent->notifyEvent(EventType::ASM_CHANNEL_BOUNDARY, 0);
+                        }
+                    }
+                    catch (const SQLite::Exception &execption)
+                    {
+                        DatabaseErrorProcess(execption, "HandleASMMessage_SupplementaryInformation_ChannelBoundary");
+                    }
+                }
             }
 
             if (asmData->DAC == 413 && asmData->FI == 9)
@@ -6700,9 +6893,11 @@ namespace VDES
                             {
                                 try
                                 {
-                                    std::lock_guard<std::mutex> lock(m_mutexAtoNDynamics);
-                                    m_database->exec(fmt::format("DELETE FROM AtoNDynamicElement WHERE MRN = {}", targetMRN));
-                                    m_database->exec("DELETE FROM AtoNDynamics WHERE ID NOT IN (SELECT DISTINCT Dynamics_ID FROM AtoNDynamicElement)");
+                                    {
+                                        std::lock_guard<std::mutex> lock(m_mutexAtoNDynamics);
+                                        m_database->exec(fmt::format("DELETE FROM AtoNDynamicElement WHERE MRN = {}", targetMRN));
+                                        m_database->exec("DELETE FROM AtoNDynamics WHERE ID NOT IN (SELECT DISTINCT Dynamics_ID FROM AtoNDynamicElement)");
+                                    }
                                     m_parent->notifyEvent(EventType::ASM_ATON_DYNAMICS, 0);
                                 }
                                 catch (const SQLite::Exception &e)
@@ -6714,9 +6909,11 @@ namespace VDES
                             {
                                 try
                                 {
-                                    std::lock_guard<std::mutex> lock(m_mutexAISAtoNDynamics);
-                                    m_database->exec(fmt::format("DELETE FROM AISAtoNDynamicElement WHERE MRN = {}", targetMRN));
-                                    m_database->exec("DELETE FROM AISAtoNDynamics WHERE ID NOT IN (SELECT DISTINCT Dynamics_ID FROM AISAtoNDynamicElement)");
+                                    {
+                                        std::lock_guard<std::mutex> lock(m_mutexAISAtoNDynamics);
+                                        m_database->exec(fmt::format("DELETE FROM AISAtoNDynamicElement WHERE MRN = {}", targetMRN));
+                                        m_database->exec("DELETE FROM AISAtoNDynamics WHERE ID NOT IN (SELECT DISTINCT Dynamics_ID FROM AISAtoNDynamicElement)");
+                                    }
                                     m_parent->notifyEvent(EventType::ASM_AIS_ATON_DYNAMICS, 0);
                                 }
                                 catch (const SQLite::Exception &e)
@@ -6729,7 +6926,18 @@ namespace VDES
                                 try
                                 {
                                     std::lock_guard<std::mutex> lock(m_mutexNetSounder);
-                                    m_database->exec(fmt::format("DELETE FROM NetSounder WHERE MRN = {}", targetMRN));
+                                    auto sqlFind = fmt::format("SELECT NetSounder_ID FROM NetSounderElement WHERE MRN = {}", targetMRN);
+                                    SQLite::Statement findQuery(*m_database.get(), sqlFind);
+                                    std::vector<int64_t> pids;
+                                    while (findQuery.executeStep())
+                                    {
+                                        pids.push_back(findQuery.getColumn("NetSounder_ID").getInt64());
+                                    }
+                                    for (auto pid : pids)
+                                    {
+                                        m_database->exec(fmt::format("DELETE FROM NetSounder WHERE ID = {}", pid));
+                                        m_database->exec(fmt::format("DELETE FROM NetSounderElement WHERE NetSounder_ID = {}", pid));
+                                    }
                                     m_parent->notifyEvent(EventType::ASM_NET_SOUNDER, 0);
                                 }
                                 catch (const SQLite::Exception &e)
@@ -6741,8 +6949,10 @@ namespace VDES
                             {
                                 try
                                 {
-                                    std::lock_guard<std::mutex> lock(m_mutexBridge);
-                                    m_database->exec(fmt::format("DELETE FROM Bridge WHERE MRN = {}", targetMRN));
+                                    {
+                                        std::lock_guard<std::mutex> lock(m_mutexBridge);
+                                        m_database->exec(fmt::format("DELETE FROM Bridge WHERE MRN = {}", targetMRN));
+                                    }
                                     m_parent->notifyEvent(EventType::ASM_BRIDGE, 0);
                                 }
                                 catch (const SQLite::Exception &e)
@@ -6754,8 +6964,10 @@ namespace VDES
                             {
                                 try
                                 {
-                                    std::lock_guard<std::mutex> lock(m_mutexChannelCenterline);
-                                    m_database->exec(fmt::format("DELETE FROM ChannelCenterline WHERE MRN = {}", targetMRN));
+                                    {
+                                        std::lock_guard<std::mutex> lock(m_mutexChannelCenterline);
+                                        m_database->exec(fmt::format("DELETE FROM ChannelCenterline WHERE MRN = {}", targetMRN));
+                                    }
                                     m_parent->notifyEvent(EventType::ASM_CHANNEL_CENTERLINE, 0);
                                 }
                                 catch (const SQLite::Exception &e)
@@ -6767,8 +6979,10 @@ namespace VDES
                             {
                                 try
                                 {
-                                    std::lock_guard<std::mutex> lock(m_mutexChannelBoundary);
-                                    m_database->exec(fmt::format("DELETE FROM ChannelBoundary WHERE MRN = {}", targetMRN));
+                                    {
+                                        std::lock_guard<std::mutex> lock(m_mutexChannelBoundary);
+                                        m_database->exec(fmt::format("DELETE FROM ChannelBoundary WHERE MRN = {}", targetMRN));
+                                    }
                                     m_parent->notifyEvent(EventType::ASM_CHANNEL_BOUNDARY, 0);
                                 }
                                 catch (const SQLite::Exception &e)
@@ -6780,9 +6994,11 @@ namespace VDES
                             {
                                 try
                                 {
-                                    std::lock_guard<std::mutex> lock(m_mutexMSIObstacle);
-                                    m_database->exec(fmt::format("DELETE FROM MSIObstacle WHERE ID = {}", targetMRN));
-                                    m_database->exec(fmt::format("DELETE FROM MSIObstacleBBox WHERE ID = {}", targetMRN));
+                                    {
+                                        std::lock_guard<std::mutex> lock(m_mutexMSIObstacle);
+                                        m_database->exec(fmt::format("DELETE FROM MSIObstacle WHERE ID = {}", targetMRN));
+                                        m_database->exec(fmt::format("DELETE FROM MSIObstacleBBox WHERE ID = {}", targetMRN));
+                                    }
                                     m_parent->notifyEvent(EventType::MSI_OBSTACLE, 0);
                                 }
                                 catch (const SQLite::Exception &e)
@@ -6822,9 +7038,11 @@ namespace VDES
                             {
                                 try
                                 {
-                                    std::lock_guard<std::mutex> lock(m_mutexMSIMaritimeTowing);
-                                    m_database->exec(fmt::format("DELETE FROM MSIMaritimeTowing WHERE ID = {}", targetMRN));
-                                    m_database->exec(fmt::format("DELETE FROM MSIMaritimeTowingBBox WHERE ID = {}", targetMRN));
+                                    {
+                                        std::lock_guard<std::mutex> lock(m_mutexMSIMaritimeTowing);
+                                        m_database->exec(fmt::format("DELETE FROM MSIMaritimeTowing WHERE ID = {}", targetMRN));
+                                        m_database->exec(fmt::format("DELETE FROM MSIMaritimeTowingBBox WHERE ID = {}", targetMRN));
+                                    }
                                     m_parent->notifyEvent(EventType::ASM_MARITIME_TOWING, 0);
                                 }
                                 catch (const SQLite::Exception &e)
@@ -6836,9 +7054,11 @@ namespace VDES
                             {
                                 try
                                 {
-                                    std::lock_guard<std::mutex> lock(m_mutexMSIDesignatedArea);
-                                    m_database->exec(fmt::format("DELETE FROM MSIDesignatedArea WHERE ID = {}", targetMRN));
-                                    m_database->exec(fmt::format("DELETE FROM MSIDesignatedAreaBBox WHERE ID = {}", targetMRN));
+                                    {
+                                        std::lock_guard<std::mutex> lock(m_mutexMSIDesignatedArea);
+                                        m_database->exec(fmt::format("DELETE FROM MSIDesignatedArea WHERE ID = {}", targetMRN));
+                                        m_database->exec(fmt::format("DELETE FROM MSIDesignatedAreaBBox WHERE ID = {}", targetMRN));
+                                    }
                                     m_parent->notifyEvent(EventType::MSI_DESIGNATED_AREA, 0);
                                 }
                                 catch (const SQLite::Exception &e)
@@ -6908,9 +7128,11 @@ namespace VDES
                         {
                             try
                             {
-                                std::lock_guard<std::mutex> lock(m_mutexAtoNDynamics);
-                                m_database->exec(fmt::format("DELETE FROM AtoNDynamicElement WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
-                                m_database->exec("DELETE FROM AtoNDynamics WHERE ID NOT IN (SELECT DISTINCT Dynamics_ID FROM AtoNDynamicElement)");
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexAtoNDynamics);
+                                    m_database->exec(fmt::format("DELETE FROM AtoNDynamicElement WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                    m_database->exec("DELETE FROM AtoNDynamics WHERE ID NOT IN (SELECT DISTINCT Dynamics_ID FROM AtoNDynamicElement)");
+                                }
                                 m_parent->notifyEvent(EventType::ASM_ATON_DYNAMICS, 0);
                             }
                             catch (const SQLite::Exception &e)
@@ -6922,9 +7144,11 @@ namespace VDES
                         {
                             try
                             {
-                                std::lock_guard<std::mutex> lock(m_mutexAISAtoNDynamics);
-                                m_database->exec(fmt::format("DELETE FROM AISAtoNDynamicElement WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
-                                m_database->exec("DELETE FROM AISAtoNDynamics WHERE ID NOT IN (SELECT DISTINCT Dynamics_ID FROM AISAtoNDynamicElement)");
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexAISAtoNDynamics);
+                                    m_database->exec(fmt::format("DELETE FROM AISAtoNDynamicElement WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                    m_database->exec("DELETE FROM AISAtoNDynamics WHERE ID NOT IN (SELECT DISTINCT Dynamics_ID FROM AISAtoNDynamicElement)");
+                                }
                                 m_parent->notifyEvent(EventType::ASM_AIS_ATON_DYNAMICS, 0);
                             }
                             catch (const SQLite::Exception &e)
@@ -6936,8 +7160,21 @@ namespace VDES
                         {
                             try
                             {
-                                std::lock_guard<std::mutex> lock(m_mutexNetSounder);
-                                m_database->exec(fmt::format("DELETE FROM NetSounder WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexNetSounder);
+                                    auto sqlFind = fmt::format("SELECT NetSounder_ID FROM NetSounderElement WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN);
+                                    SQLite::Statement findQuery(*m_database.get(), sqlFind);
+                                    std::vector<int64_t> pids;
+                                    while (findQuery.executeStep())
+                                    {
+                                        pids.push_back(findQuery.getColumn("NetSounder_ID").getInt64());
+                                    }
+                                    for (auto pid : pids)
+                                    {
+                                        m_database->exec(fmt::format("DELETE FROM NetSounder WHERE ID = {}", pid));
+                                        m_database->exec(fmt::format("DELETE FROM NetSounderElement WHERE NetSounder_ID = {}", pid));
+                                    }
+                                }
                                 m_parent->notifyEvent(EventType::ASM_NET_SOUNDER, 0);
                             }
                             catch (const SQLite::Exception &e)
@@ -6949,8 +7186,10 @@ namespace VDES
                         {
                             try
                             {
-                                std::lock_guard<std::mutex> lock(m_mutexBridge);
-                                m_database->exec(fmt::format("DELETE FROM Bridge WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexBridge);
+                                    m_database->exec(fmt::format("DELETE FROM Bridge WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                }
                                 m_parent->notifyEvent(EventType::ASM_BRIDGE, 0);
                             }
                             catch (const SQLite::Exception &e)
@@ -6962,8 +7201,10 @@ namespace VDES
                         {
                             try
                             {
-                                std::lock_guard<std::mutex> lock(m_mutexChannelCenterline);
-                                m_database->exec(fmt::format("DELETE FROM ChannelCenterline WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexChannelCenterline);
+                                    m_database->exec(fmt::format("DELETE FROM ChannelCenterline WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                }
                                 m_parent->notifyEvent(EventType::ASM_CHANNEL_CENTERLINE, 0);
                             }
                             catch (const SQLite::Exception &e)
@@ -6975,8 +7216,10 @@ namespace VDES
                         {
                             try
                             {
-                                std::lock_guard<std::mutex> lock(m_mutexChannelBoundary);
-                                m_database->exec(fmt::format("DELETE FROM ChannelBoundary WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexChannelBoundary);
+                                    m_database->exec(fmt::format("DELETE FROM ChannelBoundary WHERE MRN >= {0} AND MRN <= {1}", startMRN, endMRN));
+                                }
                                 m_parent->notifyEvent(EventType::ASM_CHANNEL_BOUNDARY, 0);
                             }
                             catch (const SQLite::Exception &e)
@@ -6988,9 +7231,11 @@ namespace VDES
                         {
                             try
                             {
-                                std::lock_guard<std::mutex> lock(m_mutexMSIObstacle);
-                                m_database->exec(fmt::format("DELETE FROM MSIObstacle WHERE ID >= {0} AND ID <= {1}", startMRN, endMRN));
-                                m_database->exec(fmt::format("DELETE FROM MSIObstacleBBox WHERE ID >= {0} AND ID <= {1}", startMRN, endMRN));
+                                {
+                                    std::lock_guard<std::mutex> lock(m_mutexMSIObstacle);
+                                    m_database->exec(fmt::format("DELETE FROM MSIObstacle WHERE ID >= {0} AND ID <= {1}", startMRN, endMRN));
+                                    m_database->exec(fmt::format("DELETE FROM MSIObstacleBBox WHERE ID >= {0} AND ID <= {1}", startMRN, endMRN));
+                                }
                                 m_parent->notifyEvent(EventType::MSI_OBSTACLE, 0);
                             }
                             catch (const SQLite::Exception &e)
@@ -10865,7 +11110,11 @@ namespace VDES
 
     bool VDESManager::DeleteMewTropicalCyclones(const std::vector<uint32_t> &dataIDs)
     {
-        if (dataIDs.empty()) return true;
+        if (dataIDs.empty()) 
+        { 
+            return true;
+        }
+        
         if (m_impl->m_database)
         {
             try
@@ -11572,14 +11821,15 @@ namespace VDES
         {
             try
             {
-                std::lock_guard<std::mutex> lock(m_impl->m_mutexAtoNDynamics);
+                {
+                    std::lock_guard<std::mutex> lock(m_impl->m_mutexAtoNDynamics);
 
-                auto sqlElement = fmt::format("DELETE FROM AtoNDynamicElement WHERE Dynamics_ID = {}", dataID);
-                m_impl->m_database->exec(sqlElement);
+                    auto sqlElement = fmt::format("DELETE FROM AtoNDynamicElement WHERE Dynamics_ID = {}", dataID);
+                    m_impl->m_database->exec(sqlElement);
 
-                auto sqlDynamics = fmt::format("DELETE FROM AtoNDynamics WHERE ID = {}", dataID);
-                m_impl->m_database->exec(sqlDynamics);
-
+                    auto sqlDynamics = fmt::format("DELETE FROM AtoNDynamics WHERE ID = {}", dataID);
+                    m_impl->m_database->exec(sqlDynamics);
+                }
                 if (notifyEvent)
                 {
                     notifyEvent(EventType::ASM_ATON_DYNAMICS, 0);
@@ -11722,9 +11972,11 @@ namespace VDES
 
                 auto sqlElement = fmt::format("DELETE FROM AISAtoNDynamicElement WHERE Dynamics_ID IN ({})", fmt::join(dataIDs, ", "));
                 m_impl->m_database->exec(sqlElement);
+                SPDLOG_DEBUG(sqlElement);
 
                 auto sqlDynamics = fmt::format("DELETE FROM AISAtoNDynamics WHERE ID IN ({})", fmt::join(dataIDs, ", "));
                 m_impl->m_database->exec(sqlDynamics);
+                SPDLOG_DEBUG(sqlElement);
 
                 return true;
             }
@@ -12024,6 +12276,11 @@ namespace VDES
                 m_impl->DatabaseErrorProcess(execption, "GetMarineEnvironmentFCSTAlongshores");
             }
         }
+        for (auto i = 0; i < container.size(); i++)
+        {
+            SPDLOG_DEBUG("area code = {}", container[i].areaCode);
+            SPDLOG_DEBUG("DataID = {}", container[i].dataID);
+        }
         return container;
     }
 
@@ -12060,6 +12317,7 @@ namespace VDES
                 std::lock_guard<std::mutex> lock(m_impl->m_mutexMarineEnvironmentFCSTAlongshore);
 
                 auto sqlCmd = fmt::format("DELETE FROM MarineEnvironmentFCSTAlongshore WHERE [Area Code] IN ({})", fmt::join(dataIDs, ", "));
+                SPDLOG_DEBUG("sqlCmd: {}", sqlCmd);
                 m_impl->m_database->exec(sqlCmd);
                 return true;
             }
@@ -13347,7 +13605,7 @@ namespace VDES
         auto payload = aisBitsManager.GetEncodedVDMPayload();
         auto fillBits = aisBitsManager.GetFillBitsNumberToEncode();
 
-        std::string nmea = fmt::format("!AIAAB,1,1,{0},0,,004129999,,{1},{2},{3}", seqNo, 0, payload, fillBits);
+        std::string nmea = fmt::format("!AIAAB,1,1,{0},,004129999,,,0,{1},{2}", seqNo, payload, fillBits);
         UtilityInterface::AddChecksum(nmea);
         nmea += "\r\n";
 

@@ -1238,7 +1238,6 @@ namespace VDES
                     elem.coordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(latVal, 27) / 600000.0);
                 }
                 break;
-
             case 8:
                 {
                     elem.MRN = manager.DecodeToNumerical(pos, 17);
@@ -1255,7 +1254,6 @@ namespace VDES
                     elem.range = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 97, 5));
                 }
                 break;
-
             case 9:
                 {
                     elem.MRN = manager.DecodeToNumerical(pos, 17);
@@ -1268,7 +1266,6 @@ namespace VDES
                     elem.morseCode = static_cast<uint8_t>(manager.DecodeToNumerical(pos + 79, 5));
                 }
                 break;
-
             case 10:
             case 11:
             case 12:
@@ -1282,7 +1279,6 @@ namespace VDES
                     elem.coordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(latVal, 27) / 600000.0);
                 }
                 break;
-
             case 14:
                 {
                     elem.MRN = manager.DecodeToNumerical(pos, 17);
@@ -1314,7 +1310,6 @@ namespace VDES
                     elem.coordinate.SetLatitude(UtilityInterface::ConvertComplementCodeToInteger(latVal, 27) / 600000.0);
                 }
                 break;
-
             default:
                 break;
             }
@@ -1672,48 +1667,42 @@ namespace VDES
         asmInfo.DAC = 413;
         asmInfo.FI = 7;
 
-        asmInfo.MRN = manager.DecodeToNumerical(16, 17);
-        asmInfo.mainDAC = static_cast<uint16_t>(manager.DecodeToNumerical(33, 10));
-        asmInfo.mainFI = static_cast<uint8_t>(manager.DecodeToNumerical(43, 6));
+        asmInfo.MRN = manager.DecodeToNumerical(16, 20);
+        asmInfo.mainDAC = static_cast<uint16_t>(manager.DecodeToNumerical(36, 10));
+        asmInfo.mainFI = static_cast<uint8_t>(manager.DecodeToNumerical(46, 6));
 
-        if (manager.GetBitsNumberToDecode() >= 104)
+        if (asmInfo.mainDAC == 412 && (asmInfo.mainFI == 42 || asmInfo.mainFI == 43 || asmInfo.mainFI == 44))
         {
-            Coordinate firstCoord;
-            firstCoord.SetLongitude(DecodeCoordinate(manager, 49, 28));
-            firstCoord.SetLatitude(DecodeCoordinate(manager, 77, 27));
-            asmInfo.coordinates.push_back(firstCoord);
-
-            uint32_t index = 104;
-            uint32_t surplusNum = (manager.GetBitsNumberToDecode() - index) / 47;
-            Coordinate prevCoord = firstCoord;
-
-            for (uint32_t i = 0; i < surplusNum; ++i)
+            uint32_t index = 52;
+            if (manager.GetBitsNumberToDecode() >= index)
             {
-                Coordinate nextCoord;
-                double lonInc = DecodeCoordinate(manager, index, 24);
-                double latInc = DecodeCoordinate(manager, index + 24, 23);
-                nextCoord.SetLongitude(prevCoord.GetLongitude() + lonInc);
-                nextCoord.SetLatitude(prevCoord.GetLatitude() + latInc);
-                asmInfo.coordinates.push_back(nextCoord);
-                prevCoord = nextCoord;
-                index += 47;
+                uint32_t surplusNum = (manager.GetBitsNumberToDecode() - index) / 47;
+                for (uint32_t i = 0; i < surplusNum; ++i)
+                {
+                    Coordinate delta;
+                    double lonInc = DecodeCoordinate(manager, index, 24);
+                    double latInc = DecodeCoordinate(manager, index + 24, 23);
+                    delta.SetLongitude(lonInc);
+                    delta.SetLatitude(latInc);
+                    asmInfo.coordinates.push_back(delta);
+                    index += 47;
+                }
             }
         }
-
         m_parent->asmNotify(std::make_shared<ASM_DAC_413_FI_7>(asmInfo));
     }
 
     void ASMManager::Impl::ParseASMDAC413FI8(const AISBitsManager &manager)
     {
         ASM_DAC_413_FI_8 asmInfo;
-        asmInfo.DAC = 413;
-        asmInfo.FI = 8;
 
-        asmInfo.MRN = manager.DecodeToNumerical(16, 17);
-        asmInfo.mainDAC = static_cast<uint16_t>(manager.DecodeToNumerical(33, 10));
-        asmInfo.mainFI = static_cast<uint8_t>(manager.DecodeToNumerical(43, 6));
-        asmInfo.encodingType = static_cast<uint8_t>(manager.DecodeToNumerical(49, 2));
-        asmInfo.textLength = static_cast<uint16_t>(manager.DecodeToNumerical(51, 11));
+        asmInfo.DAC          = 413;
+        asmInfo.FI           = 8;
+        asmInfo.MRN          = manager.DecodeToNumerical(16, 20);
+        asmInfo.mainDAC      = static_cast<uint16_t>(manager.DecodeToNumerical(36, 10));
+        asmInfo.mainFI       = static_cast<uint8_t>(manager.DecodeToNumerical(46, 6));
+        asmInfo.encodingType = static_cast<uint8_t>(manager.DecodeToNumerical(52, 2));
+        asmInfo.textLength   = static_cast<uint16_t>(manager.DecodeToNumerical(54, 11));
 
         uint32_t bitNum = 0;
         int decodeDAC = 413;
@@ -1737,13 +1726,13 @@ namespace VDES
             decodeFI = 2;
         }
 
-        if (bitNum > 0 && manager.GetBitsNumberToDecode() >= 62 + bitNum)
+        if (bitNum > 0 && manager.GetBitsNumberToDecode() >= 65 + bitNum)
         {
-            auto text = manager.DecodeToString(62, bitNum, decodeDAC, decodeFI);
-            UtilityInterface::RemoveTailCharacter(text, '@');
-            asmInfo.description = text;
+            auto textGBK = manager.DecodeToString(65, bitNum, decodeDAC, decodeFI);
+            UtilityInterface::RemoveTailCharacter(textGBK, '@');
+            auto textUTF8 = UtilityInterface::GBKToUTF8(textGBK);
+            asmInfo.description = textUTF8;
         }
-
         m_parent->asmNotify(std::make_shared<ASM_DAC_413_FI_8>(asmInfo));
     }
 

@@ -532,7 +532,6 @@ static void GenerateDAC_412_FI_29(void)
 	}
 }
 
-
 static std::vector<std::string> GenerateDAC_412_FI_30(void)
 {
 	VDES::AISBitsManager bitsManager;
@@ -1994,8 +1993,8 @@ static std::vector<std::string> GenerateDAC_413_FI_8(uint32_t mrn, uint16_t main
 	// FI (6 bits) = 8
 	bitsManager.Encode(8, 6);
 
-	// MRN (17 bits)
-	bitsManager.Encode(mrn & 0x1FFFF, 17);
+	// MRN (20 bits)
+	bitsManager.Encode(mrn, 20);
 	// mainDAC (10 bits)
 	bitsManager.Encode(mainDAC & 0x3FF, 10);
 	// mainFI (6 bits)
@@ -2028,6 +2027,61 @@ static std::vector<std::string> GenerateDAC_413_FI_8(uint32_t mrn, uint16_t main
 		auto iter = map6Bit.find(upperC);
 		uint32_t code = (iter != map6Bit.end()) ? iter->second : 32;
 		bitsManager.Encode(code, 6);
+	}
+
+	auto bitsNum = bitsManager.GetBitsNumberToDecode();
+	auto spareBits = 8 - (bitsNum % 8);
+	if (spareBits < 8)
+	{
+		bitsManager.Encode(0, spareBits);
+	}
+
+	auto vdms = bitsManager.BuildPacket();
+	std::vector<std::string> results;
+	for (auto &vdm : vdms)
+	{
+		results.push_back(vdm + "\r\n");
+	}
+	return results;
+}
+
+static std::vector<std::string> GenerateDAC_413_FI_7(uint32_t mrn, uint16_t mainDAC, uint8_t mainFI, const std::vector<VDES::Coordinate> &deltas)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID (6 bits) = 8
+	bitsManager.Encode(8, 6);
+	// Repeat indicator (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// Source ID (30 bits) = 4123001
+	bitsManager.Encode(4123001, 30);
+	// Spare (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// DAC (10 bits) = 413
+	bitsManager.Encode(413, 10);
+	// FI (6 bits) = 7
+	bitsManager.Encode(7, 6);
+
+	// MRN (20 bits)
+	bitsManager.Encode(mrn, 20);
+	// mainDAC (10 bits)
+	bitsManager.Encode(mainDAC, 10);
+	// mainFI (6 bits)
+	bitsManager.Encode(mainFI, 6);
+
+	if (mainDAC == 412 && (mainFI == 42 || mainFI == 43 || mainFI == 44))
+	{
+		for (const auto &delta : deltas)
+		{
+			int32_t lonInc = static_cast<int32_t>(round(delta.GetLongitude() * 600000.0));
+			int32_t latInc = static_cast<int32_t>(round(delta.GetLatitude() * 600000.0));
+
+			uint32_t compLon = VDES::UtilityInterface::ConvertIntegerToComplementCode(lonInc, 24);
+			uint32_t compLat = VDES::UtilityInterface::ConvertIntegerToComplementCode(latInc, 23);
+
+			bitsManager.Encode(compLon, 24);
+			bitsManager.Encode(compLat, 23);
+		}
 	}
 
 	auto bitsNum = bitsManager.GetBitsNumberToDecode();
@@ -2125,6 +2179,35 @@ static std::vector<std::string> GenerateDAC_413_FI_10(uint16_t targetDAC, uint8_
 	return results;
 }
 
+static void NotifyHandle(const VDES::VDESManager::EventType eventType, const int retCode)
+{
+	auto &vdesManager = VDES::VDESManager::GetInstance();
+	
+	if (eventType == VDES::VDESManager::EventType::ASM_ATON_DYNAMICS)
+	{
+		auto dynamics = vdesManager.GetAtoNDynamics(0, 100);
+		int a;
+		a = 10;
+	}
+	else if (eventType == VDES::VDESManager::EventType::ASM_CHANNEL_CENTERLINE)
+	{
+		auto infos = vdesManager.GetChannelCenterlines(0, 100);
+		int a;
+		a = 10;
+	}
+	else if (eventType == VDES::VDESManager::EventType::ASM_CHANNEL_BOUNDARY)
+	{
+		auto infos = vdesManager.GetChannelBoundaries(0, 100);
+		int a;
+		a = 10;
+	}
+	else if (eventType == VDES::VDESManager::EventType::MSI_MILITARY_ACTIVITY)
+	{
+		auto infos = vdesManager.GetMilitaryActivitys(0, 100);
+		int a;
+		a = 10;
+	}
+}
 
 int main(void)
 {
@@ -2163,7 +2246,35 @@ int main(void)
 
 	VDES::ConfigureManager::GetInstance().SetStoragePath(".");
 	vdesManager.Initialize();
-	vdesManager.EmptyDatabase();
+	//vdesManager.EmptyDatabase();
+	vdesManager.notifyEvent.append(NotifyHandle);
+
+	auto infos = vdesManager.GetMarineMeteorologyFCSTAreas(0, 100);
+	if (!infos.empty())
+	{
+		std::vector<uint32_t> dataIDs;
+		//dataIDs.push_back(infos.at(0).dataID);
+		//vdesManager.DeleteMarineMeteorologyFCSTAreas(dataIDs);
+	}
+#if 0
+	VDES::RouteRecommendationRequest request;
+	request.grossTonnage = 10000;
+	request.maxStaticDraft = 23.0;
+	request.cargoType = 2;
+	request.month = 7;
+	request.day = 12;
+	request.hour = 2;
+	request.minute = 0;
+	request.startCoordinate.SetLatitude(35.912496);
+	request.startCoordinate.SetLongitude(122.913825);
+	request.destCoordinate.SetLatitude(27.2832616666666667);
+	request.destCoordinate.SetLongitude(124.33780);
+	auto ret = vdesManager.SendRouteRecommendationRequest(request);
+#endif
+
+	auto info = vdesManager.GetChannelCenterlines(0, 100);
+	int b;
+	b = 100;
 #if 0
 	// Parse new standard early warning messages (FI=31)
 	std::cout << "\n=== Testing DAC=412, FI=31 (Warnings) ===" << std::endl;
@@ -2570,6 +2681,8 @@ int main(void)
 		//"$AIASM,1782891172,1,1,,1,2,0,666666666,,Iiq1P1bVB52Uhg9H37Pj80,4*2F\r\n",
 		// 海洋气象环境预警 DAC = 412, FI = 31
 		//"$AIASM,1783406998,1,1,,1,2,0,666666666,,IiuT=i003VD0qh0>Q@0:,0*01\r\n",
+		//"$AIASM,1783768074,1,1,,1,2,0,666666666,,IiuD=g0@Q3Kp=q@o051T=hP0=k:0Lp07@p04P0,4*2A\r\n",
+		//"$AIASM,1783406998,1,1,,1,2,0,666666666,,IiuT=i003VD0qh0>Q@0:,0*01\r\n",
 		//"$AIASM,1783741085,1,1,,1,2,0,666666666,,IiuD=g0@Q3Kp=q@o0;QT=hP0=k:0Lp07@p04P0,4*41\r\n",
 		//"$AIASM,1783741063,1,1,,2,2,0,666666666,,Iitl=bP8@nd1E3JpUT=d3g@nj0=k:0Lp07@p2mP,2*5D\r\n",
 		//"$AIASM,1783740907,1,1,,1,2,0,666666666,,IitT=`0E@nR1Q3J@U4=aSi@n`05k:0Lp07@p04P,2*33\r\n",
@@ -2592,7 +2705,21 @@ int main(void)
 		//"$AIASM,1782977859,1,1,,1,2,0,666666666,,Ij31jnpg7mL;jFG2t<R0,0*23\r\n",
 		//"$AIASM,1782977882,1,1,,1,2,0,666666666,,Ij11jnpg?eL;jFG2t<R0,0*27\r\n",
 		// 航标动态（非AIS) DAC = 412, FI = 33
-		"$AIASM,1783749926,1,1,,1,2,0,666666666,,Ij480I@j6a0B5Rq5Q@@Ra@01V38JPP8F;S;634U40P0,2*25\r\n",
+		//"$AIASM,1783836671,2,1,2,1,2,0,666666666,,Ij4@2=hj<7864>lQ@170I63Rp27HM00STlS1j1Q1J6t0Al6AP0GhQgG>08s3,0*17\r\n",
+		//"$AIASM,,2,2,2,1,,0,666666666,,8h0;p@oQ404N1TH05t8KkA1P,5*04\r\n",
+		//"$AIASM,1783831989,1,1,,2,2,0,666666666,,Ij480I@j6a0B5Rq5Q@@Ra@01V38JPP8F;S;634U40P0,2*23\r\n",
+		//"$AIASM,1783764815,1,1,,2,2,0,666666666,,Ij480I@j6a0B5Rq5Q@@Ra@01V38JPP8F;S;634U40P0,2*28\r\n",
+		//"$AIASM,1783743301,1,1,,1,2,0,666666666,,Ij5p0GAm4BMH038bA`PEns@4EE1P:tH>10,4*57\r\n",
+		//"$AIASM,1783759233,1,1,,2,2,0,666666666,,Ij5h07im;6MJiS8b7oPEns@00@3bN<roS6ADnk0csAp2,0*76\r\n",
+		//"$AIASM,1783743292,1,1,,1,2,0,666666666,,Ij5h07im;6MH038b7oPEns@00@3bN<rh06ADnk0csAp2,0*2A\r\n",
+		//"$AIASM,1783749982,1,1,,1,2,0,666666666,,Ij5@00A5?dQ2etl0P0,4*79\r\n",
+		//"$AIASM,1783749975,1,1,,1,2,0,666666666,,Ij584lPj:umN4PI20H0,2*37\r\n",
+		//"$AIASM,1783749966,1,1,,2,2,0,666666666,,Ij50050j:vqL4P@fiPj<P05@j:umN4PI21@D@`05Pj:wrB4P8riQ2D1P,0*3C\r\n",
+		//"$AIASM,1783749958,1,1,,2,2,0,666666666,,Ij4gwwi:Wkp<0;B2t?ww0VA1UIPbcLPOwu2<R3io1EIE@wwp6I49Hr2bqP08,0*37\r\n",
+		//"$AIASM,1783749951,1,1,,2,2,0,666666666,,Ij4P1F@j6r9t5Rb9BQfVj1Hbit8,2*1D\r\n",
+		//"$AIASM,1783756370,2,1,7,1,2,0,666666666,,Ij4@2=hj<7864>lQ@170I63Rp27HM00STlS1j1Q1J6t0Al6AP0GhQgG>08s3,0*1F\r\n",
+		//"$AIASM,,2,2,7,1,,0,666666666,,8h0;p@oQ404N1TH05t8KkA1P,5*01\r\n",
+		//"$AIASM,1783749926,1,1,,1,2,0,666666666,,Ij480I@j6a0B5Rq5Q@@Ra@01V38JPP8F;S;634U40P0,2*25\r\n",
 		//"$AIASM,1782978051,1,1,,1,2,0,666666666,,IlBNC2`TQrE9r?saRjIwc9dwHCum<Vt?Aw9N?ed,2*2C\r\n",
 		//"$AIASM,1782978012,1,1,,2,2,0,666666666,,Ij4Gmr40IpDHHEP8o`80@14GP0039665H0000008008D,0*39\r\n",
 		//"$AIASM,1782978015,1,1,,1,2,0,666666666,,IlBNC2`TQrE9r?saRjIwc9w43O?=bMtVssgmTSV5Ad>WtI>LHVvsnn0,2*04\r\n",
@@ -2616,6 +2743,9 @@ int main(void)
 		//"$AIASM,1783253640,1,1,,2,2,0,666666666,,Ij<=@b6:kDdLDu06hww`0HOw6Os4ww?wTh06f8R:80,4*44\r\n",
 		// 桥梁 DAC = 412, FI = 41
 		//"$AIASM,1783259551,1,1,,1,2,0,666666666,,IjT0?H>7JTP021>@p3@gH0I05@jP,0*5C\r\n",
+		// 航道中线 DAC = 412, FI = 42
+		//"$AIASM,1783849837,2,1,2,2,2,0,666666666,,Ij`1ulRVuo1K9elwwU;wn<f071qwtO`0>qswflOwqC?vluwwK9OvR4OwloOv,0*05\r\n",
+		//"$AIASM,,2,2,2,2,,0,666666666,,0n0101wtuB03LIwuK007RKwtwP0CFh05LC80,0*3D\r\n",
 		// 航道边线左侧 DAC = 412, FI = 43
 		//"$AIASM,1783259645,1,1,,2,2,0,666666666,,Ijd1sPRc?@1>g400rV0v`P01LiQpbN06@I3k;d0,2*4F\r\n",
 		// 航线推荐 DAC = 412, FI = 46
@@ -2627,7 +2757,10 @@ int main(void)
 		// 前端提示文字 DAC = 413, FI = 5
 		//"$AIASM,1783260323,1,1,,1,2,0,666666666,,IlD9@P4L72TT04T50`2p4T>4SPp,2*1C\r\n",
 		//"$AIASM,1783063312,1,1,,1,2,0,666666666,,IlD9Hs2rMSdqJrgoa=HwRWj0,0*62\r\n",
-
+		// 信息补充片段，DAC = 413, FI = 07
+		//"$AIASM,1783849836,1,1,,2,2,0,666666666,,IlL0?fIj`04At081@09cH020@06e?wPOwwlmOv<B,0*61\r\n",
+		// 描述性文本补充片段，DAC = 413, FI = 08
+		"$AIASM,1783852782,1,1,,1,2,0,666666666,,IlP0?fIjb1aDMk2kjMv0,0*16\r\n",
 		//"$AIASM,1782890906,1,1,,1,2,0,666666666,,Iii00003`Wv`L0drb08Wv`L0drb08Wv`L0drb80,2*15\r\n",
 		//"$AIASM,1782890930,1,1,,1,2,0,666666666,,IijqPqK00008L0dp0<0,2*76\r\n",
 		//"$AIASM,1782890950,1,1,,2,2,0,666666666,,Iii1PqK3`Ww8L?@rb40,2*30\r\n",
@@ -3060,8 +3193,7 @@ int main(void)
 	std::cout << "Parsed " << netSounders.size() << " net sounders (FI=45):" << std::endl;
 	for (const auto &ns : netSounders)
 	{
-		std::cout << "  MRN: " << ns.MRN
-				  << ", Fragment: " << (int)ns.fragment
+		std::cout << "  MRN: " << (ns.nets.empty() ? 0 : ns.nets[0].MRN)
 				  << ", Type: " << (int)ns.type
 				  << ", Continous: " << (int)ns.isContinous
 				  << ", Nets Count: " << ns.nets.size()
@@ -3420,7 +3552,7 @@ int main(void)
 	std::cout << "Parsed and saved Net Sounders count: " << netSounders.size() << std::endl;
 	for (const auto &ns : netSounders)
 	{
-		std::cout << "  MRN (First): " << ns.MRN
+		std::cout << "  MRN (First): " << (ns.nets.empty() ? 0 : ns.nets[0].MRN)
 				  << ", Type: " << (int)ns.type
 				  << ", Continuous: " << (int)ns.isContinous
 				  << ", Nets Count: " << ns.nets.size()
@@ -3513,8 +3645,6 @@ int main(void)
 	});
 
 	VDES::NetSounder ownNetSounder;
-	ownNetSounder.MRN = 12345;
-	ownNetSounder.fragment = 0;
 	ownNetSounder.type = 3;
 	ownNetSounder.isContinous = true;
 	ownNetSounder.timestamp = VDES::UtilityInterface::GetCurrentTimeStamp();
@@ -3547,9 +3677,16 @@ int main(void)
 	auto dbNets = vdesManager.GetNetSounders(0, 100);
 	bool found = false;
 	for (const auto &n : dbNets) {
-		if (n.MRN == 12345) {
+		bool matchMRN = false;
+		for (const auto &net : n.nets) {
+			if (net.MRN == 12345) {
+				matchMRN = true;
+				break;
+			}
+		}
+		if (matchMRN) {
 			found = true;
-			std::cout << "Persisted Net Sounder found in DB. MRN: " << n.MRN 
+			std::cout << "Persisted Net Sounder found in DB. First MRN: 12345" 
 					  << ", Type: " << (int)n.type 
 					  << ", Continuous: " << n.isContinous 
 					  << ", IsOwnShip: " << n.isOwn 
@@ -3559,7 +3696,8 @@ int main(void)
 				std::cout << "    Net " << i << ": MRN=" << n.nets[i].MRN 
 						  << ", FragmentDesc=" << (int)n.nets[i].fragmentDesc 
 						  << ", Lat=" << n.nets[i].latitude 
-						  << ", Lon=" << n.nets[i].longitude << std::endl;
+						  << ", Lon=" << n.nets[i].longitude 
+						  << ", Desc=\"" << n.nets[i].description << "\"" << std::endl;
 			}
 		}
 	}
@@ -3581,10 +3719,17 @@ int main(void)
 	dbNets = vdesManager.GetNetSounders(0, 100);
 	found = false;
 	for (const auto &n : dbNets) {
-		if (n.MRN == 12345) {
+		bool matchMRN = false;
+		for (const auto &net : n.nets) {
+			if (net.MRN == 12345) {
+				matchMRN = true;
+				break;
+			}
+		}
+		if (matchMRN) {
 			found = true;
-			std::cout << "Persisted Net Sounder after update: MRN: " << n.MRN 
-					  << ", Desc: \"" << n.description << "\"" << std::endl;
+			std::cout << "Persisted Net Sounder after update: First MRN: 12345" 
+					  << ", Net 12345 Desc: \"" << n.nets[0].description << "\"" << std::endl;
 		}
 	}
 	std::cout << "==========================================================\n" << std::endl;
@@ -3958,7 +4103,7 @@ int main(void)
 	std::cout << "NetSounders count in DB before revocation: " << beforeNS.size() << std::endl;
 	for (const auto &ns : beforeNS)
 	{
-		std::cout << "  NetSounder ID: " << ns.dataID << ", MRN: " << ns.MRN << std::endl;
+		std::cout << "  NetSounder ID: " << ns.dataID << ", MRN: " << (ns.nets.empty() ? 0 : ns.nets[0].MRN) << std::endl;
 	}
 
 	// Verify AtoNDynamics exists in DB before revocation
@@ -3992,7 +4137,7 @@ int main(void)
 	std::cout << "NetSounders count in DB after revocation: " << afterNS.size() << std::endl;
 	for (const auto &ns : afterNS)
 	{
-		std::cout << "  Remaining NetSounder ID: " << ns.dataID << ", MRN: " << ns.MRN << std::endl;
+		std::cout << "  Remaining NetSounder ID: " << ns.dataID << ", MRN: " << (ns.nets.empty() ? 0 : ns.nets[0].MRN) << std::endl;
 	}
 
 	// Verify AtoNDynamics has been revoked/deleted
@@ -4034,7 +4179,7 @@ int main(void)
 	std::cout << "NetSounders count before range revocation: " << beforeRangeNS.size() << std::endl;
 	for (const auto &ns : beforeRangeNS)
 	{
-		std::cout << "  NetSounder ID: " << ns.dataID << ", MRN: " << ns.MRN << std::endl;
+		std::cout << "  NetSounder ID: " << ns.dataID << ", MRN: " << (ns.nets.empty() ? 0 : ns.nets[0].MRN) << std::endl;
 	}
 
 	// Verify AtoNDynamics count in DB before range revocation
@@ -4069,7 +4214,7 @@ int main(void)
 	std::cout << "NetSounders count after range revocation: " << afterRangeNS.size() << std::endl;
 	for (const auto &ns : afterRangeNS)
 	{
-		std::cout << "  Remaining NetSounder ID: " << ns.dataID << ", MRN: " << ns.MRN << std::endl;
+		std::cout << "  Remaining NetSounder ID: " << ns.dataID << ", MRN: " << (ns.nets.empty() ? 0 : ns.nets[0].MRN) << std::endl;
 	}
 
 	// Verify AtoNDynamics count in DB after range revocation
@@ -4216,6 +4361,155 @@ int main(void)
 	{
 		std::cout << "  Boundary MRN: " << b.MRN << ", Description: '" << b.description << "'" << std::endl;
 	}
+
+	// Verify Channel Centerlines Supplementary Coordinates (FI 7)
+	std::cout << "\n=== Verification: Channel Centerlines Supplementary Coordinates (FI 7) ===" << std::endl;
+	
+	// Query current coordinates of centerline MRN=301
+	auto centerlineBeforeFI7 = vdesManager.GetChannelCenterlines(0, 100);
+	for (const auto &c : centerlineBeforeFI7)
+	{
+		if (c.MRN == 301)
+		{
+			std::cout << "Centerline 301 coordinate count before FI 7: " << c.coordinates.size() << std::endl;
+			for (size_t i = 0; i < c.coordinates.size(); ++i)
+			{
+				std::cout << "  Pt " << i << ": Lat=" << c.coordinates[i].GetLatitude() << ", Lon=" << c.coordinates[i].GetLongitude() << std::endl;
+			}
+		}
+	}
+
+	// Prepare delta coordinates for the supplement
+	std::vector<VDES::Coordinate> deltas;
+	deltas.push_back(VDES::Coordinate(-0.02, 0.05)); // Lat, Lon
+	deltas.push_back(VDES::Coordinate(0.01, 0.02));
+
+	std::cout << "Injecting FI 7 supplementary coordinates for Centerline MRN=301..." << std::endl;
+	auto centerlineFI7VDM = GenerateDAC_413_FI_7(301, 412, 42, deltas);
+	for (const auto &vdm : centerlineFI7VDM)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Query again and verify that coordinates have been successfully appended and reconstructed
+	auto centerlineAfterFI7 = vdesManager.GetChannelCenterlines(0, 100);
+	for (const auto &c : centerlineAfterFI7)
+	{
+		if (c.MRN == 301)
+		{
+			std::cout << "Centerline 301 coordinate count after FI 7: " << c.coordinates.size() << std::endl;
+			for (size_t i = 0; i < c.coordinates.size(); ++i)
+			{
+				std::cout << "  Pt " << i << ": Lat=" << c.coordinates[i].GetLatitude() << ", Lon=" << c.coordinates[i].GetLongitude() << std::endl;
+			}
+		}
+	}
+	std::cout << "================================================================================" << std::endl;
+
+	// Verify Channel Boundaries Supplementary Coordinates (FI 7)
+	std::cout << "\n=== Verification: Channel Boundaries Supplementary Coordinates (FI 7) ===" << std::endl;
+	
+	// Inject initial right side boundary message (FI=44) for MRN=302
+	auto boundariesRightVDM2 = GenerateDAC_412_FI_43(1);
+	for (const auto &vdm : boundariesRightVDM2)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Query current coordinates of boundary MRN=302
+	auto boundaryBeforeFI7 = vdesManager.GetChannelBoundaries(0, 100);
+	for (const auto &b : boundaryBeforeFI7)
+	{
+		if (b.MRN == 302)
+		{
+			std::cout << "Boundary 302 left coordinate count before FI 7: " << b.leftCoordinates.size() << std::endl;
+			std::cout << "Boundary 302 right coordinate count before FI 7: " << b.rightCoordinates.size() << std::endl;
+		}
+	}
+
+	// Prepare delta coordinates for left boundary (FI=43) supplement
+	std::vector<VDES::Coordinate> leftDeltas;
+	leftDeltas.push_back(VDES::Coordinate(-0.01, 0.03));
+	leftDeltas.push_back(VDES::Coordinate(0.02, 0.04));
+
+	std::cout << "Injecting FI 7 supplementary coordinates for Left Boundary MRN=302..." << std::endl;
+	auto leftBoundaryFI7VDM = GenerateDAC_413_FI_7(302, 412, 43, leftDeltas);
+	for (const auto &vdm : leftBoundaryFI7VDM)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Prepare delta coordinates for right boundary (FI=44) supplement
+	std::vector<VDES::Coordinate> rightDeltas;
+	rightDeltas.push_back(VDES::Coordinate(0.03, -0.01));
+	rightDeltas.push_back(VDES::Coordinate(-0.02, 0.05));
+
+	std::cout << "Injecting FI 7 supplementary coordinates for Right Boundary MRN=302..." << std::endl;
+	auto rightBoundaryFI7VDM = GenerateDAC_413_FI_7(302, 412, 44, rightDeltas);
+	for (const auto &vdm : rightBoundaryFI7VDM)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Query again and verify that left/right coordinates have been successfully appended and reconstructed
+	auto boundaryAfterFI7 = vdesManager.GetChannelBoundaries(0, 100);
+	for (const auto &b : boundaryAfterFI7)
+	{
+		if (b.MRN == 302)
+		{
+			std::cout << "Boundary 302 left coordinate count after FI 7: " << b.leftCoordinates.size() << std::endl;
+			for (size_t i = 0; i < b.leftCoordinates.size(); ++i)
+			{
+				std::cout << "  Left Pt " << i << ": Lat=" << b.leftCoordinates[i].GetLatitude() << ", Lon=" << b.leftCoordinates[i].GetLongitude() << std::endl;
+			}
+			std::cout << "Boundary 302 right coordinate count after FI 7: " << b.rightCoordinates.size() << std::endl;
+			for (size_t i = 0; i < b.rightCoordinates.size(); ++i)
+			{
+				std::cout << "  Right Pt " << i << ": Lat=" << b.rightCoordinates[i].GetLatitude() << ", Lon=" << b.rightCoordinates[i].GetLongitude() << std::endl;
+			}
+		}
+	}
+	std::cout << "================================================================================" << std::endl;
+
+	// Verify Military Activity Supplementary Description (FI 8)
+	std::cout << "\n=== Verification: Military Activity Supplementary Description (FI 8) ===" << std::endl;
+
+	// Populate database with mock Military Activity message (MRN=12345, geometryType=0)
+	std::cout << "Injecting mock Military Activity message (MRN=12345)..." << std::endl;
+	auto militaryVDM = GenerateDAC_412_FI_38(0);
+	for (const auto &vdm : militaryVDM)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Verify before supplement
+	auto activitiesBefore = vdesManager.GetMilitaryActivitys(0, 100);
+	for (const auto &a : activitiesBefore)
+	{
+		if (a.dataID == 12345)
+		{
+			std::cout << "Military Activity 12345 description before FI 8: '" << a.description << "'" << std::endl;
+		}
+	}
+
+	// Inject FI 8 text description for Military Activity MRN=12345
+	std::cout << "Injecting FI 8 text description for Military Activity MRN=12345..." << std::endl;
+	auto militaryFI8VDM = GenerateDAC_413_FI_8(12345, 412, 38, "MILITARY ACTIVITY SUPPLEMENTARY TEXT DESCRIPTION");
+	for (const auto &vdm : militaryFI8VDM)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Verify after supplement
+	auto activitiesAfter = vdesManager.GetMilitaryActivitys(0, 100);
+	for (const auto &a : activitiesAfter)
+	{
+		if (a.dataID == 12345)
+		{
+			std::cout << "Military Activity 12345 description after FI 8: '" << a.description << "'" << std::endl;
+		}
+	}
+	std::cout << "================================================================================" << std::endl;
 
 	// Verify Marine Meteorology and Environmental Warnings (FI 31)
 	std::cout << "\n=== Verification: Marine Meteorology & Environmental Warnings (FI=31) ===" << std::endl;
