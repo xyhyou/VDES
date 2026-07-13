@@ -887,15 +887,15 @@ namespace VDES
             uint16_t centerPressure    = 403;
         };
 
-        uint32_t MRN         = 0;
-        uint8_t  fragment    = 0;
+        uint32_t MRN = 0;
+        uint8_t  fragment = 0;
         std::vector<PathPoint> pathPoints;
 
-        uint64_t timestampPublished = 0;
-        uint64_t timestampStart     = 0;
-        uint64_t timestampEnd       = 0;
-        uint8_t  warningDuration    = 0;
-        uint8_t  infoSource         = 0;
+        uint64_t    timestampPublished = 0;
+        uint64_t    timestampStart     = 0;
+        uint64_t    timestampEnd       = 0;
+        uint8_t     warningDuration    = 0;
+        uint8_t     infoSource         = 0;
         std::string description;
     };
 
@@ -904,16 +904,15 @@ namespace VDES
      */
     struct MewGale : ASMAttribute
     {
-        uint32_t MRN          = 0;
-        uint8_t  fragment     = 0;
-        uint8_t  areaCode     = 0;
-        uint8_t  warningLevel = 0;
-
-        uint64_t timestampPublished = 0;
-        uint64_t timestampStart     = 0;
-        uint64_t timestampEnd       = 0;
-        uint8_t  warningDuration    = 0;
-        uint8_t  infoSource         = 0;
+        uint32_t    MRN                = 0;
+        uint8_t     fragment           = 0;
+        uint8_t     areaCode           = 0;
+        uint8_t     warningLevel       = 0;
+        uint64_t    timestampPublished = 0;
+        uint64_t    timestampStart     = 0;
+        uint64_t    timestampEnd       = 0;
+        uint8_t     warningDuration    = 0;
+        uint8_t     infoSource         = 0;
         std::string description;
     };
 
@@ -1146,7 +1145,6 @@ namespace VDES
         uint64_t                timestampSent = 0;    // Sent timestamp
         uint32_t                sequenceNum = 0;      // Rolling sequence number
         int32_t                 sendStatus = -1;      // Send status (-1: pending; 0-8: AMK ack)
-        uint32_t                MRN = 0;              // Range: 1~131071, 0 is default
         std::vector<Coordinate> coordinates;          // Limit: max 10 points
         
         bool                    windSpeed = false;
@@ -1161,11 +1159,6 @@ namespace VDES
 
         bool Validate(std::string &errorMsg) const
         {
-            if (MRN > 131071)
-            {
-                errorMsg = "MRN exceeds maximum value 131071.";
-                return false;
-            }
             if (coordinates.empty())
             {
                 errorMsg = "Coordinates list cannot be empty.";
@@ -1187,6 +1180,7 @@ namespace VDES
             return true;
         }
     };
+    
     /**
      * @brief : Hydrometeorological Response DTO (DAC 412, FI 49)
      */
@@ -1194,6 +1188,8 @@ namespace VDES
     {
         struct PointForecast
         {
+            double   latitude      = 0.0;
+            double   longitude     = 0.0;
             uint8_t  windSpeed     = 63;
             uint16_t windDirection = 360;
             uint8_t  visibility    = 255;
@@ -1202,18 +1198,18 @@ namespace VDES
             uint8_t  swellHeight   = 255;
         };
 
-        uint32_t                    MRN = 0;
-        uint64_t                    forecastTime = 0;
-        
-        bool                        hasWindSpeed = false;
-        bool                        hasWindDirection = false;
-        bool                        hasVisibility = false;
-        bool                        hasWaveHeight = false;
-        bool                        hasWaveDirection = false;
-        bool                        hasSwellHeight = false;
+        uint32_t MRN              = 0;
+        uint64_t forecastTime     = 0;
+        bool     hasWindSpeed     = false;
+        bool     hasWindDirection = false;
+        bool     hasVisibility    = false;
+        bool     hasWaveHeight    = false;
+        bool     hasWaveDirection = false;
+        bool     hasSwellHeight   = false;
 
         std::vector<PointForecast>  points;
     };
+
     /**
      * @brief : Extended own vessel static and voyage info
      */

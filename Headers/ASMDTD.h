@@ -554,6 +554,9 @@ namespace VDES
         uint16_t                mainDAC = 0;
         uint8_t                 mainFI = 0;
         std::vector<Coordinate> coordinates;
+        std::vector<ASM_DAC_412_FI_31::TropicalCyclonePathPoint> cyclonePathPoints;
+        std::vector<ASM_DAC_412_FI_31::GeneralWarningElement> galeWarnings;
+        std::vector<ASM_DAC_412_FI_31::StormSurgeElement> stormSurges;
     };
 
     /**

@@ -316,6 +316,7 @@ namespace VDES
 
     /**
      * Maritime Safety Information - Military activity
+     * DAC = 412, FI = 38
      */
     struct MSIMilitaryActivity : BusinessAttribute
     {
@@ -349,6 +350,8 @@ namespace VDES
         * 5 - 15 = reserved
         */
         uint8_t cautionCode = 0;
+
+        std::string description;
     };
 
     /**
@@ -820,10 +823,9 @@ namespace VDES
             double   latitude = 0.0;
             double   longitude = 0.0;
             uint8_t  fragmentDesc = 0;
+            std::string description;
         };
 
-        uint32_t             MRN = 0;
-        uint8_t              fragment = 0;
         uint8_t              type = 0;
         bool                 isContinous = 0;
         std::vector<NetInfo> nets;
@@ -885,15 +887,15 @@ namespace VDES
             uint16_t centerPressure    = 403;
         };
 
-        uint32_t MRN         = 0;
-        uint8_t  fragment    = 0;
+        uint32_t MRN = 0;
+        uint8_t  fragment = 0;
         std::vector<PathPoint> pathPoints;
 
-        uint64_t timestampPublished = 0;
-        uint64_t timestampStart     = 0;
-        uint64_t timestampEnd       = 0;
-        uint8_t  warningDuration    = 0;
-        uint8_t  infoSource         = 0;
+        uint64_t    timestampPublished = 0;
+        uint64_t    timestampStart     = 0;
+        uint64_t    timestampEnd       = 0;
+        uint8_t     warningDuration    = 0;
+        uint8_t     infoSource         = 0;
         std::string description;
     };
 
@@ -902,16 +904,15 @@ namespace VDES
      */
     struct MewGale : ASMAttribute
     {
-        uint32_t MRN          = 0;
-        uint8_t  fragment     = 0;
-        uint8_t  areaCode     = 0;
-        uint8_t  warningLevel = 0;
-
-        uint64_t timestampPublished = 0;
-        uint64_t timestampStart     = 0;
-        uint64_t timestampEnd       = 0;
-        uint8_t  warningDuration    = 0;
-        uint8_t  infoSource         = 0;
+        uint32_t    MRN                = 0;
+        uint8_t     fragment           = 0;
+        uint8_t     areaCode           = 0;
+        uint8_t     warningLevel       = 0;
+        uint64_t    timestampPublished = 0;
+        uint64_t    timestampStart     = 0;
+        uint64_t    timestampEnd       = 0;
+        uint8_t     warningDuration    = 0;
+        uint8_t     infoSource         = 0;
         std::string description;
     };
 
@@ -1044,12 +1045,9 @@ namespace VDES
             uint64_t timestampEnd   = 0;
         };
 
-        uint32_t             MRN        = 0;
-        uint8_t              fragment   = 0;
         uint8_t              status     = 0;
         uint8_t              precaution = 0;
         std::vector<Element> elements;
-        std::string          description;
     };
 
     /**

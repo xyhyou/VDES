@@ -1662,14 +1662,15 @@ static std::vector<std::string> GenerateDAC_412_FI_31(uint8_t warningType)
 	}
 	else if (warningType == 2 || warningType == 3 || warningType == 4)
 	{
+		uint32_t mrnBase = 200 + (warningType - 2) * 10;
 		// General Warnings
 		// Element 1
-		bitsManager.Encode(201, 17); // MRN
+		bitsManager.Encode(mrnBase + 1, 17); // MRN
 		bitsManager.Encode(1, 2); // Fragment Description
 		bitsManager.Encode(5, 7); // Sea Area Code
 		bitsManager.Encode(2, 2); // Warning Level
 		// Element 2
-		bitsManager.Encode(202, 17); // MRN
+		bitsManager.Encode(mrnBase + 2, 17); // MRN
 		bitsManager.Encode(0, 2); // Fragment Description
 		bitsManager.Encode(12, 7); // Sea Area Code
 		bitsManager.Encode(3, 2); // Warning Level
@@ -2100,6 +2101,255 @@ static std::vector<std::string> GenerateDAC_413_FI_7(uint32_t mrn, uint16_t main
 	return results;
 }
 
+static void EncodeTime16(VDES::AISBitsManager &bitsManager, uint64_t timestamp)
+{
+	tm timeUTC = { 0 };
+	timeUTC = *gmtime((time_t *)&timestamp);
+	bitsManager.Encode(timeUTC.tm_mday, 5);
+	bitsManager.Encode(timeUTC.tm_hour, 5);
+	bitsManager.Encode(timeUTC.tm_min, 6);
+}
+
+static std::vector<std::string> GenerateDAC_413_FI_7_Cyclone(uint32_t mrn, const std::vector<VDES::MewTropicalCyclone::PathPoint> &points)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID (6 bits) = 8
+	bitsManager.Encode(8, 6);
+	// Repeat indicator (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// Source ID (30 bits) = 4123001
+	bitsManager.Encode(4123001, 30);
+	// Spare (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// DAC (10 bits) = 413
+	bitsManager.Encode(413, 10);
+	// FI (6 bits) = 7
+	bitsManager.Encode(7, 6);
+
+	// MRN (20 bits)
+	bitsManager.Encode(mrn, 20);
+	// mainDAC (10 bits) = 412
+	bitsManager.Encode(412, 10);
+	// mainFI (6 bits) = 31
+	bitsManager.Encode(31, 6);
+
+	for (const auto &pt : points)
+	{
+		EncodeTime16(bitsManager, pt.timestamp);
+
+		int32_t lonInt = static_cast<int32_t>(round(pt.centerLongitude * 6000.0));
+		int32_t latInt = static_cast<int32_t>(round(pt.centerLatitude * 6000.0));
+		uint32_t compLon = VDES::UtilityInterface::ConvertIntegerToComplementCode(lonInt, 22);
+		uint32_t compLat = VDES::UtilityInterface::ConvertIntegerToComplementCode(latInt, 21);
+
+		bitsManager.Encode(compLon, 22);
+		bitsManager.Encode(compLat, 21);
+		bitsManager.Encode(pt.cycloneType, 3);
+		bitsManager.Encode(pt.radiusWindScale7, 10);
+		bitsManager.Encode(pt.radiusWindScale10, 8);
+		bitsManager.Encode(pt.radiusWindScale12, 7);
+		bitsManager.Encode(pt.moveSpeed, 6);
+		bitsManager.Encode(pt.moveDirection, 9);
+		bitsManager.Encode(pt.maxWindScale, 5);
+		bitsManager.Encode(pt.centerPressure, 9);
+	}
+
+	auto bitsNum = bitsManager.GetBitsNumberToDecode();
+	auto spareBits = 8 - (bitsNum % 8);
+	if (spareBits < 8)
+	{
+		bitsManager.Encode(0, spareBits);
+	}
+
+	auto vdms = bitsManager.BuildPacket();
+	std::vector<std::string> results;
+	for (auto &vdm : vdms)
+	{
+		results.push_back(vdm + "\r\n");
+	}
+	return results;
+}
+
+struct MockGeneralWarningElement
+{
+	uint32_t MRN = 0;
+	uint8_t  fragment = 0;
+	uint8_t  seaAreaCode = 0;
+	uint8_t  warningLevel = 0;
+};
+
+static std::vector<std::string> GenerateDAC_413_FI_7_Gale(uint32_t mrn, const std::vector<MockGeneralWarningElement> &warnings)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID (6 bits) = 8
+	bitsManager.Encode(8, 6);
+	// Repeat indicator (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// Source ID (30 bits) = 4123001
+	bitsManager.Encode(4123001, 30);
+	// Spare (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// DAC (10 bits) = 413
+	bitsManager.Encode(413, 10);
+	// FI (6 bits) = 7
+	bitsManager.Encode(7, 6);
+
+	// MRN (20 bits)
+	bitsManager.Encode(mrn, 20);
+	// mainDAC (10 bits) = 412
+	bitsManager.Encode(412, 10);
+	// mainFI (6 bits) = 31
+	bitsManager.Encode(31, 6);
+
+	for (const auto &w : warnings)
+	{
+		bitsManager.Encode(w.MRN, 17);
+		bitsManager.Encode(w.fragment, 2);
+		bitsManager.Encode(w.seaAreaCode, 7);
+		bitsManager.Encode(w.warningLevel, 2);
+	}
+
+	auto bitsNum = bitsManager.GetBitsNumberToDecode();
+	auto spareBits = 8 - (bitsNum % 8);
+	if (spareBits < 8)
+	{
+		bitsManager.Encode(0, spareBits);
+	}
+
+	auto vdms = bitsManager.BuildPacket();
+	std::vector<std::string> results;
+	for (auto &vdm : vdms)
+	{
+		results.push_back(vdm + "\r\n");
+	}
+	return results;
+}
+
+struct MockStormSurgeElement
+{
+	uint32_t MRN = 0;
+	uint8_t  fragment = 0;
+	uint8_t  cityCode = 0;
+	uint32_t surgeHeight = 0;
+	uint8_t  warningLevel = 0;
+};
+
+static std::vector<std::string> GenerateDAC_413_FI_7_Surge(uint32_t mrn, const std::vector<MockStormSurgeElement> &warnings)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID (6 bits) = 8
+	bitsManager.Encode(8, 6);
+	// Repeat indicator (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// Source ID (30 bits) = 4123001
+	bitsManager.Encode(4123001, 30);
+	// Spare (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// DAC (10 bits) = 413
+	bitsManager.Encode(413, 10);
+	// FI (6 bits) = 7
+	bitsManager.Encode(7, 6);
+
+	// MRN (20 bits)
+	bitsManager.Encode(mrn, 20);
+	// mainDAC (10 bits) = 412
+	bitsManager.Encode(412, 10);
+	// mainFI (6 bits) = 31
+	bitsManager.Encode(31, 6);
+
+	for (const auto &w : warnings)
+	{
+		bitsManager.Encode(w.MRN, 17);
+		bitsManager.Encode(w.fragment, 2);
+		bitsManager.Encode(w.cityCode, 6);
+		bitsManager.Encode(w.surgeHeight, 5);
+		bitsManager.Encode(w.warningLevel, 2);
+	}
+
+	auto bitsNum = bitsManager.GetBitsNumberToDecode();
+	auto spareBits = 8 - (bitsNum % 8);
+	if (spareBits < 8)
+	{
+		bitsManager.Encode(0, spareBits);
+	}
+
+	auto vdms = bitsManager.BuildPacket();
+	std::vector<std::string> results;
+	for (auto &vdm : vdms)
+	{
+		results.push_back(vdm + "\r\n");
+	}
+	return results;
+}
+
+static std::vector<std::string> GenerateDAC_412_FI_50(uint32_t destMmsi, uint32_t srcMmsi)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID (6 bits) = 6 (Addressed ASM)
+	bitsManager.Encode(6, 6);
+	// Repeat indicator (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// Source ID (30 bits) = srcMmsi
+	bitsManager.Encode(srcMmsi, 30);
+	// Sequence number (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// Destination ID (30 bits) = destMmsi
+	bitsManager.Encode(destMmsi, 30);
+	// Retransmit flag (1 bit) = 0
+	bitsManager.Encode(0, 1);
+	// Spare (1 bit) = 0
+	bitsManager.Encode(0, 1);
+
+	// DAC (10 bits) = 412
+	bitsManager.Encode(412, 10);
+	// FI (6 bits) = 50
+	bitsManager.Encode(50, 6);
+
+	// responseInfo (14 bits) = 0x3F (all 6 parameters enabled)
+	bitsManager.Encode(0x3F, 14);
+
+	// forecastTime (20 bits): month=7, day=13, hour=12, min=0
+	bitsManager.Encode(7, 4);
+	bitsManager.Encode(13, 5);
+	bitsManager.Encode(12, 5);
+	bitsManager.Encode(0, 6);
+
+	// Point 1 (for Coordinate 1)
+	bitsManager.Encode(10, 6);   // windSpeed
+	bitsManager.Encode(180, 9);  // windDirection
+	bitsManager.Encode(100, 8);  // visibility
+	bitsManager.Encode(20, 8);   // waveHeight
+	bitsManager.Encode(190, 9);  // waveDirection
+	bitsManager.Encode(15, 8);   // swellHeight
+
+	// Point 2 (for Coordinate 2)
+	bitsManager.Encode(12, 6);   // windSpeed
+	bitsManager.Encode(200, 9);  // windDirection
+	bitsManager.Encode(120, 8);  // visibility
+	bitsManager.Encode(25, 8);   // waveHeight
+	bitsManager.Encode(210, 9);  // waveDirection
+	bitsManager.Encode(18, 8);   // swellHeight
+
+	auto bitsNum = bitsManager.GetBitsNumberToDecode();
+	auto spareBits = 8 - (bitsNum % 8);
+	if (spareBits < 8)
+	{
+		bitsManager.Encode(0, spareBits);
+	}
+
+	auto vdms = bitsManager.BuildPacket();
+	std::vector<std::string> results;
+	for (auto &vdm : vdms)
+	{
+		results.push_back(vdm + "\r\n");
+	}
+	return results;
+}
+
 struct MockRevocationElement
 {
 	uint16_t dac;
@@ -2249,13 +2499,16 @@ int main(void)
 	//vdesManager.EmptyDatabase();
 	vdesManager.notifyEvent.append(NotifyHandle);
 
-	auto infos = vdesManager.GetMarineMeteorologyFCSTAreas(0, 100);
-	if (!infos.empty())
-	{
-		std::vector<uint32_t> dataIDs;
-		//dataIDs.push_back(infos.at(0).dataID);
-		//vdesManager.DeleteMarineMeteorologyFCSTAreas(dataIDs);
-	}
+	VDES::HydrometeorologyRequest hydroRequest;
+	hydroRequest.coordinates.push_back(VDES::Coordinate(38.720, 119.02));
+	hydroRequest.coordinates.push_back(VDES::Coordinate(38.65, 120.10));
+	hydroRequest.coordinates.push_back(VDES::Coordinate(38.525, 120.20));
+
+	hydroRequest.requestTime = VDES::UtilityInterface::GetCurrentTimeStamp();
+	hydroRequest.visibility = true;
+	hydroRequest.waveHeight = true;
+	hydroRequest.waveDirection = true;
+	vdesManager.SendHydrometeorologyRequest(hydroRequest);
 #if 0
 	VDES::RouteRecommendationRequest request;
 	request.grossTonnage = 10000;
@@ -2752,6 +3005,8 @@ int main(void)
 		//"$AIASM,1783646310,1,1,,1,4,0,666666666,210210210,Ijwi5M<<2LTwivS>P1`OP8da0?@T00,4*26\r\n",
 		//"$AIASM,1783646512,1,1,,2,4,0,666666666,210210210,IjtQ6JmP2KelP00003Fn000006ed7uSh0G<H00,4*72\r\n",
 		//"$AIASM,1783646310,1,1,,1,4,0,666666666,210210210,Ijwi5M<<2LTwivS>P1`OP8da0?@T00,4*26\r\n",
+		// 水文气象响应(岸基) DAC = 412, FI = 50
+		"$AIASM,1783858247,1,1,,1,4,0,666666666,210210210,Ik80LMr03hR5gt:F`NwSh0,4*1E\r\n",
 		// 中文短信 DAC = 413, FI = 04
 		//"$AIASM,1782977984,1,1,,1,2,0,666666666,,IlBNC2`TQrE9r?saRjIwc9w43O?=bMtVssgmTSV5Ad>WtI>LHVvsnn0,2*0A\r\n",
 		// 前端提示文字 DAC = 413, FI = 5
@@ -4530,6 +4785,10 @@ int main(void)
 	auto galeVDMs = GenerateDAC_412_FI_31(2);
 	for (const auto &vdm : galeVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
 
+	// Parse Type 3 (Large Wave)
+	auto waveVDMs = GenerateDAC_412_FI_31(3);
+	for (const auto &vdm : waveVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
 	// Parse Type 5 (Storm Surge)
 	auto surgeVDMs = GenerateDAC_412_FI_31(5);
 	for (const auto &vdm : surgeVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
@@ -4537,6 +4796,10 @@ int main(void)
 	// Parse Type 6 (Sea Ice)
 	auto iceVDMs = GenerateDAC_412_FI_31(6);
 	for (const auto &vdm : iceVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	// Parse Type 4 (Sea Fog)
+	auto fogVDMs = GenerateDAC_412_FI_31(4);
+	for (const auto &vdm : fogVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
 
 	// Retrieve and print from database to verify Fragment and other fields
 	auto dbCyclones = vdesManager.GetMewTropicalCyclones(0, 100);
@@ -4549,6 +4812,20 @@ int main(void)
 	auto dbGales = vdesManager.GetMewGales(0, 100);
 	std::cout << "MewGales from DB: " << dbGales.size() << std::endl;
 	for (const auto &ew : dbGales)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Fragment: " << (int)ew.fragment << ", Area: " << (int)ew.areaCode << ", Level: " << (int)ew.warningLevel << std::endl;
+	}
+
+	auto dbWaves = vdesManager.GetMewLargeWaves(0, 100);
+	std::cout << "MewLargeWaves from DB: " << dbWaves.size() << std::endl;
+	for (const auto &ew : dbWaves)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Fragment: " << (int)ew.fragment << ", Area: " << (int)ew.areaCode << ", Level: " << (int)ew.warningLevel << std::endl;
+	}
+
+	auto dbFogs = vdesManager.GetMewSeaFogs(0, 100);
+	std::cout << "MewSeaFogs from DB: " << dbFogs.size() << std::endl;
+	for (const auto &ew : dbFogs)
 	{
 		std::cout << "  MRN: " << ew.MRN << ", Fragment: " << (int)ew.fragment << ", Area: " << (int)ew.areaCode << ", Level: " << (int)ew.warningLevel << std::endl;
 	}
@@ -4567,6 +4844,82 @@ int main(void)
 		std::cout << "  MRN: " << ew.MRN << ", Region: " << (int)ew.regionCode << ", Level: " << (int)ew.warningLevel << std::endl;
 	}
 
+	std::cout << "\n=== Verification: Tropical Cyclone Supplementary Points (FI 7) & Text Description (FI 8) ===" << std::endl;
+	auto cyclonesBefore = vdesManager.GetMewTropicalCyclones(0, 100);
+	std::cout << "Initial Tropical Cyclones count: " << cyclonesBefore.size() << std::endl;
+	for (const auto &ew : cyclonesBefore)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Path points count: " << ew.pathPoints.size() << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	std::cout << "Injecting supplementary coordinates (FI 7) for Tropical Cyclone MRN=100..." << std::endl;
+	std::vector<VDES::MewTropicalCyclone::PathPoint> suppPoints;
+	{
+		VDES::MewTropicalCyclone::PathPoint pt1;
+		pt1.timestamp = VDES::UtilityInterface::GetCurrentTimeStamp();
+		pt1.centerLongitude = 119.5;
+		pt1.centerLatitude = 25.5;
+		pt1.cycloneType = 2;
+		pt1.radiusWindScale7 = 180;
+		pt1.radiusWindScale10 = 95;
+		pt1.radiusWindScale12 = 48;
+		pt1.moveSpeed = 22;
+		pt1.moveDirection = 315;
+		pt1.maxWindScale = 14;
+		pt1.centerPressure = 975;
+		suppPoints.push_back(pt1);
+
+		VDES::MewTropicalCyclone::PathPoint pt2;
+		pt2.timestamp = pt1.timestamp + 3600;
+		pt2.centerLongitude = 120.0;
+		pt2.centerLatitude = 26.0;
+		pt2.cycloneType = 1;
+		pt2.radiusWindScale7 = 200;
+		pt2.radiusWindScale10 = 100;
+		pt2.radiusWindScale12 = 50;
+		pt2.moveSpeed = 20;
+		pt2.moveDirection = 320;
+		pt2.maxWindScale = 15;
+		pt2.centerPressure = 970;
+		suppPoints.push_back(pt2);
+	}
+
+	auto cycloneSuppVDM = GenerateDAC_413_FI_7_Cyclone(100, suppPoints);
+	for (const auto &vdm : cycloneSuppVDM) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto cyclonesAfterFI7 = vdesManager.GetMewTropicalCyclones(0, 100);
+	std::cout << "Tropical Cyclones count after FI 7: " << cyclonesAfterFI7.size() << std::endl;
+	for (const auto &ew : cyclonesAfterFI7)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Path points count: " << ew.pathPoints.size() << ", Description: '" << ew.description << "'" << std::endl;
+		for (size_t i = 0; i < ew.pathPoints.size(); ++i)
+		{
+			std::cout << "    Pt " << i << ": Lat=" << ew.pathPoints[i].centerLatitude << ", Lon=" << ew.pathPoints[i].centerLongitude << std::endl;
+		}
+	}
+
+	std::cout << "Injecting supplementary text description (FI 8) for Tropical Cyclone MRN=100..." << std::endl;
+	auto cycloneDescVDM = GenerateDAC_413_FI_8(100, 412, 31, "TROPICAL CYCLONE TEXT DESCRIPTION SUPPLEMENT");
+	for (const auto &vdm : cycloneDescVDM) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto cyclonesAfterFI8 = vdesManager.GetMewTropicalCyclones(0, 100);
+	std::cout << "Tropical Cyclones count after FI 8: " << cyclonesAfterFI8.size() << std::endl;
+	for (const auto &ew : cyclonesAfterFI8)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	std::cout << "Re-injecting main Tropical Cyclone (FI 31) to verify description preservation..." << std::endl;
+	for (const auto &vdm : cycloneVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto cyclonesAfterReinject = vdesManager.GetMewTropicalCyclones(0, 100);
+	std::cout << "Tropical Cyclones count after Reinject: " << cyclonesAfterReinject.size() << std::endl;
+	for (const auto &ew : cyclonesAfterReinject)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Path points count: " << ew.pathPoints.size() << ", Description: '" << ew.description << "'" << std::endl;
+	}
+	std::cout << "================================================================================\n" << std::endl;
+
 	// Inject FI 8 text description for Gale Warning (MRN=201, mainFI=31)
 	std::cout << "Injecting FI 8 text description for Gale Warning MRN=201..." << std::endl;
 	auto galeDescVDM = GenerateDAC_413_FI_8(201, 412, 31, "Gale Supplementary Text Description");
@@ -4579,6 +4932,252 @@ int main(void)
 	{
 		std::cout << "  MRN: " << ew.MRN << ", Description: '" << ew.description << "'" << std::endl;
 	}
+
+	// Verify Gale warning supplement (FI=7)
+	std::cout << "\n=== Verification: Gale Warning Supplementary Elements (FI 7) & Text Description (FI 8) ===" << std::endl;
+	auto galesBefore = vdesManager.GetMewGales(0, 100);
+	std::cout << "Gales count before supplement: " << galesBefore.size() << std::endl;
+	for (const auto &ew : galesBefore)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Area: " << (int)ew.areaCode << ", Level: " << (int)ew.warningLevel << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	std::cout << "Injecting supplementary warnings (FI 7) for Gale warning group (parent MRN=201) containing child MRN=203..." << std::endl;
+	std::vector<MockGeneralWarningElement> suppGales;
+	{
+		MockGeneralWarningElement elem;
+		elem.MRN = 203;
+		elem.fragment = 1;
+		elem.seaAreaCode = 8;
+		elem.warningLevel = 1;
+		suppGales.push_back(elem);
+	}
+
+	auto galeSuppVDMs = GenerateDAC_413_FI_7_Gale(201, suppGales);
+	for (const auto &vdm : galeSuppVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto galesAfterFI7 = vdesManager.GetMewGales(0, 100);
+	std::cout << "Gales count after FI 7 supplement: " << galesAfterFI7.size() << std::endl;
+	for (const auto &ew : galesAfterFI7)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Area: " << (int)ew.areaCode << ", Level: " << (int)ew.warningLevel << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	std::cout << "Injecting supplementary text description (FI 8) for supplementary Gale warning MRN=203..." << std::endl;
+	auto gale203DescVDMs = GenerateDAC_413_FI_8(203, 412, 31, "GALE 203 TEXT DESCRIPTION SUPPLEMENT");
+	for (const auto &vdm : gale203DescVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto galesAfterFI8 = vdesManager.GetMewGales(0, 100);
+	std::cout << "Gales count after FI 8: " << galesAfterFI8.size() << std::endl;
+	for (const auto &ew : galesAfterFI8)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	std::cout << "Re-injecting main Gale warnings (FI 31) to verify description preservation for MRN=201..." << std::endl;
+	for (const auto &vdm : galeVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto galesAfterReinject = vdesManager.GetMewGales(0, 100);
+	std::cout << "Gales count after Reinject: " << galesAfterReinject.size() << std::endl;
+	for (const auto &ew : galesAfterReinject)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Description: '" << ew.description << "'" << std::endl;
+	}
+	std::cout << "================================================================================\n" << std::endl;
+
+	// Inject FI 8 text description for Large Wave Warning (MRN=201, mainFI=31)
+	// Inject FI 8 text description for Large Wave Warning (MRN=211, mainFI=31)
+	std::cout << "Injecting FI 8 text description for Large Wave Warning MRN=211..." << std::endl;
+	auto waveDescVDM = GenerateDAC_413_FI_8(211, 412, 31, "Large Wave Supplementary Text Description");
+	for (const auto &vdm : waveDescVDM) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto dbWavesBefore = vdesManager.GetMewLargeWaves(0, 100);
+	std::cout << "MewLargeWaves from DB after FI 8 update:" << std::endl;
+	for (const auto &ew : dbWavesBefore)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	// Verify Large Wave warning supplement (FI=7)
+	std::cout << "\n=== Verification: Large Wave Warning Supplementary Elements (FI 7) & Text Description (FI 8) ===" << std::endl;
+	auto wavesBefore = vdesManager.GetMewLargeWaves(0, 100);
+	std::cout << "Waves count before supplement: " << wavesBefore.size() << std::endl;
+	for (const auto &ew : wavesBefore)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Area: " << (int)ew.areaCode << ", Level: " << (int)ew.warningLevel << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	std::cout << "Injecting supplementary warnings (FI 7) for Large Wave warning group (parent MRN=211) containing child MRN=213..." << std::endl;
+	std::vector<MockGeneralWarningElement> suppWaves;
+	{
+		MockGeneralWarningElement elem;
+		elem.MRN = 213;
+		elem.fragment = 1;
+		elem.seaAreaCode = 9;
+		elem.warningLevel = 2;
+		suppWaves.push_back(elem);
+	}
+
+	auto waveSuppVDMs = GenerateDAC_413_FI_7_Gale(211, suppWaves);
+	for (const auto &vdm : waveSuppVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto wavesAfterFI7 = vdesManager.GetMewLargeWaves(0, 100);
+	std::cout << "Waves count after FI 7 supplement: " << wavesAfterFI7.size() << std::endl;
+	for (const auto &ew : wavesAfterFI7)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Area: " << (int)ew.areaCode << ", Level: " << (int)ew.warningLevel << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	std::cout << "Injecting supplementary text description (FI 8) for supplementary Large Wave warning MRN=213..." << std::endl;
+	auto wave203DescVDMs = GenerateDAC_413_FI_8(213, 412, 31, "WAVE 213 TEXT DESCRIPTION SUPPLEMENT");
+	for (const auto &vdm : wave203DescVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto wavesAfterFI8 = vdesManager.GetMewLargeWaves(0, 100);
+	std::cout << "Waves count after FI 8: " << wavesAfterFI8.size() << std::endl;
+	for (const auto &ew : wavesAfterFI8)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	std::cout << "Re-injecting main Large Wave warnings (FI 31) to verify description preservation for MRN=211..." << std::endl;
+	for (const auto &vdm : waveVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto wavesAfterReinject = vdesManager.GetMewLargeWaves(0, 100);
+	std::cout << "Waves count after Reinject: " << wavesAfterReinject.size() << std::endl;
+	for (const auto &ew : wavesAfterReinject)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Description: '" << ew.description << "'" << std::endl;
+	}
+	std::cout << "================================================================================\n" << std::endl;
+
+	// Inject FI 8 text description for Sea Fog Warning (MRN=221, mainFI=31)
+	std::cout << "Injecting FI 8 text description for Sea Fog Warning MRN=221..." << std::endl;
+	auto fogDescVDM = GenerateDAC_413_FI_8(221, 412, 31, "Sea Fog Supplementary Text Description");
+	for (const auto &vdm : fogDescVDM) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto dbFogsBefore = vdesManager.GetMewSeaFogs(0, 100);
+	std::cout << "MewSeaFogs from DB after FI 8 update:" << std::endl;
+	for (const auto &ew : dbFogsBefore)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	// Verify Sea Fog warning supplement (FI=7)
+	std::cout << "\n=== Verification: Sea Fog Warning Supplementary Elements (FI 7) & Text Description (FI 8) ===" << std::endl;
+	auto fogsBefore = vdesManager.GetMewSeaFogs(0, 100);
+	std::cout << "Fogs count before supplement: " << fogsBefore.size() << std::endl;
+	for (const auto &ew : fogsBefore)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Area: " << (int)ew.areaCode << ", Level: " << (int)ew.warningLevel << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	std::cout << "Injecting supplementary warnings (FI 7) for Sea Fog warning group (parent MRN=221) containing child MRN=223..." << std::endl;
+	std::vector<MockGeneralWarningElement> suppFogs;
+	{
+		MockGeneralWarningElement elem;
+		elem.MRN = 223;
+		elem.fragment = 1;
+		elem.seaAreaCode = 10;
+		elem.warningLevel = 3;
+		suppFogs.push_back(elem);
+	}
+
+	auto fogSuppVDMs = GenerateDAC_413_FI_7_Gale(221, suppFogs);
+	for (const auto &vdm : fogSuppVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto fogsAfterFI7 = vdesManager.GetMewSeaFogs(0, 100);
+	std::cout << "Fogs count after FI 7 supplement: " << fogsAfterFI7.size() << std::endl;
+	for (const auto &ew : fogsAfterFI7)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Area: " << (int)ew.areaCode << ", Level: " << (int)ew.warningLevel << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	std::cout << "Injecting supplementary text description (FI 8) for supplementary Sea Fog warning MRN=223..." << std::endl;
+	auto fog203DescVDMs = GenerateDAC_413_FI_8(223, 412, 31, "FOG 223 TEXT DESCRIPTION SUPPLEMENT");
+	for (const auto &vdm : fog203DescVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto fogsAfterFI8 = vdesManager.GetMewSeaFogs(0, 100);
+	std::cout << "Fogs count after FI 8: " << fogsAfterFI8.size() << std::endl;
+	for (const auto &ew : fogsAfterFI8)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	std::cout << "Re-injecting main Sea Fog warnings (FI 31) to verify description preservation for MRN=221..." << std::endl;
+	for (const auto &vdm : fogVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto fogsAfterReinject = vdesManager.GetMewSeaFogs(0, 100);
+	std::cout << "Fogs count after Reinject: " << fogsAfterReinject.size() << std::endl;
+	for (const auto &ew : fogsAfterReinject)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Description: '" << ew.description << "'" << std::endl;
+	}
+	std::cout << "================================================================================\n" << std::endl;
+
+	// Inject FI 8 text description for Storm Surge Warning (MRN=301, mainFI=31)
+	std::cout << "Injecting FI 8 text description for Storm Surge Warning MRN=301..." << std::endl;
+	auto surgeDescVDM = GenerateDAC_413_FI_8(301, 412, 31, "Storm Surge Supplementary Text Description");
+	for (const auto &vdm : surgeDescVDM) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto dbSurgesBefore = vdesManager.GetMewStormSurges(0, 100);
+	std::cout << "MewStormSurges from DB after FI 8 update:" << std::endl;
+	for (const auto &ew : dbSurgesBefore)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	// Verify Storm Surge warning supplement (FI=7)
+	std::cout << "\n=== Verification: Storm Surge Warning Supplementary Elements (FI 7) & Text Description (FI 8) ===" << std::endl;
+	auto surgesBefore = vdesManager.GetMewStormSurges(0, 100);
+	std::cout << "Surges count before supplement: " << surgesBefore.size() << std::endl;
+	for (const auto &ew : surgesBefore)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", City: " << (int)ew.cityCode << ", Height: " << (int)ew.surgeHeight << ", Level: " << (int)ew.warningLevel << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	std::cout << "Injecting supplementary warnings (FI 7) for Storm Surge warning group (parent MRN=301) containing child MRN=303..." << std::endl;
+	std::vector<MockStormSurgeElement> suppSurges;
+	{
+		MockStormSurgeElement elem;
+		elem.MRN = 303;
+		elem.fragment = 1;
+		elem.cityCode = 20;
+		elem.surgeHeight = 15;
+		elem.warningLevel = 2;
+		suppSurges.push_back(elem);
+	}
+
+	auto surgeSuppVDMs = GenerateDAC_413_FI_7_Surge(301, suppSurges);
+	for (const auto &vdm : surgeSuppVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto surgesAfterFI7 = vdesManager.GetMewStormSurges(0, 100);
+	std::cout << "Surges count after FI 7 supplement: " << surgesAfterFI7.size() << std::endl;
+	for (const auto &ew : surgesAfterFI7)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", City: " << (int)ew.cityCode << ", Height: " << (int)ew.surgeHeight << ", Level: " << (int)ew.warningLevel << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	std::cout << "Injecting supplementary text description (FI 8) for supplementary Storm Surge warning MRN=303..." << std::endl;
+	auto surge203DescVDMs = GenerateDAC_413_FI_8(303, 412, 31, "SURGE 303 TEXT DESCRIPTION SUPPLEMENT");
+	for (const auto &vdm : surge203DescVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto surgesAfterFI8 = vdesManager.GetMewStormSurges(0, 100);
+	std::cout << "Surges count after FI 8: " << surgesAfterFI8.size() << std::endl;
+	for (const auto &ew : surgesAfterFI8)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Description: '" << ew.description << "'" << std::endl;
+	}
+
+	std::cout << "Re-injecting main Storm Surge warnings (FI 31) to verify description preservation for MRN=301..." << std::endl;
+	for (const auto &vdm : surgeVDMs) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto surgesAfterReinject = vdesManager.GetMewStormSurges(0, 100);
+	std::cout << "Surges count after Reinject: " << surgesAfterReinject.size() << std::endl;
+	for (const auto &ew : surgesAfterReinject)
+	{
+		std::cout << "  MRN: " << ew.MRN << ", Description: '" << ew.description << "'" << std::endl;
+	}
+	std::cout << "================================================================================\n" << std::endl;
 
 	// Clean up FI 31 warnings
 	vdesManager.DeleteMewTropicalCyclones(0, 100);
@@ -4622,6 +5221,179 @@ int main(void)
 		vdesManager.DeleteBridges(ids);
 	}
 	std::cout << "Bridges count after batch delete: " << vdesManager.GetBridges(0, 100).size() << std::endl;
+	std::cout << "========================================" << std::endl;
+
+	// Verify HydrometeorologyResponse correlation & Timeout
+	std::cout << "\n=== Verification: HydrometeorologyResponse Correlation & Timeout ===" << std::endl;
+	
+	// Register a dedicated event listener
+	std::mutex mtxNotify;
+	std::condition_variable cvNotify;
+	bool gotTimeout = false;
+	bool gotResponse = false;
+	bool gotSuccess = false;
+	
+	auto callbackToken = vdesManager.notifyEvent.append([&](const VDES::VDESManager::EventType type, const int retCode) {
+		if (type == VDES::VDESManager::EventType::MESSAGE_SEND) {
+			std::unique_lock<std::mutex> lock(mtxNotify);
+			if (retCode == 4) {
+				gotTimeout = true;
+				std::cout << "[EVENT] Got MESSAGE_SEND with timeout retCode: 4" << std::endl;
+			} else if (retCode == 1) {
+				gotSuccess = true;
+				std::cout << "[EVENT] Got MESSAGE_SEND with success retCode: 1" << std::endl;
+			}
+			cvNotify.notify_all();
+		}
+		if (type == VDES::VDESManager::EventType::ASM_HYDROMETEOROLOGY_RESPONSE) {
+			std::unique_lock<std::mutex> lock(mtxNotify);
+			gotResponse = true;
+			cvNotify.notify_all();
+			std::cout << "[EVENT] Got ASM_HYDROMETEOROLOGY_RESPONSE" << std::endl;
+		}
+	});
+
+	// Make sure own MMSI is set
+	auto ownVesselInfo = VDES::ConfigureManager::GetInstance().GetOwnVesselInfo();
+	std::cout << "Own vessel MMSI: " << ownVesselInfo.mmsi << std::endl;
+
+	// 1. Send Request
+	VDES::HydrometeorologyRequest testReq;
+
+	testReq.windSpeed = true;
+	testReq.windDirection = true;
+	testReq.visibility = true;
+	testReq.waveHeight = true;
+	testReq.waveDirection = true;
+	testReq.swellHeight = true;
+	testReq.requestTime = VDES::UtilityInterface::GetCurrentTimeStamp();
+	testReq.coordinates.push_back(VDES::Coordinate(38.5, 118.2));
+	testReq.coordinates.push_back(VDES::Coordinate(39.1, 119.5));
+
+	std::cout << "Sending HydrometeorologyRequest..." << std::endl;
+	vdesManager.SendHydrometeorologyRequest(testReq);
+
+	// Simulate AMK response (seqNo=1, ackType=0) from transceiver
+	std::cout << "Simulating AMK response (seqNo=1, ackType=0) from transceiver..." << std::endl;
+	std::string amkSentence = "$AIAMK,1,0";
+	VDES::UtilityInterface::AddChecksum(amkSentence);
+	amkSentence += "\r\n";
+	vdesManager.Parse(amkSentence.c_str(), amkSentence.length());
+
+	// 2. Parse mock FI 50 Response matching own MMSI
+	std::cout << "Simulating FI 50 response from shore..." << std::endl;
+	auto responseVDMs = GenerateDAC_412_FI_50(ownVesselInfo.mmsi, 99999);
+	for (const auto &vdm : responseVDMs)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Retrieve the response and check coordinates
+	auto responses = vdesManager.GetHydrometeorologyResponses(0, 1);
+	std::cout << "Hydrometeorology responses count: " << responses.size() << std::endl;
+	if (!responses.empty())
+	{
+		auto &resp = responses.front();
+		std::cout << "Response matched MRN: " << resp.MRN << " (Expected: 0)" << std::endl;
+		std::cout << "Response forecast points count: " << resp.points.size() << std::endl;
+		for (size_t i = 0; i < resp.points.size(); ++i)
+		{
+			auto &pt = resp.points[i];
+			std::cout << "  Point " << i << " -> Coord: (" << pt.latitude << ", " << pt.longitude 
+					  << "), windSpeed: " << (int)pt.windSpeed 
+					  << ", windDirection: " << pt.windDirection 
+					  << ", visibility: " << (int)pt.visibility 
+					  << ", waveHeight: " << (int)pt.waveHeight 
+					  << ", waveDirection: " << pt.waveDirection 
+					  << ", swellHeight: " << (int)pt.swellHeight << std::endl;
+		}
+	}
+
+	// 3. Test Timeout (Send request and wait > 10 seconds)
+	VDES::HydrometeorologyRequest timeoutReq = testReq;
+	std::cout << "\nSending HydrometeorologyRequest for timeout test..." << std::endl;
+	vdesManager.SendHydrometeorologyRequest(timeoutReq);
+
+	std::cout << "Waiting 11 seconds for timeout..." << std::endl;
+	{
+		std::unique_lock<std::mutex> lockNotify(mtxNotify);
+		cvNotify.wait_for(lockNotify, std::chrono::seconds(12), [&]() { return gotTimeout; });
+	}
+
+	std::cout << "Timeout check finished. gotTimeout = " << (gotTimeout ? "TRUE" : "FALSE") << std::endl;
+ 
+	// Reset flags for Route Recommendation Request verification
+	gotTimeout = false;
+	gotSuccess = false;
+ 
+	std::cout << "\n=== Verification: RouteRecommendationRequest Correlation & Timeout ===" << std::endl;
+	VDES::RouteRecommendationRequest routeReq;
+	routeReq.grossTonnage = 12000;
+	routeReq.maxStaticDraft = 8.5;
+	routeReq.cargoType = 3;
+	routeReq.month = 7;
+	routeReq.day = 13;
+	routeReq.hour = 22;
+	routeReq.minute = 10;
+	routeReq.startCoordinate = VDES::Coordinate(38.5, 118.2);
+	routeReq.destCoordinate = VDES::Coordinate(39.1, 119.5);
+ 
+	std::cout << "Sending RouteRecommendationRequest..." << std::endl;
+	vdesManager.SendRouteRecommendationRequest(routeReq);
+ 
+	// Since Route Recommendation Request is sent, m_sequenceNoAAB is incremented.
+	// As HydrometeorologyRequest was sent twice (seq 1, seq 2), routeReq is seq 3.
+	std::cout << "Simulating AMK response (seqNo=3, ackType=0) from transceiver..." << std::endl;
+	std::string routeAmk = "$AIAMK,3,0";
+	VDES::UtilityInterface::AddChecksum(routeAmk);
+	routeAmk += "\r\n";
+	vdesManager.Parse(routeAmk.c_str(), routeAmk.length());
+ 
+	std::cout << "gotSuccess (Route Req) = " << (gotSuccess ? "TRUE" : "FALSE") << std::endl;
+ 
+	// Reset gotTimeout flag for timeout test
+	gotTimeout = false;
+	std::cout << "\nSending RouteRecommendationRequest for timeout test..." << std::endl;
+	vdesManager.SendRouteRecommendationRequest(routeReq); // seq 4
+ 
+	std::cout << "Waiting 11 seconds for timeout..." << std::endl;
+	{
+		std::unique_lock<std::mutex> lockNotify(mtxNotify);
+		cvNotify.wait_for(lockNotify, std::chrono::seconds(12), [&]() { return gotTimeout; });
+	}
+	std::cout << "Route Req Timeout check finished. gotTimeout = " << (gotTimeout ? "TRUE" : "FALSE") << std::endl;
+	std::cout << "==========================================================" << std::endl;
+
+	// Verify NetSounder deletion
+	std::cout << "\n=== Verification: NetSounder Deletion ===" << std::endl;
+	auto testNSList = GenerateDAC_412_FI_45();
+	for (const auto &vdm : testNSList) vdesManager.Parse(vdm.c_str(), vdm.length());
+
+	auto dbNSBefore = vdesManager.GetNetSounders(0, 100);
+	std::cout << "NetSounders count before delete: " << dbNSBefore.size() << std::endl;
+	for (const auto &ns : dbNSBefore)
+	{
+		std::cout << "  NetSounder ID: " << ns.dataID << ", Type: " << (int)ns.type << ", Nets count: " << ns.nets.size() << std::endl;
+	}
+
+	if (!dbNSBefore.empty())
+	{
+		uint32_t targetID = dbNSBefore[0].dataID;
+		std::cout << "Calling DeleteNetSounder with dataID: " << targetID << std::endl;
+		vdesManager.DeleteNetSounder(targetID);
+		
+		auto dbNSAfter = vdesManager.GetNetSounders(0, 100);
+		std::cout << "NetSounders count after delete: " << dbNSAfter.size() << std::endl;
+	}
+	
+	// Clean up NetSounders table using batch delete
+	if (!vdesManager.GetNetSounders(0, 100).empty())
+	{
+		std::vector<uint32_t> ids;
+		for (const auto &ns : vdesManager.GetNetSounders(0, 100)) ids.push_back(ns.dataID);
+		vdesManager.DeleteNetSounders(ids);
+	}
+	std::cout << "NetSounders count after batch delete: " << vdesManager.GetNetSounders(0, 100).size() << std::endl;
 	std::cout << "========================================" << std::endl;
 
 	std::cout << "================================================================================" << std::endl;

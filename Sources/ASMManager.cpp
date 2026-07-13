@@ -102,7 +102,8 @@ namespace VDES
         uint64_t        m_timestampReceived;
         MessageParseMap m_messageParserMap;
         ASMParserMap    m_asmParserMap;
-        uint32_t        m_sourceMMSIReceived;
+        uint32_t        m_mmsiSource;
+        uint32_t        m_mmsiDestination;
     };
 
     ASMManager::Impl::Impl(ASMManager *parent)
@@ -110,7 +111,8 @@ namespace VDES
         m_timestampReceived  = 0;
         m_sequentialID       = -1;
         m_parent             = parent;
-        m_sourceMMSIReceived = 0;
+        m_mmsiSource         = 0;
+        m_mmsiDestination    = 0;
 
         //m_messageParserMap.insert(std::make_pair(2, std::bind(&Impl::ParseMessage2, this, std::placeholders::_1)));
 
@@ -302,10 +304,15 @@ namespace VDES
                     m_payloadASM.clear();
                     m_timestampReceived = 0;
                     m_sequentialID = sequentialID;
-                    m_sourceMMSIReceived = 0;
+                    m_mmsiSource = 0;
                     if (!strList.at(8).empty())
                     {
-                        m_sourceMMSIReceived = strtoul(strList.at(8).c_str(), nullptr, 10);
+                        m_mmsiSource = strtoul(strList.at(8).c_str(), nullptr, 10);
+                    }
+                    m_mmsiDestination = 0;
+                    if (strList.size() > 9 && !strList.at(9).empty())
+                    {
+                        m_mmsiDestination = strtoul(strList.at(9).c_str(), nullptr, 10);
                     }
                 }
 
@@ -1689,6 +1696,67 @@ namespace VDES
                 }
             }
         }
+        else if (asmInfo.mainDAC == 412 && asmInfo.mainFI == 31)
+        {
+            uint32_t index = 52;
+            auto totalBits = manager.GetBitsNumberToDecode();
+            if (totalBits >= index)
+            {
+                // Decode as Tropical Cyclone points (116 bits each)
+                uint32_t cycloneNum = (totalBits - index) / 116;
+                uint32_t tempIndex = index;
+                for (uint32_t i = 0; i < cycloneNum; ++i)
+                {
+                    ASM_DAC_412_FI_31::TropicalCyclonePathPoint pt;
+                    pt.timestamp = DecodeTime(manager, tempIndex, 16);
+                    auto lonVal = manager.DecodeToNumerical(tempIndex + 16, 22);
+                    auto lonInt = UtilityInterface::ConvertComplementCodeToInteger(lonVal, 22);
+                    pt.centerLongitude = lonInt / 6000.0;
+                    auto latVal = manager.DecodeToNumerical(tempIndex + 38, 21);
+                    auto latInt = UtilityInterface::ConvertComplementCodeToInteger(latVal, 21);
+                    pt.centerLatitude = latInt / 6000.0;
+                    pt.cycloneType = static_cast<uint8_t>(manager.DecodeToNumerical(tempIndex + 59, 3));
+                    pt.radiusWindScale7 = static_cast<uint16_t>(manager.DecodeToNumerical(tempIndex + 62, 10));
+                    pt.radiusWindScale10 = static_cast<uint16_t>(manager.DecodeToNumerical(tempIndex + 72, 8));
+                    pt.radiusWindScale12 = static_cast<uint16_t>(manager.DecodeToNumerical(tempIndex + 80, 7));
+                    pt.moveSpeed = static_cast<uint8_t>(manager.DecodeToNumerical(tempIndex + 87, 6));
+                    pt.moveDirection = static_cast<uint16_t>(manager.DecodeToNumerical(tempIndex + 93, 9));
+                    pt.maxWindScale = static_cast<uint8_t>(manager.DecodeToNumerical(tempIndex + 102, 5));
+                    pt.centerPressure = static_cast<uint16_t>(manager.DecodeToNumerical(tempIndex + 107, 9));
+                    asmInfo.cyclonePathPoints.push_back(pt);
+                    tempIndex += 116;
+                }
+
+                // Decode as Gale warnings (28 bits each)
+                uint32_t galeNum = (totalBits - index) / 28;
+                tempIndex = index;
+                for (uint32_t i = 0; i < galeNum; ++i)
+                {
+                    ASM_DAC_412_FI_31::GeneralWarningElement elem;
+                    elem.MRN = manager.DecodeToNumerical(tempIndex, 17);
+                    elem.fragment = static_cast<uint8_t>(manager.DecodeToNumerical(tempIndex + 17, 2));
+                    elem.seaAreaCode = static_cast<uint8_t>(manager.DecodeToNumerical(tempIndex + 19, 7));
+                    elem.warningLevel = static_cast<uint8_t>(manager.DecodeToNumerical(tempIndex + 26, 2));
+                    asmInfo.galeWarnings.push_back(elem);
+                    tempIndex += 28;
+                }
+
+                // Decode as Storm Surge warnings (32 bits each)
+                uint32_t surgeNum = (totalBits - index) / 32;
+                tempIndex = index;
+                for (uint32_t i = 0; i < surgeNum; ++i)
+                {
+                    ASM_DAC_412_FI_31::StormSurgeElement elem;
+                    elem.MRN = manager.DecodeToNumerical(tempIndex, 17);
+                    elem.fragment = static_cast<uint8_t>(manager.DecodeToNumerical(tempIndex + 17, 2));
+                    elem.cityCode = static_cast<uint8_t>(manager.DecodeToNumerical(tempIndex + 19, 6));
+                    elem.surgeHeight = manager.DecodeToNumerical(tempIndex + 25, 5);
+                    elem.warningLevel = static_cast<uint8_t>(manager.DecodeToNumerical(tempIndex + 30, 2));
+                    asmInfo.stormSurges.push_back(elem);
+                    tempIndex += 32;
+                }
+            }
+        }
         m_parent->asmNotify(std::make_shared<ASM_DAC_413_FI_7>(asmInfo));
     }
 
@@ -1842,7 +1910,7 @@ namespace VDES
     void ASMManager::Impl::ParseASMDAC412FI50(const AISBitsManager &manager)
     {
         auto totalBits = manager.GetBitsNumberToDecode();
-        if (totalBits < 67)
+        if (totalBits < 50)
         {
             return;
         }
@@ -1850,10 +1918,10 @@ namespace VDES
         ASM_DAC_412_FI_50 asmInfo;
         asmInfo.DAC = 412;
         asmInfo.FI = 50;
+        asmInfo.source = m_mmsiSource;
+        asmInfo.destination = m_mmsiDestination;
 
-        asmInfo.MRN = manager.DecodeToNumerical(16, 17);
-
-        uint16_t responseInfo = manager.DecodeToNumerical(33, 14);
+        uint16_t responseInfo = manager.DecodeToNumerical(16, 14);
         asmInfo.hasWindSpeed     = (responseInfo & (1 << 0)) != 0;
         asmInfo.hasWindDirection = (responseInfo & (1 << 1)) != 0;
         asmInfo.hasVisibility    = (responseInfo & (1 << 2)) != 0;
@@ -1861,7 +1929,7 @@ namespace VDES
         asmInfo.hasWaveDirection = (responseInfo & (1 << 4)) != 0;
         asmInfo.hasSwellHeight   = (responseInfo & (1 << 5)) != 0;
 
-        asmInfo.forecastTime = DecodeTime(manager, 47, 20);
+        asmInfo.forecastTime = DecodeTime(manager, 30, 20);
 
         uint32_t L = 0;
         if (asmInfo.hasWindSpeed)     { L += 6; }
@@ -1873,8 +1941,8 @@ namespace VDES
 
         if (L > 0)
         {
-            uint32_t pointsCount = (totalBits - 67) / L;
-            uint32_t index = 67;
+            uint32_t pointsCount = (totalBits - 50) / L;
+            uint32_t index = 50;
 
             for (uint32_t i = 0; i < pointsCount; ++i)
             {
@@ -1928,7 +1996,7 @@ namespace VDES
         ASM_DAC_412_FI_51 asmInfo;
         asmInfo.DAC = 412;
         asmInfo.FI = 51;
-        asmInfo.mmsi = m_sourceMMSIReceived;
+        asmInfo.mmsi = m_mmsiSource;
 
         asmInfo.extendedVesselType = manager.DecodeToNumerical(17, 8);
         asmInfo.autonomousLevel    = manager.DecodeToNumerical(25, 3);
@@ -1974,7 +2042,7 @@ namespace VDES
         ASM_DAC_412_FI_52 asmInfo;
         asmInfo.DAC     = 412;
         asmInfo.FI      = 52;
-        asmInfo.mmsi    = m_sourceMMSIReceived;
+        asmInfo.mmsi    = m_mmsiSource;
         asmInfo.crewNum = manager.DecodeToNumerical(17, 13);
 
         uint32_t n = totalBits - 30;
@@ -2031,6 +2099,16 @@ namespace VDES
 
     void ASMManager::ParsePayload(const std::string &payload, const uint8_t fillBitNum)
     {
+        if (!payload.empty())
+        {
+            m_impl->HandlePayload(payload, fillBitNum);
+        }
+    }
+
+    void ASMManager::ParsePayload(const std::string &payload, const uint8_t fillBitNum, uint32_t srcMMSI, uint32_t destMMSI)
+    {
+        m_impl->m_mmsiSource = srcMMSI;
+        m_impl->m_mmsiDestination = destMMSI;
         if (!payload.empty())
         {
             m_impl->HandlePayload(payload, fillBitNum);

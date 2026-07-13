@@ -997,6 +997,12 @@ namespace VDES
         
         NetSounders GetNetSounders(const uint32_t index = 0, const size_t number = -1);
 
+        bool DeleteNetSounder(const uint32_t dataID);
+
+        bool DeleteNetSounders(const uint32_t index = 0, const size_t number = -1);
+
+        bool DeleteNetSounders(const std::vector<uint32_t> &dataIDs);
+
 
         /***********************************************************************
         * ASM - Channel Centerline

@@ -1,4 +1,4 @@
-﻿#include "TimerManager.h"
+#include "TimerManager.h"
 #include "ThreadPool.h"
 #include "spdlog/spdlog.h"
 
@@ -272,8 +272,8 @@ namespace VDES
 
     TimerManager &TimerManager::GetInstance(void)
     {
-        static TimerManager instance;
-        return instance;
+        static TimerManager *instance = new TimerManager();
+        return *instance;
     }
 
     bool TimerManager::IsTimerValid(const uint32_t timerID)

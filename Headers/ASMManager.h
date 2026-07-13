@@ -1,4 +1,4 @@
-﻿#ifndef ASM_MANAGER_H_
+#ifndef ASM_MANAGER_H_
 #define ASM_MANAGER_H_
 
 #include "ASMDTD.h"
@@ -20,6 +20,8 @@ namespace VDES
         void Parse(const std::string &sentence);
 
         void ParsePayload(const std::string &payload, const uint8_t fillBitNum);
+
+        void ParsePayload(const std::string &payload, const uint8_t fillBitNum, uint32_t srcMMSI, uint32_t destMMSI);
 
         using ASMPtr = std::shared_ptr<ASM_DAC_FI>;
 
