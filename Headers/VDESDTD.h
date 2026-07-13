@@ -831,6 +831,8 @@ namespace VDES
         std::vector<NetInfo> nets;
         std::string          description;
         bool                 isOwn = false;
+        uint32_t             sequenceNum = 0;
+        int32_t              sendStatus = -1; // -1: pending, 0-8: AMK ack, 4: timeout
     };
 
     /**
@@ -1132,6 +1134,7 @@ namespace VDES
      */
     struct RouteRecommendationResponse : ASMAttribute
     {
+        uint32_t                mmsiResponser = 0;
         double                  effectiveTime = 31.5; // Lifecycle, unit 0.5h
         std::vector<Coordinate> coordinates;
     };
@@ -1186,6 +1189,7 @@ namespace VDES
      */
     struct HydrometeorologyResponse : ASMAttribute
     {
+        uint32_t                mmsiResponser = 0;
         struct PointForecast
         {
             double   latitude      = 0.0;

@@ -1865,6 +1865,7 @@ namespace VDES
 
         asmInfo.DAC = 412;
         asmInfo.FI = 47;
+        asmInfo.source = m_mmsiSource;
 
         auto rawTime = manager.DecodeToNumerical(16, 6);
         asmInfo.effectiveTime = rawTime * 0.5;

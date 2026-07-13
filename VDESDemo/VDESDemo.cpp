@@ -2350,6 +2350,64 @@ static std::vector<std::string> GenerateDAC_412_FI_50(uint32_t destMmsi, uint32_
 	return results;
 }
 
+static std::vector<std::string> GenerateDAC_412_FI_47(uint32_t destMmsi, uint32_t srcMmsi)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID (6 bits) = 6 (Addressed ASM)
+	bitsManager.Encode(6, 6);
+	// Repeat indicator (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// Source ID (30 bits) = srcMmsi
+	bitsManager.Encode(srcMmsi, 30);
+	// Sequence number (2 bits) = 0
+	bitsManager.Encode(0, 2);
+	// Destination ID (30 bits) = destMmsi
+	bitsManager.Encode(destMmsi, 30);
+	// Retransmit flag (1 bit) = 0
+	bitsManager.Encode(0, 1);
+	// Spare (1 bit) = 0
+	bitsManager.Encode(0, 1);
+
+	// DAC (10 bits) = 412
+	bitsManager.Encode(412, 10);
+	// FI (6 bits) = 47
+	bitsManager.Encode(47, 6);
+
+	// rawTime (6 bits) = 63 (meaning 31.5h)
+	bitsManager.Encode(63, 6);
+
+	// Coordinates (28 bits lon, 27 bits lat)
+	// Point 1: 38.5, 118.2
+	int32_t lon1 = static_cast<int32_t>(::round(118.2 * 600000.0));
+	int32_t lat1 = static_cast<int32_t>(::round(38.5 * 600000.0));
+	bitsManager.Encode(VDES::UtilityInterface::ConvertIntegerToComplementCode(lon1, 28), 28);
+	bitsManager.Encode(VDES::UtilityInterface::ConvertIntegerToComplementCode(lat1, 27), 27);
+
+	// Point 2: 39.1, 119.5 (expressed as offset from Point 1)
+	// Offset: 119.5 - 118.2 = 1.3, 39.1 - 38.5 = 0.6
+	int32_t lonOffset = static_cast<int32_t>(::round(1.3 * 600000.0));
+	int32_t latOffset = static_cast<int32_t>(::round(0.6 * 600000.0));
+	bitsManager.Encode(VDES::UtilityInterface::ConvertIntegerToComplementCode(lonOffset, 24), 24);
+	bitsManager.Encode(VDES::UtilityInterface::ConvertIntegerToComplementCode(latOffset, 23), 23);
+
+	auto bitsNum = bitsManager.GetBitsNumberToDecode();
+	auto spareBits = 8 - (bitsNum % 8);
+	if (spareBits < 8)
+	{
+		bitsManager.Encode(0, spareBits);
+	}
+
+	auto vdms = bitsManager.BuildPacket();
+	std::vector<std::string> results;
+	for (auto &vdm : vdms)
+	{
+		results.push_back(vdm + "\r\n");
+	}
+	return results;
+}
+
+
 struct MockRevocationElement
 {
 	uint16_t dac;
@@ -5295,6 +5353,7 @@ int main(void)
 	{
 		auto &resp = responses.front();
 		std::cout << "Response matched MRN: " << resp.MRN << " (Expected: 0)" << std::endl;
+		std::cout << "Response responder MMSI: " << resp.mmsiResponser << " (Expected: 99999)" << std::endl;
 		std::cout << "Response forecast points count: " << resp.points.size() << std::endl;
 		for (size_t i = 0; i < resp.points.size(); ++i)
 		{
@@ -5350,7 +5409,26 @@ int main(void)
 	vdesManager.Parse(routeAmk.c_str(), routeAmk.length());
  
 	std::cout << "gotSuccess (Route Req) = " << (gotSuccess ? "TRUE" : "FALSE") << std::endl;
- 
+
+	// Simulate Route Recommendation Response (FI 47) matching source MMSI 88888
+	std::cout << "Simulating Route Recommendation Response (FI 47) from shore..." << std::endl;
+	auto routeResponseVDMs = GenerateDAC_412_FI_47(ownVesselInfo.mmsi, 88888);
+	for (const auto &vdm : routeResponseVDMs)
+	{
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	// Retrieve response and check
+	auto routeResponses = vdesManager.GetRouteRecommendationResponses(0, 1);
+	std::cout << "Route Recommendation responses count: " << routeResponses.size() << std::endl;
+	if (!routeResponses.empty())
+	{
+		auto &resp = routeResponses.front();
+		std::cout << "Response effective time: " << resp.effectiveTime << " (Expected: 31.5)" << std::endl;
+		std::cout << "Response responder MMSI: " << resp.mmsiResponser << " (Expected: 88888)" << std::endl;
+		std::cout << "Response coordinates count: " << resp.coordinates.size() << " (Expected: 2)" << std::endl;
+	}
+
 	// Reset gotTimeout flag for timeout test
 	gotTimeout = false;
 	std::cout << "\nSending RouteRecommendationRequest for timeout test..." << std::endl;
@@ -5362,6 +5440,115 @@ int main(void)
 		cvNotify.wait_for(lockNotify, std::chrono::seconds(12), [&]() { return gotTimeout; });
 	}
 	std::cout << "Route Req Timeout check finished. gotTimeout = " << (gotTimeout ? "TRUE" : "FALSE") << std::endl;
+	std::cout << "==========================================================" << std::endl;
+
+	// 4. Verification: SendNetSounder Correlation & Timeout
+	gotTimeout = false;
+	gotSuccess = false;
+
+	std::cout << "\n=== Verification: SendNetSounder Correlation & Timeout ===" << std::endl;
+	VDES::NetSounder nsReq;
+	nsReq.type = 3;
+	nsReq.isContinous = true;
+
+	VDES::NetSounder::NetInfo nsNet1;
+	nsNet1.MRN = 77777;
+	nsNet1.latitude = 38.5;
+	nsNet1.longitude = 118.2;
+	nsNet1.fragmentDesc = 0;
+	nsNet1.description = "Net 1";
+	nsReq.nets.push_back(nsNet1);
+
+	VDES::NetSounder::NetInfo nsNet2;
+	nsNet2.MRN = 77778;
+	nsNet2.latitude = 38.6;
+	nsNet2.longitude = 118.3;
+	nsNet2.fragmentDesc = 0;
+	nsNet2.description = "Net 2";
+	nsReq.nets.push_back(nsNet2);
+
+	std::cout << "Sending NetSounder request..." << std::endl;
+	vdesManager.SendNetSounder(nsReq); // Should be seqNo incremented.
+	// Since RouteRecommendationRequest sent twice (seq 3, seq 4), NetSounder request should be seq 5.
+
+	// Retrieve the sequence number of the last inserted own NetSounder (highest dataID)
+	uint32_t lastSeqNo = 0;
+	auto dbNSList = vdesManager.GetNetSounders(0, 100);
+	if (!dbNSList.empty())
+	{
+		uint32_t maxID = 0;
+		for (const auto &ns : dbNSList)
+		{
+			if (ns.dataID > maxID)
+			{
+				maxID = ns.dataID;
+				lastSeqNo = ns.sequenceNum;
+			}
+		}
+	}
+	std::cout << "Detected NetSounder seqNo: " << lastSeqNo << std::endl;
+
+	// Simulate AMK response (seqNo=lastSeqNo, ackType=0) from transceiver
+	std::cout << "Simulating AMK response (seqNo=" << lastSeqNo << ", ackType=0) for NetSounder..." << std::endl;
+	std::string nsAmk = fmt::format("$AIAMK,{0},0", lastSeqNo);
+	VDES::UtilityInterface::AddChecksum(nsAmk);
+	nsAmk += "\r\n";
+	vdesManager.Parse(nsAmk.c_str(), nsAmk.length());
+
+	std::cout << "gotSuccess (NetSounder Req) = " << (gotSuccess ? "TRUE" : "FALSE") << std::endl;
+
+	// Verify database record has send status updated to 0 (success)
+	dbNSList = vdesManager.GetNetSounders(0, 100);
+	if (!dbNSList.empty())
+	{
+		for (const auto &ns : dbNSList)
+		{
+			std::cout << "  - DB NetSounder ID: " << ns.dataID << ", seq: " << ns.sequenceNum << ", sendStatus: " << ns.sendStatus << std::endl;
+			if (ns.sequenceNum == lastSeqNo)
+			{
+				std::cout << "Database NetSounder seq " << lastSeqNo << " send status: " << ns.sendStatus << " (Expected: 0)" << std::endl;
+			}
+		}
+	}
+
+	// Timeout test
+	gotTimeout = false;
+	std::cout << "\nSending NetSounder request for timeout test..." << std::endl;
+	vdesManager.SendNetSounder(nsReq); // seq 6
+
+	uint32_t timeoutSeqNo = 0;
+	dbNSList = vdesManager.GetNetSounders(0, 100);
+	if (!dbNSList.empty())
+	{
+		uint32_t maxID = 0;
+		for (const auto &ns : dbNSList)
+		{
+			if (ns.dataID > maxID)
+			{
+				maxID = ns.dataID;
+				timeoutSeqNo = ns.sequenceNum;
+			}
+		}
+	}
+	std::cout << "Detected NetSounder timeout seqNo: " << timeoutSeqNo << std::endl;
+
+	std::cout << "Waiting 11 seconds for NetSounder timeout..." << std::endl;
+	std::this_thread::sleep_for(std::chrono::seconds(11));
+	std::cout << "NetSounder Req Timeout check finished." << std::endl;
+
+	// Verify database record has send status updated to 4 (timeout)
+	dbNSList = vdesManager.GetNetSounders(0, 100);
+	if (!dbNSList.empty())
+	{
+		for (const auto &ns : dbNSList)
+		{
+			std::cout << "  - DB NetSounder ID: " << ns.dataID << ", seq: " << ns.sequenceNum << ", sendStatus: " << ns.sendStatus << std::endl;
+			if (ns.sequenceNum == timeoutSeqNo)
+			{
+				std::cout << "Database NetSounder seq " << timeoutSeqNo << " send status: " << ns.sendStatus << " (Expected: 4)" << std::endl;
+			}
+		}
+	}
 	std::cout << "==========================================================" << std::endl;
 
 	// Verify NetSounder deletion

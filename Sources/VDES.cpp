@@ -182,7 +182,7 @@ namespace VDES
 
         void SaveChannelBoundary(const ChannelBoundary &boundary);
 
-        void SaveNetSounder(const NetSounder &netSounder);
+        uint32_t SaveNetSounder(const NetSounder &netSounder);
 
         void SaveFrontendPrompt(const FrontendPrompt &prompt);
 
@@ -1240,7 +1240,9 @@ namespace VDES
                 "IsContinous INT, "
                 "[Timestamp Receive] INTEGER, "
                 "[Description] TEXT, "
-                "[IsOwnShip] INTEGER NOT NULL DEFAULT 0"
+                "[IsOwnShip] INTEGER NOT NULL DEFAULT 0, "
+                "[Send Status] INTEGER DEFAULT -1, "
+                "[Sequence Num] INTEGER DEFAULT 0"
                 ")");
 
             m_database->exec("CREATE TABLE NetSounderElement ("
@@ -1253,6 +1255,15 @@ namespace VDES
                 "Description TEXT, "
                 "FOREIGN KEY(NetSounder_ID) REFERENCES NetSounder(ID) ON DELETE CASCADE"
                 ")");
+
+            if (!m_database->fieldExists("[Send Status]", "NetSounder"))
+            {
+                m_database->exec("ALTER TABLE NetSounder ADD COLUMN [Send Status] INTEGER DEFAULT -1");
+            }
+            if (!m_database->fieldExists("[Sequence Num]", "NetSounder"))
+            {
+                m_database->exec("ALTER TABLE NetSounder ADD COLUMN [Sequence Num] INTEGER DEFAULT 0");
+            }
 
             if (!m_database->indexExists("NetSounderElementIDIndex", "NetSounderElement"))
             {
@@ -3341,6 +3352,24 @@ namespace VDES
             netSounder.isOwn = false;
         }
 
+        try
+        {
+            netSounder.sendStatus = query.getColumn("Send Status").getInt();
+        }
+        catch (...)
+        {
+            netSounder.sendStatus = -1;
+        }
+
+        try
+        {
+            netSounder.sequenceNum = query.getColumn("Sequence Num").getUInt();
+        }
+        catch (...)
+        {
+            netSounder.sequenceNum = 0;
+        }
+
         netSounder.nets.clear();
         try
         {
@@ -4191,24 +4220,37 @@ namespace VDES
         }
     }
 
-    void VDESManager::Impl::SaveNetSounder(const NetSounder &netSounder)
+    uint32_t VDESManager::Impl::SaveNetSounder(const NetSounder &netSounder)
     {
+        uint32_t resultID = 0;
         if (m_database)
         {
             try
             {
-                auto sql = "INSERT INTO NetSounder (Type, IsContinous, [Timestamp Receive], [Description], [IsOwnShip]) "
-                           "VALUES (@Type, @IsContinous, @TimestampRcv, @Description, @IsOwnShip)";
+                if (netSounder.dataID != 0)
+                {
+                    m_database->exec(fmt::format("DELETE FROM NetSounderElement WHERE NetSounder_ID = {}", netSounder.dataID));
+                }
+
+                auto sql = "REPLACE INTO NetSounder (ID, Type, IsContinous, [Timestamp Receive], [Description], [IsOwnShip], [Send Status], [Sequence Num]) "
+                           "VALUES (@ID, @Type, @IsContinous, @TimestampRcv, @Description, @IsOwnShip, @SendStatus, @SequenceNum)";
                 auto stmt = m_database->buildStatement(sql);
 
+                if (netSounder.dataID != 0)
+                {
+                    stmt.bind("@ID", netSounder.dataID);
+                }
                 stmt.bind("@Type", netSounder.type);
                 stmt.bind("@IsContinous", netSounder.isContinous ? 1 : 0);
                 stmt.bind("@TimestampRcv", netSounder.timestamp);
                 stmt.bind("@Description", netSounder.description);
                 stmt.bind("@IsOwnShip", netSounder.isOwn ? 1 : 0);
+                stmt.bind("@SendStatus", netSounder.sendStatus);
+                stmt.bind("@SequenceNum", netSounder.sequenceNum);
 
                 stmt.exec();
-                auto parentID = m_database->getLastInsertRowid();
+                auto parentID = (netSounder.dataID != 0) ? netSounder.dataID : static_cast<uint32_t>(m_database->getLastInsertRowid());
+                resultID = parentID;
 
                 for (const auto &net : netSounder.nets)
                 {
@@ -4229,6 +4271,7 @@ namespace VDES
                 DatabaseErrorProcess(execption, "SaveNetSounder");
             }
         }
+        return resultID;
     }
 
     void VDESManager::Impl::SaveFrontendPrompt(const FrontendPrompt &prompt)
@@ -5858,6 +5901,7 @@ namespace VDES
                 if (info)
                 {
                     RouteRecommendationResponse response;
+                    response.mmsiResponser = info->source;
                     response.effectiveTime = info->effectiveTime;
                     response.coordinates = info->coordinates;
                     response.timestamp = UtilityInterface::GetCurrentTimeStamp();
@@ -5912,6 +5956,7 @@ namespace VDES
 
 
                         HydrometeorologyResponse response;
+                        response.mmsiResponser = info->source;
                         response.MRN              = 0;
                         response.forecastTime     = info->forecastTime;
                         response.hasWindSpeed     = info->hasWindSpeed;
@@ -13290,8 +13335,8 @@ namespace VDES
                 auto limitTime = UtilityInterface::GetCurrentTimeStamp() - 7 * 24 * 3600;
                 m_database->exec(fmt::format("DELETE FROM RouteRecommendationResponse WHERE [Timestamp Receive] < {}", limitTime));
 
-                auto sql = "REPLACE INTO RouteRecommendationResponse (ID, [Effective Time], Coordinates, [Timestamp Receive], Read) "
-                           "VALUES (@ID, @EffectiveTime, @Coordinates, @TimestampRcv, @Read)";
+                auto sql = "REPLACE INTO RouteRecommendationResponse (ID, [Effective Time], Coordinates, [Timestamp Receive], Read, [MMSI Responser]) "
+                           "VALUES (@ID, @EffectiveTime, @Coordinates, @TimestampRcv, @Read, @MmsiResponser)";
                 auto stmt = m_database->buildStatement(sql);
                 if (response.dataID != 0)
                 {
@@ -13300,6 +13345,7 @@ namespace VDES
                 stmt.bind("@EffectiveTime", response.effectiveTime);
                 stmt.bind("@TimestampRcv", response.timestamp);
                 stmt.bind("@Read", response.read ? 1 : 0);
+                stmt.bind("@MmsiResponser", response.mmsiResponser);
 
                 auto pointsCount = response.coordinates.size();
                 auto size = pointsCount * sizeof(CoordinateStruct);
@@ -13330,8 +13376,14 @@ namespace VDES
                            "[Effective Time]        DOUBLE    NOT NULL DEFAULT 31.5,"
                            "Coordinates             BLOB,"
                            "[Timestamp Receive]     INTEGER   NOT NULL DEFAULT 0,"
-                           "Read                    BOOLEAN   NOT NULL DEFAULT 0)";
+                           "Read                    BOOLEAN   NOT NULL DEFAULT 0,"
+                           "[MMSI Responser]        INTEGER   NOT NULL DEFAULT 0)";
                 m_database->exec(sql);
+            }
+
+            if (!m_database->fieldExists("[MMSI Responser]", "RouteRecommendationResponse"))
+            {
+                m_database->exec("ALTER TABLE RouteRecommendationResponse ADD COLUMN [MMSI Responser] INTEGER NOT NULL DEFAULT 0");
             }
         }
         catch (const SQLite::Exception &execption)
@@ -13346,6 +13398,7 @@ namespace VDES
         response.effectiveTime = query.getColumn("Effective Time").getDouble();
         response.timestamp = query.getColumn("Timestamp Receive").getInt64();
         response.read = query.getColumn("Read").getUInt() != 0;
+        response.mmsiResponser = query.getColumn("MMSI Responser").getUInt();
         response.DAC = 412;
         response.FI = 46;
 
@@ -13375,9 +13428,9 @@ namespace VDES
 
                 auto sql = "REPLACE INTO HydrometeorologyResponse (ID, MRN, [Forecast Time], "
                            "[Has Wind Speed], [Has Wind Direction], [Has Visibility], [Has Wave Height], "
-                           "[Has Wave Direction], [Has Swell Height], Points, [Timestamp Receive], Read) "
+                           "[Has Wave Direction], [Has Swell Height], Points, [Timestamp Receive], Read, [MMSI Responser]) "
                            "VALUES (@ID, @MRN, @ForecastTime, @HasWindSpeed, @HasWindDirection, @HasVisibility, "
-                           "@HasWaveHeight, @HasWaveDirection, @HasSwellHeight, @Points, @TimestampRcv, @Read)";
+                           "@HasWaveHeight, @HasWaveDirection, @HasSwellHeight, @Points, @TimestampRcv, @Read, @MmsiResponser)";
                 auto stmt = m_database->buildStatement(sql);
                 if (response.dataID != 0)
                 {
@@ -13393,6 +13446,7 @@ namespace VDES
                 stmt.bind("@HasSwellHeight", response.hasSwellHeight ? 1 : 0);
                 stmt.bind("@TimestampRcv", response.timestamp);
                 stmt.bind("@Read", response.read ? 1 : 0);
+                stmt.bind("@MmsiResponser", response.mmsiResponser);
 
                 auto pointsCount = response.points.size();
                 auto size = pointsCount * sizeof(HydrometeorologyResponse::PointForecast);
@@ -13424,8 +13478,14 @@ namespace VDES
                            "[Has Swell Height]      BOOLEAN   NOT NULL DEFAULT 0,"
                            "Points                  BLOB,"
                            "[Timestamp Receive]     INTEGER   NOT NULL DEFAULT 0,"
-                           "Read                    BOOLEAN   NOT NULL DEFAULT 0)";
+                           "Read                    BOOLEAN   NOT NULL DEFAULT 0,"
+                           "[MMSI Responser]        INTEGER   NOT NULL DEFAULT 0)";
                 m_database->exec(sql);
+            }
+
+            if (!m_database->fieldExists("[MMSI Responser]", "HydrometeorologyResponse"))
+            {
+                m_database->exec("ALTER TABLE HydrometeorologyResponse ADD COLUMN [MMSI Responser] INTEGER NOT NULL DEFAULT 0");
             }
         }
         catch (const SQLite::Exception &execption)
@@ -13447,6 +13507,7 @@ namespace VDES
         response.hasSwellHeight = query.getColumn("Has Swell Height").getUInt() != 0;
         response.timestamp = query.getColumn("Timestamp Receive").getInt64();
         response.read = query.getColumn("Read").getUInt() != 0;
+        response.mmsiResponser = query.getColumn("MMSI Responser").getUInt();
         response.DAC = 412;
         response.FI = 49;
 
@@ -13624,6 +13685,7 @@ namespace VDES
     void VDESManager::Impl::UpdateAABRequestStatus(uint32_t seqNo, uint8_t ackType)
     {
         uint32_t timerID = 0;
+        bool found = false;
         {
             std::lock_guard<std::mutex> lockPending(m_mutexPendingAMKAABs);
             auto it = m_pendingAMKAABs.find(seqNo);
@@ -13631,8 +13693,11 @@ namespace VDES
             {
                 timerID = it->second;
                 m_pendingAMKAABs.erase(it);
+                found = true;
             }
         }
+
+        spdlog::debug("UpdateAABRequestStatus: Lookup pending AMK for seq: {}, found: {}, timerID: {}", seqNo, found, timerID);
 
         if (timerID != 0)
         {
@@ -13654,6 +13719,15 @@ namespace VDES
                     "WHERE ID = (SELECT ID FROM HydrometeorologyRequest WHERE [Sequence Num] = {1} ORDER BY [Timestamp Sent] DESC LIMIT 1)",
                     ackType, seqNo);
                 m_database->exec(sqlHydro);
+
+                {
+                    std::lock_guard<std::mutex> lock(m_mutexNetSounder);
+                    auto sqlNetSounder = fmt::format(
+                        "UPDATE NetSounder SET [Send Status] = {0} "
+                        "WHERE ID = (SELECT ID FROM NetSounder WHERE [Sequence Num] = {1} ORDER BY [Timestamp Receive] DESC LIMIT 1)",
+                        ackType, seqNo);
+                    m_database->exec(sqlNetSounder);
+                }
 
                 int retCode = 2;
                 if (ackType == 0) 
@@ -14377,11 +14451,18 @@ namespace VDES
             aisBitsManager.Encode(net.MRN & 0xFFFFF, 20);
             aisBitsManager.Encode(net.fragmentDesc & 3, 2);
 
-            double diffLon = net.longitude - prevNet.longitude;
-            double diffLat = net.latitude - prevNet.latitude;
+            int32_t currLon = static_cast<int32_t>(::round(net.longitude * 60000.0));
+            int32_t prevLon = static_cast<int32_t>(::round(prevNet.longitude * 60000.0));
+            int32_t deltaLon = currLon - prevLon;
 
-            int32_t deltaLon = static_cast<int32_t>(::round(diffLon * 60000.0));
-            int32_t deltaLat = static_cast<int32_t>(::round(diffLat * 60000.0));
+            int32_t currLat = static_cast<int32_t>(::round(net.latitude * 60000.0));
+            int32_t prevLat = static_cast<int32_t>(::round(prevNet.latitude * 60000.0));
+            int32_t deltaLat = currLat - prevLat;
+
+            if (deltaLon < -16383 || deltaLon > 16383 || deltaLat < -8191 || deltaLat > 8191)
+            {
+                return false;
+            }
 
             aisBitsManager.Encode(UtilityInterface::ConvertIntegerToComplementCode(deltaLon, 15), 15);
             aisBitsManager.Encode(UtilityInterface::ConvertIntegerToComplementCode(deltaLat, 14), 14);
@@ -14396,18 +14477,66 @@ namespace VDES
         // Broadcast to China Shore Station (MMSI 004129999) using AAB sentence
         std::string nmea = fmt::format("!AIAAB,1,1,{0},,004129999,,,0,{1},{2}", seqNo, payload, fillBits);
         UtilityInterface::AddChecksum(nmea);
-        nmea += "\r\n";
-
+        nmea += "\r\n";        
         NetSounder netToSave = netSounder;
         netToSave.isOwn = true;
         if (netToSave.timestamp == 0)
         {
             netToSave.timestamp = UtilityInterface::GetCurrentTimeStamp();
         }
+        netToSave.sequenceNum = seqNo;
+        netToSave.sendStatus = -1; // pending
 
+        uint32_t dataID = 0;
         {
             std::unique_lock<std::mutex> lock(m_impl->m_mutexNetSounder);
-            m_impl->SaveNetSounder(netToSave);
+            dataID = m_impl->SaveNetSounder(netToSave);
+        }
+
+        uint32_t timerID = TimerManager::GetInstance().AddTimer(10000, false, [this, seqNo, dataID]() {
+            spdlog::debug("SendNetSounder: Timer callback executed for seq: {}, dataID: {}", seqNo, dataID);
+            bool found = false;
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexPendingAMKAABs);
+                auto it = m_impl->m_pendingAMKAABs.find(seqNo);
+                if (it != m_impl->m_pendingAMKAABs.end())
+                {
+                    found = true;
+                    m_impl->m_pendingAMKAABs.erase(it);
+                }
+            }
+            if (found)
+            {
+                if (m_impl->m_database)
+                {
+                    try
+                    {
+                        std::lock_guard<std::mutex> lock(m_impl->m_mutexNetSounder);
+                        auto sqlNetSounder = fmt::format(
+                            "UPDATE NetSounder SET [Send Status] = 4 "
+                            "WHERE ID = {}", dataID);
+                        m_impl->m_database->exec(sqlNetSounder);
+                    }
+                    catch (const std::exception &e)
+                    {
+                        spdlog::error("NetSounder timeout update failed for ID {}: {}", dataID, e.what());
+                    }
+                    catch (...)
+                    {
+                        spdlog::error("NetSounder timeout update failed for ID {} with unknown exception", dataID);
+                    }
+                }
+                if (notifyEvent)
+                {
+                    notifyEvent(EventType::MESSAGE_SEND, 4);
+                }
+            }
+        });
+
+        {
+            std::lock_guard<std::mutex> lock(m_impl->m_mutexPendingAMKAABs);
+            m_impl->m_pendingAMKAABs[seqNo] = timerID;
+            spdlog::debug("SendNetSounder: Added pending AMK for seq: {}, timerID: {}", seqNo, timerID);
         }
 
         sendEvent(CommunicationType::TCP, nmea.c_str(), nmea.length());
