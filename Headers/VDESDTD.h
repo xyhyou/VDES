@@ -1140,6 +1140,24 @@ namespace VDES
     };
 
     /**
+     * @brief : Route Exchange DTO (DAC 412, FI 48)
+     */
+    struct RouteExchange : ASMAttribute
+    {
+        struct Waypoint
+        {
+            Coordinate coordinate;
+            uint8_t    timeUnit = 0;      // 0: seconds, 1: minutes
+            uint16_t   duration = 0;      // Time increment relative to previous waypoint
+        };
+
+        uint32_t                mmsiSender = 0;    // Sender MMSI (source)
+        uint8_t                 routeVersion = 0;  // Route version number (6 bits)
+        uint64_t                startTime = 0;     // Start time (seconds timestamp)
+        std::vector<Waypoint>   waypoints;
+    };
+
+    /**
      * @brief : Hydrometeorological Request DTO (DAC 412, FI 48)
      */
     struct HydrometeorologyRequest

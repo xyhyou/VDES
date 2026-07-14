@@ -242,6 +242,12 @@ namespace VDES
         
         void LoadRouteRecommendationResponseFromQueryResult(RouteRecommendationResponse &response, const SQLite::Statement &query);
 
+        void SaveRouteExchange(const RouteExchange &routeExchange);
+        
+        void InitializeRouteExchangeTable(void);
+        
+        void LoadRouteExchangeFromQueryResult(RouteExchange &routeExchange, const SQLite::Statement &query);
+
         void SaveHydrometeorologyResponse(const HydrometeorologyResponse &response);
         
         void InitializeHydrometeorologyResponseTable(void);
@@ -258,7 +264,7 @@ namespace VDES
 
         void ParseAMK(const std::string &sentence);
         
-        void UpdateAABRequestStatus(uint32_t seqNo, uint8_t ackType);
+        void UpdateAABRequestStatus(uint32_t seqNo, uint8_t ackType, uint32_t addressedMMSI);
 
         void InitializeOwnExtendedVesselInfoTable(void);
         
@@ -378,6 +384,14 @@ namespace VDES
             double longitude;
         };
 
+        struct ExchangeWaypointStruct
+        {
+            double   latitude;
+            double   longitude;
+            uint32_t timeUnit;
+            uint32_t duration;
+        };
+
         struct NetInfoStruct
         {
             uint32_t MRN;
@@ -476,6 +490,7 @@ namespace VDES
         std::mutex              m_mutexVTSRequest;
         std::mutex              m_mutexVTSReply;
         std::mutex              m_mutexRouteRecommendationResponse;
+        std::mutex              m_mutexRouteExchange;
         std::mutex              m_mutexHydrometeorologyResponse;
         std::mutex              m_mutexOwnExtendedVesselInfo;
         std::mutex              m_mutexOtherVesselExtendedInfo;
@@ -2090,6 +2105,7 @@ namespace VDES
             InitializeAISAtoNDynamicsTable();
 
             InitializeRouteRecommendationResponseTable();
+            InitializeRouteExchangeTable();
             InitializeHydrometeorologyResponseTable();
             InitializeHydrometeorologyRequestTable();
             InitializeRouteRecommendationRequestTable();
@@ -5912,6 +5928,35 @@ namespace VDES
                     lock.unlock();
 
                     m_parent->notifyEvent(EventType::ASM_ROUTE_RECOMMENDATION_RESPONSE, 0);
+                }
+            }
+            if (asmData->DAC == 412 && asmData->FI == 48)
+            {
+                auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_48>(asmData);
+                if (info)
+                {
+                    RouteExchange routeExchange;
+                    routeExchange.mmsiSender = info->source;
+                    routeExchange.routeVersion = info->routeVersion;
+                    routeExchange.startTime = info->startTime;
+                    routeExchange.timestamp = UtilityInterface::GetCurrentTimeStamp();
+                    routeExchange.read = false;
+
+                    routeExchange.waypoints.clear();
+                    for (const auto &wp : info->waypoints)
+                    {
+                        RouteExchange::Waypoint rwp;
+                        rwp.coordinate = wp.coordinate;
+                        rwp.timeUnit = wp.timeUnit;
+                        rwp.duration = wp.duration;
+                        routeExchange.waypoints.push_back(rwp);
+                    }
+
+                    std::unique_lock<std::mutex> lock(m_mutexRouteExchange);
+                    SaveRouteExchange(routeExchange);
+                    lock.unlock();
+
+                    m_parent->notifyEvent(EventType::ASM_ROUTE_EXCHANGE, 0);
                 }
             }
             if (asmData->DAC == 412 && asmData->FI == 50)
@@ -13392,6 +13437,102 @@ namespace VDES
         }
     }
 
+    void VDESManager::Impl::SaveRouteExchange(const RouteExchange &routeExchange)
+    {
+        if (m_database)
+        {
+            try
+            {
+                // Auto cleanup records older than 7 days
+                auto limitTime = UtilityInterface::GetCurrentTimeStamp() - 7 * 24 * 3600;
+                m_database->exec(fmt::format("DELETE FROM RouteExchange WHERE [Timestamp Receive] < {}", limitTime));
+
+                auto sql = "REPLACE INTO RouteExchange (ID, [MMSI Sender], [Route Version], [Start Time], Waypoints, [Timestamp Receive], Read) "
+                           "VALUES (@ID, @MmsiSender, @RouteVersion, @StartTime, @Waypoints, @TimestampRcv, @Read)";
+                auto stmt = m_database->buildStatement(sql);
+                if (routeExchange.dataID != 0)
+                {
+                    stmt.bind("@ID", routeExchange.dataID);
+                }
+                stmt.bind("@MmsiSender", routeExchange.mmsiSender);
+                stmt.bind("@RouteVersion", routeExchange.routeVersion);
+                stmt.bind("@StartTime", routeExchange.startTime);
+                stmt.bind("@TimestampRcv", routeExchange.timestamp);
+                stmt.bind("@Read", routeExchange.read ? 1 : 0);
+
+                auto pointsCount = routeExchange.waypoints.size();
+                auto size = pointsCount * sizeof(ExchangeWaypointStruct);
+                auto blob = std::unique_ptr<ExchangeWaypointStruct[]>(new ExchangeWaypointStruct[pointsCount]);
+                for (size_t i = 0; i < pointsCount; ++i)
+                {
+                    blob[i].latitude  = routeExchange.waypoints[i].coordinate.GetLatitude();
+                    blob[i].longitude = routeExchange.waypoints[i].coordinate.GetLongitude();
+                    blob[i].timeUnit  = routeExchange.waypoints[i].timeUnit;
+                    blob[i].duration  = routeExchange.waypoints[i].duration;
+                }
+                stmt.bind("@Waypoints", blob.get(), static_cast<int>(size));
+                stmt.exec();
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                DatabaseErrorProcess(execption, "SaveRouteExchange");
+            }
+        }
+    }
+
+    void VDESManager::Impl::InitializeRouteExchangeTable(void)
+    {
+        try
+        {
+            if (!m_database->tableExists("RouteExchange"))
+            {
+                auto sql = "CREATE TABLE RouteExchange ("
+                           "ID                      INTEGER   PRIMARY KEY AUTOINCREMENT,"
+                           "[MMSI Sender]           INTEGER   NOT NULL DEFAULT 0,"
+                           "[Route Version]         INTEGER   NOT NULL DEFAULT 0,"
+                           "[Start Time]            INTEGER   NOT NULL DEFAULT 0,"
+                           "Waypoints               BLOB,"
+                           "[Timestamp Receive]     INTEGER   NOT NULL DEFAULT 0,"
+                           "Read                    BOOLEAN   NOT NULL DEFAULT 0)";
+                m_database->exec(sql);
+            }
+        }
+        catch (const SQLite::Exception &execption)
+        {
+            DatabaseErrorProcess(execption, "InitializeRouteExchangeTable");
+        }
+    }
+
+    void VDESManager::Impl::LoadRouteExchangeFromQueryResult(RouteExchange &routeExchange, const SQLite::Statement &query)
+    {
+        routeExchange.dataID = query.getColumn("ID").getUInt();
+        routeExchange.mmsiSender = query.getColumn("MMSI Sender").getUInt();
+        routeExchange.routeVersion = static_cast<uint8_t>(query.getColumn("Route Version").getUInt());
+        routeExchange.startTime = query.getColumn("Start Time").getInt64();
+        routeExchange.timestamp = query.getColumn("Timestamp Receive").getInt64();
+        routeExchange.read = query.getColumn("Read").getUInt() != 0;
+        routeExchange.DAC = 412;
+        routeExchange.FI = 48;
+
+        SQLite::Column column = query.getColumn("Waypoints");
+        auto size = column.getBytes();
+        if (size > 0)
+        {
+            auto ptr = (const ExchangeWaypointStruct *)column.getBlob();
+            auto count = size / sizeof(ExchangeWaypointStruct);
+            routeExchange.waypoints.clear();
+            for (size_t i = 0; i < count; ++i)
+            {
+                RouteExchange::Waypoint wp;
+                wp.coordinate.SetLatitude(ptr[i].latitude);
+                wp.coordinate.SetLongitude(ptr[i].longitude);
+                wp.timeUnit = static_cast<uint8_t>(ptr[i].timeUnit);
+                wp.duration = static_cast<uint16_t>(ptr[i].duration);
+                routeExchange.waypoints.push_back(wp);
+            }
+        }
+    }
+
     void VDESManager::Impl::LoadRouteRecommendationResponseFromQueryResult(RouteRecommendationResponse &response, const SQLite::Statement &query)
     {
         response.dataID = query.getColumn("ID").getUInt();
@@ -13673,16 +13814,20 @@ namespace VDES
     {
         std::vector<std::string> seps {",", "*"};
         auto strList = UtilityInterface::SplitString(sentence, seps);
-        if (strList.size() >= 3)
+        if (strList.size() < 6)
         {
-            uint32_t seqNo = strtoul(strList[1].c_str(), nullptr, 10);
-            uint8_t ackType = static_cast<uint8_t>(strtoul(strList[2].c_str(), nullptr, 10));
-
-            UpdateAABRequestStatus(seqNo, ackType);
+            spdlog::warn("Invalid or non-standard AMK sentence format: {}", sentence);
+            return;
         }
+
+        uint32_t addressedMMSI = strtoul(strList[1].c_str(), nullptr, 10);
+        uint32_t seqNo = strtoul(strList[4].c_str(), nullptr, 10);
+        uint8_t ackType = static_cast<uint8_t>(strtoul(strList[5].c_str(), nullptr, 10));
+
+        UpdateAABRequestStatus(seqNo, ackType, addressedMMSI);
     }
 
-    void VDESManager::Impl::UpdateAABRequestStatus(uint32_t seqNo, uint8_t ackType)
+    void VDESManager::Impl::UpdateAABRequestStatus(uint32_t seqNo, uint8_t ackType, uint32_t addressedMMSI)
     {
         uint32_t timerID = 0;
         bool found = false;
@@ -13697,7 +13842,17 @@ namespace VDES
             }
         }
 
-        spdlog::debug("UpdateAABRequestStatus: Lookup pending AMK for seq: {}, found: {}, timerID: {}", seqNo, found, timerID);
+        auto expectedMMSI = ConfigureManager::GetInstance().GetBaseStationMMSI();
+        if (addressedMMSI != expectedMMSI)
+        {
+            spdlog::warn("UpdateAABRequestStatus: Addressed MMSI {} in AMK does not match expected base station MMSI {}", addressedMMSI, expectedMMSI);
+        }
+        else
+        {
+            spdlog::debug("UpdateAABRequestStatus: Addressed MMSI {} matches expected base station MMSI.", addressedMMSI);
+        }
+
+        spdlog::debug("UpdateAABRequestStatus: Lookup pending AMK for seq: {}, found: {}, timerID: {}, addressedMMSI: {}", seqNo, found, timerID, addressedMMSI);
 
         if (timerID != 0)
         {
@@ -13950,7 +14105,7 @@ namespace VDES
 
         AISBitsManager aisBitsManager;
         aisBitsManager.Encode(412, 10);
-        aisBitsManager.Encode(50, 6);
+        aisBitsManager.Encode(51, 6);
         aisBitsManager.Encode(info.extendedVesselType, 8);
         aisBitsManager.Encode(info.autonomousLevel, 3);
         aisBitsManager.Encode(ownVessel.naviStatus, 4);
@@ -14027,7 +14182,7 @@ namespace VDES
 
         AISBitsManager aisBitsManager;
         aisBitsManager.Encode(412, 10);
-        aisBitsManager.Encode(51, 6);
+        aisBitsManager.Encode(52, 6);
         aisBitsManager.Encode(ownVessel.crewNum & 0x1FFF, 13);
 
         std::string gbkStr = UtilityInterface::UTF8ToGBK(info.chineseName);
@@ -14130,6 +14285,76 @@ namespace VDES
             catch (const SQLite::Exception &execption)
             {
                 m_impl->DatabaseErrorProcess(execption, "DeleteRouteRecommendationResponses_IDs");
+            }
+        }
+        return false;
+    }
+
+    VDESManager::RouteExchanges VDESManager::GetRouteExchanges(const uint32_t index, const size_t number)
+    {
+        RouteExchanges container;
+        if (m_impl->m_database)
+        {
+            auto sqlCmd = fmt::format("SELECT * FROM RouteExchange ORDER BY [Timestamp Receive] "
+                                      "DESC LIMIT {0} OFFSET {1}",
+                                      (number == -1) ? "-1" : fmt::format("{}", number), index);
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexRouteExchange);
+                SQLite::Statement query(*m_impl->m_database.get(), sqlCmd);
+                while (query.executeStep())
+                {
+                    RouteExchange routeExchange;
+                    m_impl->LoadRouteExchangeFromQueryResult(routeExchange, query);
+                    container.emplace_back(routeExchange);
+                }
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "GetRouteExchanges");
+            }
+        }
+        return container;
+    }
+
+    bool VDESManager::DeleteRouteExchanges(const uint32_t index, const size_t number)
+    {
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexRouteExchange);
+                m_impl->m_database->exec("DROP VIEW IF EXISTS RouteExchangeIDView");
+                auto sqlCmd = fmt::format("CREATE VIEW RouteExchangeIDView AS SELECT ID FROM RouteExchange ORDER BY [Timestamp Receive] DESC LIMIT {0} OFFSET {1}",
+                                          (number == -1) ? "-1" : fmt::format("{}", number), index);
+                m_impl->m_database->exec(sqlCmd);
+                m_impl->m_database->exec("DELETE FROM RouteExchange WHERE ID IN (SELECT ID FROM RouteExchangeIDView)");
+                m_impl->m_database->exec("DROP VIEW IF EXISTS RouteExchangeIDView");
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteRouteExchanges_Limit");
+            }
+        }
+        return false;
+    }
+
+    bool VDESManager::DeleteRouteExchanges(const std::vector<uint32_t> &dataIDs)
+    {
+        if (dataIDs.empty()) return true;
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexRouteExchange);
+                auto sqlCmd = fmt::format("DELETE FROM RouteExchange WHERE ID IN ({})", fmt::join(dataIDs, ", "));
+                m_impl->m_database->exec(sqlCmd);
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteRouteExchanges_IDs");
             }
         }
         return false;
@@ -14248,7 +14473,9 @@ namespace VDES
         auto payload = aisBitsManager.GetEncodedVDMPayload();
         auto fillBits = aisBitsManager.GetFillBitsNumberToEncode();
 
-        std::string nmea = fmt::format("!AIAAB,1,1,{0},,004129999,,,0,{1},{2}", seqNo, payload, fillBits);
+        auto mmsiDestination = ConfigureManager::GetInstance().GetBaseStationMMSI();
+        std::string strMmsiDestination = fmt::format("{:09}", mmsiDestination);
+        std::string nmea = fmt::format("!AIAAB,1,1,{0},,{1},,,0,{2},{3}", seqNo, strMmsiDestination, payload, fillBits);
         UtilityInterface::AddChecksum(nmea);
         nmea += "\r\n";
 
@@ -14359,7 +14586,9 @@ namespace VDES
         auto payload = aisBitsManager.GetEncodedVDMPayload();
         auto fillBits = aisBitsManager.GetFillBitsNumberToEncode();
 
-        std::string nmea = fmt::format("!AIAAB,1,1,{0},,004129999,,,0,{1},{2}", seqNo, payload, fillBits);
+        auto mmsiDestination = ConfigureManager::GetInstance().GetBaseStationMMSI();
+        std::string strMmsiDestination = fmt::format("{:09}", mmsiDestination);
+        std::string nmea = fmt::format("!AIAAB,1,1,{0},,{1},,,0,{2},{3}", seqNo, strMmsiDestination, payload, fillBits);
         UtilityInterface::AddChecksum(nmea);
         nmea += "\r\n";
 
@@ -14475,7 +14704,9 @@ namespace VDES
         auto fillBits = aisBitsManager.GetFillBitsNumberToEncode();
 
         // Broadcast to China Shore Station (MMSI 004129999) using AAB sentence
-        std::string nmea = fmt::format("!AIAAB,1,1,{0},,004129999,,,0,{1},{2}", seqNo, payload, fillBits);
+        auto mmsiDestination = ConfigureManager::GetInstance().GetBaseStationMMSI();
+        std::string strMmsiDestination = fmt::format("{:09}", mmsiDestination);
+        std::string nmea = fmt::format("!AIAAB,1,1,{0},,{1},,,0,{2},{3}", seqNo, strMmsiDestination, payload, fillBits);
         UtilityInterface::AddChecksum(nmea);
         nmea += "\r\n";        
         NetSounder netToSave = netSounder;
@@ -14721,7 +14952,8 @@ namespace VDES
             m_impl->m_mutexMSIMaritimeOperation, m_impl->m_mutexMSIMilitaryActivity,
             m_impl->m_mutexMSIMaritimeDistress, m_impl->m_mutexMSIDesignatedArea, m_impl->m_mutexBridge, m_impl->m_mutexChannelCenterline, m_impl->m_mutexChannelBoundary, m_impl->m_mutexNetSounder, m_impl->m_mutexFrontendPrompt, m_impl->m_mutexHydrometeorology,
             m_impl->m_mutexAbnormalShip, m_impl->m_mutexMarineMeteorologyFCST,
-            m_impl->m_mutexMarineEnvironmentFCST, m_impl->m_mutexVTSRequest, m_impl->m_mutexVTSReply);
+            m_impl->m_mutexMarineEnvironmentFCST, m_impl->m_mutexVTSRequest, m_impl->m_mutexVTSReply,
+            m_impl->m_mutexRouteRecommendationResponse, m_impl->m_mutexRouteExchange);
 
         std::unique_lock<std::mutex> lock1(m_impl->m_mutexMessageInbox, std::adopt_lock);
         std::unique_lock<std::mutex> lock2(m_impl->m_mutexMessageOutbox, std::adopt_lock);
@@ -14741,6 +14973,8 @@ namespace VDES
         std::unique_lock<std::mutex> lock10(m_impl->m_mutexMarineEnvironmentFCST, std::adopt_lock);
         std::unique_lock<std::mutex> lock11(m_impl->m_mutexVTSRequest, std::adopt_lock);
         std::unique_lock<std::mutex> lock12(m_impl->m_mutexVTSReply, std::adopt_lock);
+        std::unique_lock<std::mutex> lock13(m_impl->m_mutexRouteRecommendationResponse, std::adopt_lock);
+        std::unique_lock<std::mutex> lock14(m_impl->m_mutexRouteExchange, std::adopt_lock);
 
         // FIXME: we have to wait for some time to ensure that the database is closed.
         m_impl->m_database->close();

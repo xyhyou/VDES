@@ -83,6 +83,8 @@ namespace VDES
 
         void ParseASMDAC412FI47(const AISBitsManager &manager);
 
+        void ParseASMDAC412FI48(const AISBitsManager &manager);
+
         void ParseASMDAC412FI50(const AISBitsManager &manager);
 
         void ParseASMDAC412FI51(const AISBitsManager &manager);
@@ -160,6 +162,8 @@ namespace VDES
         m_asmParserMap.insert(std::make_pair(41245, std::bind(&Impl::ParseASMDAC412FI45, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41247, std::bind(&Impl::ParseASMDAC412FI47, this, std::placeholders::_1)));
+
+        m_asmParserMap.insert(std::make_pair(41248, std::bind(&Impl::ParseASMDAC412FI48, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41250, std::bind(&Impl::ParseASMDAC412FI50, this, std::placeholders::_1)));
 
@@ -1904,8 +1908,68 @@ namespace VDES
 
             index += 47;
         }
-
         m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_47>(asmInfo));
+    }
+
+    void ASMManager::Impl::ParseASMDAC412FI48(const AISBitsManager &manager)
+    {
+        if (manager.GetBitsNumberToDecode() < 112)
+        {
+            return;
+        }
+
+        ASM_DAC_412_FI_48 asmInfo;
+        asmInfo.DAC          = 412;
+        asmInfo.FI           = 48;
+        asmInfo.source       = m_mmsiSource;
+        asmInfo.destination  = m_mmsiDestination;
+        asmInfo.routeVersion = static_cast<uint8_t>(manager.DecodeToNumerical(16, 6));
+        asmInfo.startTime    = DecodeTime(manager, 22, 22);
+
+        // Waypoint #1
+        ASM_DAC_412_FI_48::Waypoint wp1;
+        
+        auto valueLon = manager.DecodeToNumerical(44, 28);
+        auto longitude = UtilityInterface::ConvertComplementCodeToInteger(valueLon, 28);
+        wp1.coordinate.SetLongitude(longitude / 600000.0);
+
+        auto valueLat = manager.DecodeToNumerical(72, 27);
+        auto latitude = UtilityInterface::ConvertComplementCodeToInteger(valueLat, 27);
+        wp1.coordinate.SetLatitude(latitude / 600000.0);
+
+        wp1.timeUnit = static_cast<uint8_t>(manager.DecodeToNumerical(99, 1));
+        wp1.duration = static_cast<uint16_t>(manager.DecodeToNumerical(100, 12));
+
+        asmInfo.waypoints.push_back(wp1);
+
+        auto index = 112;
+        auto waypointNum = (manager.GetBitsNumberToDecode() - index) / 38;
+
+        for (auto i = 0U; i < waypointNum; i++)
+        {
+            auto &prevWp = asmInfo.waypoints.back();
+
+            // Longitude offset #n: 13 bits (signed 2's complement)
+            auto valueOffsetLon = manager.DecodeToNumerical(index, 13);
+            int32_t deltaLon = UtilityInterface::ConvertComplementCodeToInteger(valueOffsetLon, 13);
+            double lonVal = prevWp.coordinate.GetLongitude() + (deltaLon / 60000.0);
+
+            // Latitude offset #n: 12 bits (signed 2's complement)
+            auto valueOffsetLat = manager.DecodeToNumerical(index + 13, 12);
+            int32_t deltaLat = UtilityInterface::ConvertComplementCodeToInteger(valueOffsetLat, 12);
+            double latVal = prevWp.coordinate.GetLatitude() + (deltaLat / 60000.0);
+
+            ASM_DAC_412_FI_48::Waypoint wp;
+            wp.coordinate.SetLongitude(lonVal);
+            wp.coordinate.SetLatitude(latVal);
+            wp.timeUnit = static_cast<uint8_t>(manager.DecodeToNumerical(index + 25, 1));
+            wp.duration = static_cast<uint16_t>(manager.DecodeToNumerical(index + 26, 12));
+
+            asmInfo.waypoints.push_back(wp);
+
+            index += 38;
+        }
+        m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_48>(asmInfo));
     }
 
     void ASMManager::Impl::ParseASMDAC412FI50(const AISBitsManager &manager)

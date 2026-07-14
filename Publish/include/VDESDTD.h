@@ -831,6 +831,8 @@ namespace VDES
         std::vector<NetInfo> nets;
         std::string          description;
         bool                 isOwn = false;
+        uint32_t             sequenceNum = 0;
+        int32_t              sendStatus = -1; // -1: pending, 0-8: AMK ack, 4: timeout
     };
 
     /**
@@ -1132,8 +1134,27 @@ namespace VDES
      */
     struct RouteRecommendationResponse : ASMAttribute
     {
+        uint32_t                mmsiResponser = 0;
         double                  effectiveTime = 31.5; // Lifecycle, unit 0.5h
         std::vector<Coordinate> coordinates;
+    };
+
+    /**
+     * @brief : Route Exchange DTO (DAC 412, FI 48)
+     */
+    struct RouteExchange : ASMAttribute
+    {
+        struct Waypoint
+        {
+            Coordinate coordinate;
+            uint8_t    timeUnit = 0;      // 0: seconds, 1: minutes
+            uint16_t   duration = 0;      // Time increment relative to previous waypoint
+        };
+
+        uint32_t                mmsiSender = 0;    // Sender MMSI (source)
+        uint8_t                 routeVersion = 0;  // Route version number (6 bits)
+        uint64_t                startTime = 0;     // Start time (seconds timestamp)
+        std::vector<Waypoint>   waypoints;
     };
 
     /**
@@ -1145,7 +1166,6 @@ namespace VDES
         uint64_t                timestampSent = 0;    // Sent timestamp
         uint32_t                sequenceNum = 0;      // Rolling sequence number
         int32_t                 sendStatus = -1;      // Send status (-1: pending; 0-8: AMK ack)
-        uint32_t                MRN = 0;              // Range: 1~131071, 0 is default
         std::vector<Coordinate> coordinates;          // Limit: max 10 points
         
         bool                    windSpeed = false;
@@ -1160,11 +1180,6 @@ namespace VDES
 
         bool Validate(std::string &errorMsg) const
         {
-            if (MRN > 131071)
-            {
-                errorMsg = "MRN exceeds maximum value 131071.";
-                return false;
-            }
             if (coordinates.empty())
             {
                 errorMsg = "Coordinates list cannot be empty.";
@@ -1186,13 +1201,17 @@ namespace VDES
             return true;
         }
     };
+    
     /**
      * @brief : Hydrometeorological Response DTO (DAC 412, FI 49)
      */
     struct HydrometeorologyResponse : ASMAttribute
     {
+        uint32_t                mmsiResponser = 0;
         struct PointForecast
         {
+            double   latitude      = 0.0;
+            double   longitude     = 0.0;
             uint8_t  windSpeed     = 63;
             uint16_t windDirection = 360;
             uint8_t  visibility    = 255;
@@ -1201,18 +1220,18 @@ namespace VDES
             uint8_t  swellHeight   = 255;
         };
 
-        uint32_t                    MRN = 0;
-        uint64_t                    forecastTime = 0;
-        
-        bool                        hasWindSpeed = false;
-        bool                        hasWindDirection = false;
-        bool                        hasVisibility = false;
-        bool                        hasWaveHeight = false;
-        bool                        hasWaveDirection = false;
-        bool                        hasSwellHeight = false;
+        uint32_t MRN              = 0;
+        uint64_t forecastTime     = 0;
+        bool     hasWindSpeed     = false;
+        bool     hasWindDirection = false;
+        bool     hasVisibility    = false;
+        bool     hasWaveHeight    = false;
+        bool     hasWaveDirection = false;
+        bool     hasSwellHeight   = false;
 
         std::vector<PointForecast>  points;
     };
+
     /**
      * @brief : Extended own vessel static and voyage info
      */

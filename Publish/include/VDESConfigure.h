@@ -19,6 +19,10 @@ namespace VDES
 
         std::string GetStoragePath(void) const;
 
+        void SetBaseStationMMSI(uint32_t mmsi);
+
+        uint32_t GetBaseStationMMSI(void) const;
+        
         /*
         * @brief      Set mailbox capacity
         * @param[in]  inboxSize  -  maximum messages in inbox.

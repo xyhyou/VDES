@@ -65,6 +65,7 @@ namespace VDES
 
         bool                m_enalbeVerifyChecksum;
         std::string         m_storagePath;
+        uint32_t            m_mmsiBaseStation;
         OwnVessel           m_ownVessel;
         OwnVessel           m_ownVesselSetted;
         RcvFlags            m_rcvFlags;
@@ -683,6 +684,16 @@ namespace VDES
     std::string ConfigureManager::GetStoragePath(void) const
     {
         return m_impl->m_storagePath;
+    }
+
+    void ConfigureManager::SetBaseStationMMSI(uint32_t mmsi)
+    {
+        m_impl->m_mmsiBaseStation = mmsi;
+    }
+
+    uint32_t ConfigureManager::GetBaseStationMMSI(void) const
+    {
+        return m_impl->m_mmsiBaseStation;
     }
 
     void ConfigureManager::SetMailBoxCapacity(const uint32_t inboxSize, const uint32_t outboxSize)

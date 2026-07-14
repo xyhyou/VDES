@@ -582,6 +582,23 @@ namespace VDES
     };
 
     /**
+     * @brief : Route Exchange (DAC 412, FI 48)
+     */
+    struct ASM_DAC_412_FI_48 : ASM_DAC_FI
+    {
+        struct Waypoint
+        {
+            Coordinate coordinate;
+            uint8_t    timeUnit = 0;      // 0: seconds, 1: minutes
+            uint16_t   duration = 0;      // Time increment relative to previous waypoint
+        };
+
+        uint8_t                 routeVersion = 0;
+        uint64_t                startTime = 0;
+        std::vector<Waypoint>   waypoints;
+    };
+
+    /**
      * @brief : Shore-based Response to Hydrometeorology Request (DAC 412, FI 49)
      */
     struct ASM_DAC_412_FI_50 : ASM_DAC_FI

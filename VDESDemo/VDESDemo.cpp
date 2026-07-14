@@ -1544,6 +1544,56 @@ static std::vector<std::string> GenerateDAC_412_FI_41(void)
 	return results;
 }
 
+static std::vector<std::string> GenerateDAC_412_FI_48(void)
+{
+	VDES::AISBitsManager bitsManager;
+	// Message ID
+	bitsManager.Encode(8, 6);
+	// Repeat indicator
+	bitsManager.Encode(0, 2);
+	// Source ID
+	bitsManager.Encode(4123005, 30);
+	// Spare
+	bitsManager.Encode(0, 2);
+	// DAC
+	bitsManager.Encode(412, 10);
+	// FI	
+	bitsManager.Encode(48, 6);
+
+	// 航线版本号 (Route version): 6 bits
+	bitsManager.Encode(12, 6);
+
+	// 起始时间 (Start time): 22 bits
+	bitsManager.Encode(14, 5); // Day
+	bitsManager.Encode(10, 5); // Hour
+	bitsManager.Encode(30, 6); // Minute
+	bitsManager.Encode(45, 6); // Second
+
+	// Waypoint #1
+	bitsManager.Encode(static_cast<int64_t>(120.1234 * 600000), 28);
+	bitsManager.Encode(static_cast<int64_t>(24.5678 * 600000), 27);
+	bitsManager.Encode(1, 1);  // minutes
+	bitsManager.Encode(60, 12); // duration
+
+	// Waypoint #2 (incremental)
+	bitsManager.Encode(738, 13); // deltaLon = +738
+	bitsManager.Encode(3760, 12); // deltaLat = -336 (12-bit 2's complement)
+	bitsManager.Encode(0, 1);  // seconds
+	bitsManager.Encode(45, 12); // duration
+
+	// Waypoint #3 (incremental)
+	bitsManager.Encode(7682, 13); // deltaLon = -510 (13-bit 2's complement)
+	bitsManager.Encode(252, 12); // deltaLat = +252
+	bitsManager.Encode(1, 1);  // minutes
+	bitsManager.Encode(15, 12); // duration
+
+	auto bitsNum = bitsManager.GetBitsNumberToDecode();
+	auto spareBits = 8 - (bitsNum % 8);
+	bitsManager.Encode(0, spareBits);
+	auto vdms = bitsManager.BuildPacket();
+	return vdms;
+}
+
 static std::vector<std::string> GenerateDAC_412_FI_45(void)
 {
 	VDES::AISBitsManager bitsManager;
@@ -2553,6 +2603,7 @@ int main(void)
 	auto &vdesManager = VDES::VDESManager::GetInstance();
 
 	VDES::ConfigureManager::GetInstance().SetStoragePath(".");
+	VDES::ConfigureManager::GetInstance().SetBaseStationMMSI(4129999);
 	vdesManager.Initialize();
 	//vdesManager.EmptyDatabase();
 	vdesManager.notifyEvent.append(NotifyHandle);
@@ -3059,12 +3110,16 @@ int main(void)
 		//"$AIASM,,2,2,2,2,,0,666666666,,0n0101wtuB03LIwuK007RKwtwP0CFh05LC80,0*3D\r\n",
 		// 航道边线左侧 DAC = 412, FI = 43
 		//"$AIASM,1783259645,1,1,,2,2,0,666666666,,Ijd1sPRc?@1>g400rV0v`P01LiQpbN06@I3k;d0,2*4F\r\n",
-		// 航线推荐 DAC = 412, FI = 46
+		// 航线推荐 DAC = 412, FI = 47
+		//"$AIASM,1783259820,1,1,,1,4,0,666666666,210210210,Ijwi5M<<2LTwivS>P1`OP8da0?@T00,4*24\r\n",
 		//"$AIASM,1783646310,1,1,,1,4,0,666666666,210210210,Ijwi5M<<2LTwivS>P1`OP8da0?@T00,4*26\r\n",
 		//"$AIASM,1783646512,1,1,,2,4,0,666666666,210210210,IjtQ6JmP2KelP00003Fn000006ed7uSh0G<H00,4*72\r\n",
 		//"$AIASM,1783646310,1,1,,1,4,0,666666666,210210210,Ijwi5M<<2LTwivS>P1`OP8da0?@T00,4*26\r\n",
+		// 航线交换 DAC = 412, FI = 48
+		"$ABASM,1784009334,1,1,,2,4,0,210210210,666666666,Ik032DvlEQ>h9j>808`OAPh4g7lH<663r464040,2*4D\r\n",
+		"$ABASM,1784005238,1,1,,1,4,0,210210210,666666666,Ik032DvlEQ>h9j>808`OAPh4g7lH<663r464040,2*4F\r\n",
 		// 水文气象响应(岸基) DAC = 412, FI = 50
-		"$AIASM,1783858247,1,1,,1,4,0,666666666,210210210,Ik80LMr03hR5gt:F`NwSh0,4*1E\r\n",
+		//"$AIASM,1783858247,1,1,,1,4,0,666666666,210210210,Ik80LMr03hR5gt:F`NwSh0,4*1E\r\n",
 		// 中文短信 DAC = 413, FI = 04
 		//"$AIASM,1782977984,1,1,,1,2,0,666666666,,IlBNC2`TQrE9r?saRjIwc9w43O?=bMtVssgmTSV5Ad>WtI>LHVvsnn0,2*0A\r\n",
 		// 前端提示文字 DAC = 413, FI = 5
@@ -3073,7 +3128,8 @@ int main(void)
 		// 信息补充片段，DAC = 413, FI = 07
 		//"$AIASM,1783849836,1,1,,2,2,0,666666666,,IlL0?fIj`04At081@09cH020@06e?wPOwwlmOv<B,0*61\r\n",
 		// 描述性文本补充片段，DAC = 413, FI = 08
-		"$AIASM,1783852782,1,1,,1,2,0,666666666,,IlP0?fIjb1aDMk2kjMv0,0*16\r\n",
+		"$ABASM,1784007214,1,1,,2,4,0,210210210,666666666,Ik09PDvlEQ>h9j>808`OAPh4g7lH<663r464040,2*28\r\n",
+		//"$AIASM,1783852782,1,1,,1,2,0,666666666,,IlP0?fIjb1aDMk2kjMv0,0*16\r\n",
 		//"$AIASM,1782890906,1,1,,1,2,0,666666666,,Iii00003`Wv`L0drb08Wv`L0drb08Wv`L0drb80,2*15\r\n",
 		//"$AIASM,1782890930,1,1,,1,2,0,666666666,,IijqPqK00008L0dp0<0,2*76\r\n",
 		//"$AIASM,1782890950,1,1,,2,2,0,666666666,,Iii1PqK3`Ww8L?@rb40,2*30\r\n",
@@ -5333,7 +5389,7 @@ int main(void)
 
 	// Simulate AMK response (seqNo=1, ackType=0) from transceiver
 	std::cout << "Simulating AMK response (seqNo=1, ackType=0) from transceiver..." << std::endl;
-	std::string amkSentence = "$AIAMK,1,0";
+	std::string amkSentence = "$AIAMK,004129999,1,,1,0";
 	VDES::UtilityInterface::AddChecksum(amkSentence);
 	amkSentence += "\r\n";
 	vdesManager.Parse(amkSentence.c_str(), amkSentence.length());
@@ -5403,7 +5459,7 @@ int main(void)
 	// Since Route Recommendation Request is sent, m_sequenceNoAAB is incremented.
 	// As HydrometeorologyRequest was sent twice (seq 1, seq 2), routeReq is seq 3.
 	std::cout << "Simulating AMK response (seqNo=3, ackType=0) from transceiver..." << std::endl;
-	std::string routeAmk = "$AIAMK,3,0";
+	std::string routeAmk = "$AIAMK,004129999,1,,3,0";
 	VDES::UtilityInterface::AddChecksum(routeAmk);
 	routeAmk += "\r\n";
 	vdesManager.Parse(routeAmk.c_str(), routeAmk.length());
@@ -5490,7 +5546,7 @@ int main(void)
 
 	// Simulate AMK response (seqNo=lastSeqNo, ackType=0) from transceiver
 	std::cout << "Simulating AMK response (seqNo=" << lastSeqNo << ", ackType=0) for NetSounder..." << std::endl;
-	std::string nsAmk = fmt::format("$AIAMK,{0},0", lastSeqNo);
+	std::string nsAmk = fmt::format("$AIAMK,004129999,1,,{0},0", lastSeqNo);
 	VDES::UtilityInterface::AddChecksum(nsAmk);
 	nsAmk += "\r\n";
 	vdesManager.Parse(nsAmk.c_str(), nsAmk.length());
@@ -5581,6 +5637,52 @@ int main(void)
 		vdesManager.DeleteNetSounders(ids);
 	}
 	std::cout << "NetSounders count after batch delete: " << vdesManager.GetNetSounders(0, 100).size() << std::endl;
+	std::cout << "========================================" << std::endl;
+
+	// Verify RouteExchange (FI=48)
+	std::cout << "\n=== Verification: RouteExchange (FI=48) ===" << std::endl;
+	bool gotRouteExchange = false;
+	auto token = vdesManager.notifyEvent.append([&](const VDES::VDESManager::EventType type, const int retCode) {
+		if (type == VDES::VDESManager::EventType::ASM_ROUTE_EXCHANGE) {
+			std::cout << "[EVENT] Got ASM_ROUTE_EXCHANGE callback!" << std::endl;
+			gotRouteExchange = true;
+		}
+	});
+
+	auto routeVDMs = GenerateDAC_412_FI_48();
+	for (const auto &vdm : routeVDMs) {
+		vdesManager.Parse(vdm.c_str(), vdm.length());
+	}
+
+	auto dbRoutes = vdesManager.GetRouteExchanges(0, 100);
+	std::cout << "RouteExchanges count in DB: " << dbRoutes.size() << std::endl;
+	for (const auto &route : dbRoutes) {
+		std::cout << "  - Route ID: " << route.dataID 
+		          << ", Sender MMSI: " << route.mmsiSender 
+		          << ", Version: " << (int)route.routeVersion 
+		          << ", StartTime: " << route.startTime 
+		          << ", Waypoints count: " << route.waypoints.size() << std::endl;
+
+		for (size_t i = 0; i < route.waypoints.size(); ++i) {
+			const auto &wp = route.waypoints[i];
+			std::cout << "    * Waypoint #" << (i+1) 
+			          << ": Lat: " << wp.coordinate.GetLatitude() 
+			          << ", Lon: " << wp.coordinate.GetLongitude() 
+			          << ", TimeUnit: " << (int)wp.timeUnit 
+			          << ", Duration: " << wp.duration << std::endl;
+		}
+	}
+
+	// Verify delete
+	if (!dbRoutes.empty()) {
+		std::cout << "Deleting RouteExchange ID: " << dbRoutes[0].dataID << std::endl;
+		std::vector<uint32_t> ids = { dbRoutes[0].dataID };
+		vdesManager.DeleteRouteExchanges(ids);
+		auto dbRoutesAfter = vdesManager.GetRouteExchanges(0, 100);
+		std::cout << "RouteExchanges count in DB after delete: " << dbRoutesAfter.size() << std::endl;
+	}
+
+	vdesManager.notifyEvent.remove(token);
 	std::cout << "========================================" << std::endl;
 
 	std::cout << "================================================================================" << std::endl;

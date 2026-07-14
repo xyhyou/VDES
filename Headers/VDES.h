@@ -176,11 +176,11 @@ namespace VDES
         */
         void SendAISMessage(const AISMessageType type, const uint32_t mmsiDestination, const std::string &content);
 
-        /*
-        * @brief      Send Route Recommendation Request
-        * @param[in]  request - the route recommendation request DTO
-        * @return     true if validation passes and sentence is dispatched, false otherwise
-        */
+        /** 
+         * @brief      Send Route Recommendation Request
+         * @param[in]  request - the route recommendation request DTO
+         * @return     true if validation passes and sentence is dispatched, false otherwise
+         */
         bool SendRouteRecommendationRequest(const RouteRecommendationRequest &request);
 
         bool SendHydrometeorologyRequest(const HydrometeorologyRequest &request);
@@ -1155,6 +1155,18 @@ namespace VDES
         bool DeleteRouteRecommendationResponses(const std::vector<uint32_t> &dataIDs);
 
         /***********************************************************************
+        * ASM - Route Exchange
+        ***********************************************************************/
+        using RouteExchanges = std::vector<RouteExchange>;
+        using RouteExchangePtr = std::shared_ptr<RouteExchange>;
+
+        RouteExchanges GetRouteExchanges(const uint32_t index = 0, const size_t number = -1);
+        
+        bool DeleteRouteExchanges(const uint32_t index = 0, const size_t number = -1);
+        
+        bool DeleteRouteExchanges(const std::vector<uint32_t> &dataIDs);
+
+        /***********************************************************************
         * ASM - Hydrometeorological Response
         ***********************************************************************/
         using HydrometeorologyResponses = std::vector<HydrometeorologyResponse>;
@@ -1298,6 +1310,8 @@ namespace VDES
             ASM_FRONTEND_PROMPT,
 
             ASM_ROUTE_RECOMMENDATION_RESPONSE,
+
+            ASM_ROUTE_EXCHANGE,
 
             ASM_HYDROMETEOROLOGY_RESPONSE,
 
