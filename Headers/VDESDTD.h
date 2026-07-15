@@ -819,10 +819,10 @@ namespace VDES
     {
         struct NetInfo
         {
-            uint32_t MRN = 0;
-            double   latitude = 0.0;
-            double   longitude = 0.0;
-            uint8_t  fragmentDesc = 0;
+            uint32_t    MRN          = 0;
+            double      latitude     = 0.0;
+            double      longitude    = 0.0;
+            uint8_t     fragmentDesc = 0;
             std::string description;
         };
 

@@ -14106,6 +14106,7 @@ namespace VDES
         AISBitsManager aisBitsManager;
         aisBitsManager.Encode(412, 10);
         aisBitsManager.Encode(51, 6);
+        aisBitsManager.Encode(0, 1);
         aisBitsManager.Encode(info.extendedVesselType, 8);
         aisBitsManager.Encode(info.autonomousLevel, 3);
         aisBitsManager.Encode(ownVessel.naviStatus, 4);
@@ -14130,28 +14131,20 @@ namespace VDES
         {
             portStr.push_back('@');
         }
-        for (int i = 0; i < 5; ++i)
-        {
-            char ch = portStr[i];
-            uint8_t val = 0;
-            if (ch >= 64 && ch <= 95) val = ch - 64;
-            else if (ch >= 32 && ch <= 63) val = ch;
-            aisBitsManager.Encode(val, 6);
-        }
+        aisBitsManager.Encode(portStr, 1, 0);
 
         auto payload = aisBitsManager.GetEncodedVDMPayload();
         auto fillBits = aisBitsManager.GetFillBitsNumberToEncode();
 
-        std::string nmea = fmt::format("!AIVDO,1,1,,B,{0},{1}", payload, fillBits);
+        auto nmea = fmt::format("!AIABB,1,1,0,,0,,0,{0},{1}", payload, fillBits);
         UtilityInterface::AddChecksum(nmea);
-        nmea += "\r\n";
-
         m_parent->sendEvent(CommunicationType::TCP, nmea.c_str(), nmea.length());
     }
 
     void VDESManager::Impl::SendExtendedVesselInfoPartB(void)
     {
         ExtendedVesselInfo info;
+    
         if (m_database)
         {
             try
@@ -14183,40 +14176,31 @@ namespace VDES
         AISBitsManager aisBitsManager;
         aisBitsManager.Encode(412, 10);
         aisBitsManager.Encode(52, 6);
+        aisBitsManager.Encode(1, 1);
         aisBitsManager.Encode(ownVessel.crewNum & 0x1FFF, 13);
 
         std::string gbkStr = UtilityInterface::UTF8ToGBK(info.chineseName);
-        for (size_t i = 0; i < gbkStr.size(); )
+        aisBitsManager.Encode(gbkStr, 413, 1);
+
+        auto bitsNum = aisBitsManager.GetBitsNumberToDecode();
+        auto spareBits = 8 - (bitsNum % 8);
+        if (spareBits < 8)
         {
-            uint16_t val = 0;
-            uint8_t b1 = static_cast<uint8_t>(gbkStr[i]);
-            if (b1 >= 0xA1 && b1 <= 0xFE && i + 1 < gbkStr.size())
-            {
-                uint8_t b2 = static_cast<uint8_t>(gbkStr[i + 1]);
-                val = (b1 - 0xA1) * 94 + (b2 - 0xA1);
-                i += 2;
-            }
-            else
-            {
-                val = (0xA1 - 0xA1) * 94 + (b1 - 0xA1);
-                i += 1;
-            }
-            aisBitsManager.Encode(val, 14);
+            aisBitsManager.Encode(0, spareBits);
         }
 
         auto payload = aisBitsManager.GetEncodedVDMPayload();
         auto fillBits = aisBitsManager.GetFillBitsNumberToEncode();
 
-        std::string nmea = fmt::format("!AIVDO,1,1,,B,{0},{1}", payload, fillBits);
+        auto nmea = fmt::format("!AIABB,1,1,0,,0,,0,{0},{1}", payload, fillBits);
         UtilityInterface::AddChecksum(nmea);
-        nmea += "\r\n";
-
         m_parent->sendEvent(CommunicationType::TCP, nmea.c_str(), nmea.length());
     }
 
     void VDESManager::Impl::BroadcastExtendedVesselInfo(void)
     {
         SendExtendedVesselInfoPartA();
+
         SendExtendedVesselInfoPartB();
     }
 
@@ -14871,6 +14855,7 @@ namespace VDES
     bool VDESManager::SetExtendedVesselInfo(const ExtendedVesselInfo &info)
     {
         std::lock_guard<std::mutex> lock(m_impl->m_mutexOwnExtendedVesselInfo);
+
         m_impl->SaveOwnExtendedVesselInfo(info);
         
         m_impl->BroadcastExtendedVesselInfo();
