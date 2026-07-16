@@ -32,6 +32,7 @@ add_definitions(-DSQLITE_ENABLE_RTREE)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
 	add_definitions(-DENABLE_PARSE_TDB)
+	#add_definitions(-DENABLE_PARSE_ABB)
 endif()
 
 if (MSVC)

@@ -318,6 +318,8 @@ namespace VDES
 
         void ParseTSB(const std::string &sentence);
 
+        void ParseABB(const std::string &sentence);
+
         void ParseAISMessage6(const AISBitsManager &manager);
 
         void ParseAISMessage8(AISBitsManager &manager);
@@ -563,6 +565,10 @@ namespace VDES
         m_parsersMap.insert(std::make_pair("TDB", std::bind(&Impl::ParseTDB, this, std::placeholders::_1)));
 
         m_parsersMap.insert(std::make_pair("TSB", std::bind(&Impl::ParseTSB, this, std::placeholders::_1)));
+#endif
+
+#ifdef ENABLE_PARSE_ABB
+        m_parsersMap.insert(std::make_pair("ABB", std::bind(&Impl::ParseABB, this, std::placeholders::_1)));
 #endif
         /*********************** AIS message parsers ***********************/
         m_aisParserMap.insert(std::make_pair(6, std::bind(&Impl::ParseAISMessage6, this, std::placeholders::_1)));
@@ -2540,6 +2546,48 @@ namespace VDES
                     {
                         m_businessMap[messageNo](mmsiSource, mmsiDest, manager);
                     }
+                }
+            }
+        }
+    }
+
+    /*
+    *         1  2  3   4         5 6  7 8    9
+    *         |  |  |   |         | |  | |    |
+    *  !--ABB,xx,xx,x.x,xxxxxxxxx,x,xx,x,s--s,x*hh<CR><LF>
+    *  Field Number:
+    *  1)  Total number of sentences needed to transfer the message, 01 to 99
+    *  2)  Sentence number, 01 to 99
+    *  3)  Sequential Message identifier, 0 to 9
+    *  4)  Source ID for ASM message
+    *  5)  ASM channel for broadcast of the radio message
+    *  6)  ITU-R M.2092 ASM message Id
+    *  7)  Format
+    *  8)  Encapsulated data of ASM message
+    *  9)  Number of fill-bits, 0 to 5
+    */
+    void VDESManager::Impl::ParseABB(const std::string &sentence)
+    {
+        auto strList = UtilityInterface::SplitString(sentence, std::vector<std::string>{",", "*"});
+        if (11 == strList.size())
+        {
+            if (!strList.at(1).empty() && !strList.at(2).empty())
+            {
+                static std::string encapsulatedDatas;
+
+                auto totalNum = atoi(strList.at(1).c_str());
+                auto sentenceNum = atoi(strList.at(2).c_str());
+                auto mmsiSource = atoi(strList.at(4).c_str());
+
+                if (1 == sentenceNum)
+                {
+                    encapsulatedDatas.clear();
+                }
+                encapsulatedDatas += strList.at(8);
+                if (totalNum == sentenceNum)
+                {
+                    auto fillBits = atoi(strList.at(9).c_str());
+                    m_asmManager.ParsePayload(encapsulatedDatas, fillBits, (uint32_t)mmsiSource, 0);
                 }
             }
         }

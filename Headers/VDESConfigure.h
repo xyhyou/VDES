@@ -246,40 +246,40 @@ namespace VDES
 
         enum class EventType
         {
-            /*
-            * Event ret code value:
-            * 0 - Query own vessel configure success
-            * 1 - Query own vessel configure failed
-            * 2 - Save own vessel configure success
-            * 3 - Save own vessel configure failed
-            */
+            /**
+             * Event ret code value:
+             * 0 - Query own vessel configure success
+             * 1 - Query own vessel configure failed
+             * 2 - Save own vessel configure success
+             * 3 - Save own vessel configure failed
+             */
             OWN_VESSEL_CONFIGURE,
 
-            /*
-            * Event ret code value:
-            * 0 - Query ethernet configure success
-            * 1 - Query ethernet configure failed
-            * 2 - Save ethernet configure success
-            * 3 - Save ethernet configure failed
-            */
+            /**
+             * Event ret code value:
+             * 0 - Query ethernet configure success
+             * 1 - Query ethernet configure failed
+             * 2 - Save ethernet configure success
+             * 3 - Save ethernet configure failed
+             */
             ETH_CONFIGURE,
 
-            /*
-            * Event ret code value:
-            * -2        - Upgrade timeout.
-            * -1        - Upgrade failed
-            * [0 - 100] - Upgrade Progress
-            * 101       - Wait for the VDES terminal to verify the firmware file, 
-            *             which takes about 2 minutes.
-            * 102       - Upgrade done.
-            */
+            /**
+             * Event ret code value:
+             * -2        - Upgrade timeout.
+             * -1        - Upgrade failed
+             * [0 - 100] - Upgrade Progress
+             * 101       - Wait for the VDES terminal to verify the firmware file,
+             *             which takes about 2 minutes.
+             * 102       - Upgrade done.
+             */
             UPGRADE_FIRMWARE,
 
-            /*
-            * Event ret code value:
-            * 0 - Query version info success
-            * 1 - Query version info failed
-            */
+            /**
+             * Event ret code value:
+             * 0 - Query version info success
+             * 1 - Query version info failed
+             */
             VERSION_INFO,
         };
 

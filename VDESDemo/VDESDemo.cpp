@@ -3010,6 +3010,8 @@ int main(void)
 #endif
 
 	std::vector<std::string> senteces{
+		"!AIABB,02,01,0,,1,,0,Iii00oeTIH2DH0?jv0P02DH0?jv0@02DH0?jv0@02DH0?jv0@02DH,0*5F\r\n",
+		"!AIABB,02,02,0,,1,,0,0?jv<0,2*79\r\n",
 		// 海洋气象预报坐标 DAC = 412, FI = 26
 		//"$AIASM,1783156663,1,1,,1,2,0,666666666,,Iia1P9hA9CQR77<kRP@,2*1C\r\n",
 		//"$AIASM,1783156881,1,1,,2,2,0,666666666,,Iia1RihW9DgEbe?T81gv:tnu;>AOK0,4*3D\r\n",
