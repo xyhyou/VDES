@@ -535,6 +535,16 @@ namespace VDES
         std::string          description;
     };
 
+    struct ASM_DAC_413_FI_3 : ASM_DAC_FI
+    {
+        std::string content;
+    };
+
+    struct ASM_DAC_413_FI_4 : ASM_DAC_FI
+    {
+        std::string content;
+    };
+
     /**
      * @brief : Frontend prompt text
      */

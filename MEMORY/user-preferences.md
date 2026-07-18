@@ -1,10 +1,6 @@
-# User Preferences & AI Collaboration Guidelines
-> Last updated: 2026-06-29
+# User Collaboration Preferences
+> Last updated: 2026-07-10
 
-## 1. 编译验证习惯
-* **编译优先**: 每次完成较大功能模块的修改后，在向用户报告前，必须优先在本地通过 CMake 成功完成 Debug 版编译。如果编译报错，必须自主分析原因并修复后再次验证。
-* **模拟全覆盖**: 所有新添加的解析协议或几何字段，必须在 `VDESDemo/VDESDemo.cpp` 的 `main` 以及模拟报文生成器（`GenerateDAC_412_FI_xx`）中增加相应的覆盖用例，同时增加回读打印，在控制台观察日志以证明数据链路绝对正确。
-
-## 2. 代码风格偏好
-* **格式规范**: 遵守 `clang-format` 控制的缩进。
-* **安全性要求**: 新版协议通常具有可变长度的节点描述，应通过先提取前导头、计算剩余 bit，再以 `for` 循环偏置的形式安全提取，防止越界读取 bit 发生解析 crash。
+- **Encoding Standards**: Keep C++ files saved with **UTF-8 with BOM** (CRITICAL to avoid MSVC compilation issues with Chinese comments/strings). Configuration files (like CMakeLists.txt) MUST be saved in plain **UTF-8 (No BOM)**.
+- **Language**: English for code comments, Doxygen docs, and console print logs. Chinese or English is acceptable for handoff and communication.
+- **Build & Exec**: Always build and test through the VS DevCmd Prompt environment. Run tests synchronously and verify console output for regression check.

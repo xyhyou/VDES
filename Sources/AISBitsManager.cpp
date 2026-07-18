@@ -1,4 +1,4 @@
-﻿#include "AISBitsManager.h"
+#include "AISBitsManager.h"
 #include "UtilityInterface.h"
 
 #include <map>
@@ -154,7 +154,7 @@ namespace VDES
 			}
 			return true;
 		}
-		else if (DAC == 413 && FI == 1) // 14 bits code with chinese
+		else if ((DAC == 413 && FI == 1) || (DAC == 413 && FI == 3)) // 14 bits code with chinese
 		{
 			for (auto index = 0U; index < text.length(); index++)
 			{
@@ -194,7 +194,7 @@ namespace VDES
 			}
 			return true;
 		}
-		else if (DAC == 413 && FI == 2) // 13 bits code with chinese
+		else if ((DAC == 413 && FI == 2) || (DAC == 413 && FI == 4)) // 13 bits code with chinese
 		{
 			for (auto index = 0U; index < text.length(); index++)
 			{
@@ -453,7 +453,7 @@ namespace VDES
 				}
 				return text;
 			}
-			else if ((DAC == 413 && FI == 2) || (DAC == 413 && FI == 4)) // 13 bits code with chinese
+			else if (DAC == 413 && FI == 2) // 13 bits code with chinese (AIS Msg 8, small payload)
 			{
 				uint32_t    index = startBitPos;
 				int			bitNumTemp = bitNum;
@@ -569,6 +569,78 @@ namespace VDES
 					}
 					return text;
 				}
+			}
+			else if (DAC == 413 && FI == 4) // 13 bits code with chinese (ASM, large payload)
+			{
+				uint32_t    index = startBitPos;
+				int			bitNumTemp = bitNum;
+				std::string text;
+
+				while (bitNumTemp >= 7)
+				{
+					auto value = DecodeToNumerical(index, 7);
+					if (value < 0x40)
+					{
+						// six bits ASCII code
+						auto iter = std::find_if(sixBitASCIIMap.begin(), sixBitASCIIMap.end(),
+							MapValueFinder((uint32_t)value));
+						if (iter != sixBitASCIIMap.end())
+						{
+							text += iter->first;
+						}
+						bitNumTemp -= 7;
+						index += 7;
+					}
+					else
+					{
+						// 13 bits chinese code
+						if (bitNumTemp < 13)
+						{
+							break;
+						}
+						auto value = (uint32_t)DecodeToNumerical(index, 13);
+						auto zoneBitCode = Convert13BitsCodeToZoneBitCode(value);
+						std::ostringstream ostr;
+
+						ostr << zoneBitCode;
+						auto    strTemp = ostr.str();
+						uint8_t characterHigh, characterLow;
+
+						if (strTemp.length() < 4)
+						{
+							characterHigh = atoi(strTemp.substr(0, 1).c_str());
+							characterLow = atoi(strTemp.substr(1, 2).c_str());
+						}
+						else
+						{
+							characterHigh = atoi(strTemp.substr(0, 2).c_str());
+							characterLow = atoi(strTemp.substr(2, 2).c_str());
+						}
+
+						characterHigh += 0xA0;
+						characterLow += 0xA0;
+
+						/*
+						* Need to check whether the code is standard 13 bit code.
+						*/
+						if ((characterHigh >= 0xA1 && characterHigh <= 0xA3) ||
+							(characterHigh >= 0xB0 && characterHigh <= 0xD7))
+						{
+							text += characterHigh;
+							text += characterLow;
+
+							bitNumTemp -= 13;
+							index += 13;
+						}
+						else
+						{
+							// It's the custom definition
+							text.clear();
+							break;
+						}
+					}
+				}
+				return text;
 			}
 		}
 		return "";

@@ -11,6 +11,8 @@
 
 #include <iostream>
 #include <fstream>
+#include <iomanip>
+#include <sstream>
 #include <vector>
 #include <Windows.h>
 
@@ -2567,6 +2569,77 @@ static void NotifyHandle(const VDES::VDESManager::EventType eventType, const int
 	}
 }
 
+static void TestABBTextMessages()
+{
+	std::cout << "\n=== Testing ABB Text Messages (FI=3 and FI=4) ===" << std::endl;
+	auto &vdesManager = VDES::VDESManager::GetInstance();
+
+	// Clear inbox first
+	auto originalMsgs = vdesManager.GetMessages(VDES::VDESManager::MailBox::INBOX, 0, 100);
+	std::cout << "Original Inbox messages count: " << originalMsgs.size() << std::endl;
+
+	// 1. Encode a test text using 14-bit Chinese (FI=3)
+	{
+		std::string gbkText = VDES::UtilityInterface::UTF8ToGBK("测试14位中英文123A");
+
+		VDES::AISBitsManager encoder;
+		encoder.Encode(413, 10);
+		encoder.Encode(3, 6);
+		encoder.Encode(gbkText, 413, 3);
+		auto payload = encoder.GetEncodedVDMPayload();
+		auto fillBits = encoder.GetFillBitsNumberToEncode();
+
+		std::ostringstream sentenceStream;
+		sentenceStream << "!AIABB,01,01,1.0,412123456,1,03,1," << payload << "," << fillBits;
+		
+		std::string sentence = sentenceStream.str();
+		auto xorVal = VDES::UtilityInterface::GetXOR(sentence);
+		sentenceStream << "*" << std::hex << std::setw(2) << std::uppercase << std::setfill('0')
+					   << static_cast<int>(xorVal) << "\r\n";
+
+		std::cout << "Feeding ABB FI=3 sentence: " << sentenceStream.str();
+		vdesManager.Parse(sentenceStream.str().c_str(), sentenceStream.str().length());
+	}
+
+	// 2. Encode a test text using 13-bit Chinese (FI=4)
+	{
+		std::string gbkText = VDES::UtilityInterface::UTF8ToGBK("测试13位中英文567B");
+
+		VDES::AISBitsManager encoder;
+		encoder.Encode(413, 10);
+		encoder.Encode(4, 6);
+		encoder.Encode(gbkText, 413, 4);
+		auto payload = encoder.GetEncodedVDMPayload();
+		auto fillBits = encoder.GetFillBitsNumberToEncode();
+
+		std::ostringstream sentenceStream;
+		sentenceStream << "!AIABB,01,01,1.0,412789123,1,04,1," << payload << "," << fillBits;
+		
+		std::string sentence = sentenceStream.str();
+		auto xorVal = VDES::UtilityInterface::GetXOR(sentence);
+		sentenceStream << "*" << std::hex << std::setw(2) << std::uppercase << std::setfill('0')
+					   << static_cast<int>(xorVal) << "\r\n";
+
+		std::cout << "Feeding ABB FI=4 sentence: " << sentenceStream.str();
+		vdesManager.Parse(sentenceStream.str().c_str(), sentenceStream.str().length());
+	}
+
+	// Retrieve from database and print
+	auto currentMsgs = vdesManager.GetMessages(VDES::VDESManager::MailBox::INBOX, 0, 100);
+	std::cout << "Inbox messages count after test: " << currentMsgs.size() << std::endl;
+	for (const auto &msg : currentMsgs)
+	{
+		if (msg.mmsiSource == 412123456 || msg.mmsiSource == 412789123)
+		{
+			std::cout << "  Retrieved Message from DB: Source MMSI = " << msg.mmsiSource 
+					  << ", Dest MMSI = " << msg.mmsiDestination
+					  << ", Content = \"" << msg.content << "\"" 
+					  << ", Type = " << (msg.messageType == VDES::MessageType::VDES ? "VDES" : "AIS") << std::endl;
+		}
+	}
+	std::cout << "=================================================" << std::endl;
+}
+
 int main(void)
 {
 	SetConsoleOutputCP(CP_UTF8);
@@ -3010,8 +3083,31 @@ int main(void)
 #endif
 
 	std::vector<std::string> senteces{
-		"!AIABB,02,01,0,,1,,0,Iii00oeTIH2DH0?jv0P02DH0?jv0@02DH0?jv0@02DH0?jv0@02DH,0*5F\r\n",
-		"!AIABB,02,02,0,,1,,0,0?jv<0,2*79\r\n",
+"!AIABB,12,01,2,412999999,1,04,1,IlCDaDHVEk:roWPjt?vr`@LqrvTO?DaDHVEvnuBUAPdD9sOtIDdSHMTeVS@I,0*5B\r\n",
+"!AIABB,12,02,2,412999999,1,04,1,aVldS6EvdtUkjHvm7SUQN7ktM;<Ge02WebDb<5RQ?uA=BuDp:HviH@6@0i31,0*46\r\n",
+"!AIABB,12,03,2,412999999,1,04,1,kvawF@KrJWebAwCDueGQrJVOSaIRu`0DueBUAPdD9wb9bGbW1C7n;20j068H,0*19\r\n",
+"!AIABB,12,04,2,412999999,1,04,1,e?m?rj>G<c`tFMqUNOSaIRu`0Duc>tjddD9wb9bGbW1C7n;20j068Hd?m?eg,0*65\r\n",
+"!AIABB,12,05,2,412999999,1,04,1,B7l:S2@k>fFbrMG:jQRB0eM4Sv3=<no@wb97uC5RiLBG>v?rW45vdQ;L2uA>,0*61\r\n",
+"!AIABB,12,06,2,412999999,1,04,1,8;MabDb<5RQ>3=<nuehO9UNJ7OQRAt=LnIq?rk5smjT6C:t@C9ag1k>lN6Vt,0*02\r\n",
+"!AIABB,12,07,2,412999999,1,04,1,7<sflqdkjNnV>O7v5:0OKOTfNC7ng9AQ8IVr3hm?9lAs3V;:`1vdpVm8IG<1,0*40\r\n",
+"!AIABB,12,08,2,412999999,1,04,1,;6o2vWTknHTnR?no64QVG18J70faRF:4t27Vr5umjt6B?;PTPrwKL4wFHCbE,0*13\r\n",
+"!AIABB,12,09,2,412999999,1,04,1,W0f335@;20j068Heb?6r;W0F:4qbGbW1C7nI==p>InjEhHt4qi?KOC3`E:5d,0*5F\r\n",
+"!AIABB,12,10,2,412999999,1,04,1,prU<=WebtaC3Tf@ms;E5kF3:Db=DNLGMMSuIRudPDO=Elrdd8380HQRn`0Du,0*7A\r\n",
+"!AIABB,12,11,2,412999999,1,04,1,eBUAPdD9lG8HDLcDaDHWGqGM3MDki9gTT>l6UKQdeI<Uc9boH=V;5QsKtbod,0*3D\r\n",
+"!AIABB,12,12,2,412999999,1,04,1,aq>w20USKueP,5*07\r\n",
+		// 14 bit中文编码
+		//"!AIABB,12,01,1,412999999,1,03,1,Il>IdsTdAg4Kw6bkR9?VVeaJVeP=:anIdsTdAf:3VK>q8dD9kodOiN;CUDSs,0*35\r\n",
+		//"!AIABB,12,02,1,412999999,1,03,1,S;AA6<=N;Aw4lIFsrCeH1i8DbTBO;GDvDOGc:MR4kIo95RQ>J8jQ:wN<mc02,0*1C\r\n",
+		//"!AIABB,12,03,1,412999999,1,03,1,hP<P1R63VJ9VS8a7b>RPc8gb>RP`Twb>UcbO:?cmU>i2IdsTRi@W=4I@UOg6,0*42\r\n",
+		//"!AIABB,12,04,1,412999999,1,03,1,JmP1H@6@0i35a=4kAU<WR=tB46kR=jmm?U7mrjWHQ1dpSIH`CVR<`BgoS=Jh,0*15\r\n",
+		//"!AIABB,12,05,1,412999999,1,03,1,0d8380HQRhVRH`>Gqal:8jB@bFabS>Mg098Rd<Vpc8f:8iQauvJ8dRw8mRiL,0*68\r\n",
+		//"!AIABB,12,06,1,412999999,1,03,1,FQ5Go=4in4lI6<D=Lk37HCvDkIo95RQ>:8iQ``>:Ni6qCFQ@SgrlJUulWI`j,0*27\r\n",
+		//"!AIABB,12,07,1,412999999,1,03,1,?cbFbiK4KSd6CBPQU<N91a@@jV<wUBvrCeEu8Kj9pD`1RProOBMc08UbR<TT,0*06\r\n",
+		//"!AIABB,12,08,1,412999999,1,03,1,9ure6lWIMVLbHdfibJ<`kvqft7PTa2fB2lWM@nJ<UnH`>R<TT8JbBD`Jw8ld,0*38\r\n",
+		//"!AIABB,12,09,1,412999999,1,03,1,D9iOEMq91E;EIiI4@mEHi5chmDlI6eLhU3G51kRiH@6@0i35ei8Ct5=<F:4t,0*45\r\n",
+		//"!AIABB,12,10,1,412999999,1,03,1,`BgoS=Jh1Tl`8IC62d`N:kFEHRPrOJW@eTH=>IdSN8`:9LqVs@RBKPg=q:Js,0*33\r\n",
+		//"!AIABB,12,11,1,412999999,1,03,1,fPfqCRASrOqJJ<Srp:;RDVb<qld8380HQRnmU>i2IdsTRi@Wg9B@m<U<nMjF,0*00\r\n",
+		//"!AIABB,12,12,1,412999999,1,03,1,T79Wjr?`AF`D8UL?e8:o3IJjI;FCEfhK<F;2:3c`pWcBM`D89:@cRPh,4*62\r\n",
 		// 海洋气象预报坐标 DAC = 412, FI = 26
 		//"$AIASM,1783156663,1,1,,1,2,0,666666666,,Iia1P9hA9CQR77<kRP@,2*1C\r\n",
 		//"$AIASM,1783156881,1,1,,2,2,0,666666666,,Iia1RihW9DgEbe?T81gv:tnu;>AOK0,4*3D\r\n",
@@ -5686,6 +5782,9 @@ int main(void)
 
 	vdesManager.notifyEvent.remove(token);
 	std::cout << "========================================" << std::endl;
+
+	// Execute VDES ABB message test case
+	TestABBTextMessages();
 
 	std::cout << "================================================================================" << std::endl;
 

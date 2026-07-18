@@ -71,6 +71,10 @@ namespace VDES
 
         void ParseChannelBoundaryHelper(const AISBitsManager &manager, uint8_t edgeType, uint8_t fi);
 
+        void ParseASMDAC413FI3(const AISBitsManager &manager);
+
+        void ParseASMDAC413FI4(const AISBitsManager &manager);
+
         void ParseASMDAC413FI5(const AISBitsManager &manager);
 
         void ParseASMDAC413FI7(const AISBitsManager &manager);
@@ -170,6 +174,10 @@ namespace VDES
         m_asmParserMap.insert(std::make_pair(41251, std::bind(&Impl::ParseASMDAC412FI51, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41252, std::bind(&Impl::ParseASMDAC412FI52, this, std::placeholders::_1)));
+
+        m_asmParserMap.insert(std::make_pair(41303, std::bind(&Impl::ParseASMDAC413FI3, this, std::placeholders::_1)));
+        
+        m_asmParserMap.insert(std::make_pair(41304, std::bind(&Impl::ParseASMDAC413FI4, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41305, std::bind(&Impl::ParseASMDAC413FI5, this, std::placeholders::_1)));
 
@@ -1640,6 +1648,46 @@ namespace VDES
     void ASMManager::Impl::ParseASMDAC412FI44(const AISBitsManager &manager)
     {
         ParseChannelBoundaryHelper(manager, 1, 44);
+    }
+
+    void ASMManager::Impl::ParseASMDAC413FI3(const AISBitsManager &manager)
+    {
+        ASM_DAC_413_FI_3 asmInfo;
+
+        asmInfo.DAC = 413;
+        asmInfo.FI = 3;
+        asmInfo.source = m_mmsiSource;
+        asmInfo.destination = m_mmsiDestination;
+
+        auto bitNum = manager.GetBitsNumberToDecode() - 16;
+        if (bitNum >= 7)
+        {
+            auto text = manager.DecodeToString(16, bitNum, 413, 3);
+            UtilityInterface::RemoveTailCharacter(text, '@');
+            asmInfo.content = UtilityInterface::GBKToUTF8(text);
+        }
+
+        m_parent->asmNotify(std::make_shared<ASM_DAC_413_FI_3>(asmInfo));
+    }
+
+    void ASMManager::Impl::ParseASMDAC413FI4(const AISBitsManager &manager)
+    {
+        ASM_DAC_413_FI_4 asmInfo;
+        asmInfo.DAC = 413;
+        asmInfo.FI = 4;
+        asmInfo.source = m_mmsiSource;
+        asmInfo.destination = m_mmsiDestination;
+
+        auto bitNum = manager.GetBitsNumberToDecode() - 16;
+        if (bitNum >= 7)
+        {
+            auto text = manager.DecodeToString(16, bitNum, 413, 4);
+            UtilityInterface::RemoveTailCharacter(text, '@');
+            asmInfo.content = UtilityInterface::GBKToUTF8(text);
+            SPDLOG_DEBUG(asmInfo.content);
+        }
+
+        m_parent->asmNotify(std::make_shared<ASM_DAC_413_FI_4>(asmInfo));
     }
 
     void ASMManager::Impl::ParseASMDAC413FI5(const AISBitsManager &manager)

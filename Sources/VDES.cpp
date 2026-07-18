@@ -1,5 +1,7 @@
 #include "VDES.h"
 
+#define ENABLE_PARSE_ABB
+
 #include <cmath>
 #include <map>
 #include <array>
@@ -6723,6 +6725,44 @@ namespace VDES
                     {
                         m_parent->notifyEvent(EventType::ASM_NET_SOUNDER, 0);
                     }
+                }
+            }
+
+            if (asmData->DAC == 413 && (asmData->FI == 3 || asmData->FI == 4))
+            {
+                std::string content;
+                if (asmData->FI == 3)
+                {
+                    auto info = std::dynamic_pointer_cast<ASM_DAC_413_FI_3>(asmData);
+                    if (info)
+                    {
+                        content = info->content;
+                    }
+                }
+                else
+                {
+                    auto info = std::dynamic_pointer_cast<ASM_DAC_413_FI_4>(asmData);
+                    if (info)
+                    {
+                        content = info->content;
+                    }
+                }
+
+                if (!content.empty())
+                {
+                    Message message;
+                    message.mmsiSource = asmData->source;
+                    message.mmsiDestination = asmData->destination;
+                    message.content = content;
+                    message.deadline = 0;
+                    message.timestamp = UtilityInterface::GetCurrentTimeStamp();
+                    message.messageType = MessageType::VDES;
+
+                    std::unique_lock<std::mutex> lock(m_mutexMessageInbox);
+                    SaveMessage(MailBox::INBOX, message, MessageBusinessType::NONE, 0);
+                    lock.unlock();
+
+                    m_parent->notifyEvent(EventType::MESSAGE_RECEIVE, 0);
                 }
             }
 

@@ -187,6 +187,10 @@ namespace VDES
         if (9 == strList.size())
         {
             m_ownVessel.callsign = strList.at(1);
+            if (m_ownVessel.callsign == "@@@@@@@")
+            {
+                m_ownVessel.callsign.clear();
+            }
             m_ownVessel.name = strList.at(2);
             auto strListTemp = UtilityInterface::SplitString(strList.at(8), "*");
             if (2 == strListTemp.size())
@@ -244,6 +248,10 @@ namespace VDES
                 m_ownVessel.crewNum = atoi(strList.at(3).c_str());
             }
             m_ownVessel.destination = strList.at(4);
+            if (m_ownVessel.destination == "@@@@@@@@@@@@@@@@@@@@")
+            {
+                m_ownVessel.destination.clear();
+            }
             
             if (!strList.at(5).empty())
             {
@@ -439,6 +447,7 @@ namespace VDES
     {
         auto strCmdTemp = cmd;
         UtilityInterface::AddChecksum(strCmdTemp);
+        SPDLOG_DEBUG("SendCmd: {}", strCmdTemp);
         VDESManager::GetInstance().sendEvent(CommunicationType::TCP, strCmdTemp.c_str(), strCmdTemp.size());
     }
 
@@ -766,6 +775,7 @@ namespace VDES
         if (draught <= 25.5)
         {
             m_impl->m_ownVesselSetted.draught = draught;
+            return true;
         }
         return false;
     }
@@ -794,6 +804,7 @@ namespace VDES
     {
         if (destination.length() <= 20)
         {
+            SPDLOG_DEBUG("SetOwnVesselDestination: {}", destination);
             m_impl->m_ownVesselSetted.destination = destination;
             return true;
         }
@@ -842,6 +853,7 @@ namespace VDES
     {
         if (crewNum <= 8191)
         {
+            SPDLOG_DEBUG("SetCrewNum: {}", crewNum);
             m_impl->m_ownVesselSetted.crewNum = crewNum;
             return true;
         }

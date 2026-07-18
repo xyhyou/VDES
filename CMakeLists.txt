@@ -38,6 +38,7 @@ endif()
 if (MSVC)
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 	add_definitions(-D_SILENCE_ALL_MS_EXT_DEPRECATION_WARNINGS)
+	add_compile_options(/utf-8)
 	
 	# Enable Address Sanitizer for Debug builds
 	if (CMAKE_BUILD_TYPE STREQUAL "Debug")
