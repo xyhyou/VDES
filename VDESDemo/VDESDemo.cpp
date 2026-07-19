@@ -2680,7 +2680,7 @@ int main(void)
 	vdesManager.Initialize();
 	//vdesManager.EmptyDatabase();
 	vdesManager.notifyEvent.append(NotifyHandle);
-
+#if 0 
 	VDES::HydrometeorologyRequest hydroRequest;
 	hydroRequest.coordinates.push_back(VDES::Coordinate(38.720, 119.02));
 	hydroRequest.coordinates.push_back(VDES::Coordinate(38.65, 120.10));
@@ -2691,6 +2691,7 @@ int main(void)
 	hydroRequest.waveHeight = true;
 	hydroRequest.waveDirection = true;
 	vdesManager.SendHydrometeorologyRequest(hydroRequest);
+#endif
 #if 0
 	VDES::RouteRecommendationRequest request;
 	request.grossTonnage = 10000;
@@ -3083,18 +3084,22 @@ int main(void)
 #endif
 
 	std::vector<std::string> senteces{
-"!AIABB,12,01,2,412999999,1,04,1,IlCDaDHVEk:roWPjt?vr`@LqrvTO?DaDHVEvnuBUAPdD9sOtIDdSHMTeVS@I,0*5B\r\n",
-"!AIABB,12,02,2,412999999,1,04,1,aVldS6EvdtUkjHvm7SUQN7ktM;<Ge02WebDb<5RQ?uA=BuDp:HviH@6@0i31,0*46\r\n",
-"!AIABB,12,03,2,412999999,1,04,1,kvawF@KrJWebAwCDueGQrJVOSaIRu`0DueBUAPdD9wb9bGbW1C7n;20j068H,0*19\r\n",
-"!AIABB,12,04,2,412999999,1,04,1,e?m?rj>G<c`tFMqUNOSaIRu`0Duc>tjddD9wb9bGbW1C7n;20j068Hd?m?eg,0*65\r\n",
-"!AIABB,12,05,2,412999999,1,04,1,B7l:S2@k>fFbrMG:jQRB0eM4Sv3=<no@wb97uC5RiLBG>v?rW45vdQ;L2uA>,0*61\r\n",
-"!AIABB,12,06,2,412999999,1,04,1,8;MabDb<5RQ>3=<nuehO9UNJ7OQRAt=LnIq?rk5smjT6C:t@C9ag1k>lN6Vt,0*02\r\n",
-"!AIABB,12,07,2,412999999,1,04,1,7<sflqdkjNnV>O7v5:0OKOTfNC7ng9AQ8IVr3hm?9lAs3V;:`1vdpVm8IG<1,0*40\r\n",
-"!AIABB,12,08,2,412999999,1,04,1,;6o2vWTknHTnR?no64QVG18J70faRF:4t27Vr5umjt6B?;PTPrwKL4wFHCbE,0*13\r\n",
-"!AIABB,12,09,2,412999999,1,04,1,W0f335@;20j068Heb?6r;W0F:4qbGbW1C7nI==p>InjEhHt4qi?KOC3`E:5d,0*5F\r\n",
-"!AIABB,12,10,2,412999999,1,04,1,prU<=WebtaC3Tf@ms;E5kF3:Db=DNLGMMSuIRudPDO=Elrdd8380HQRn`0Du,0*7A\r\n",
-"!AIABB,12,11,2,412999999,1,04,1,eBUAPdD9lG8HDLcDaDHWGqGM3MDki9gTT>l6UKQdeI<Uc9boH=V;5QsKtbod,0*3D\r\n",
-"!AIABB,12,12,2,412999999,1,04,1,aq>w20USKueP,5*07\r\n",
+		// FI = 26
+		"!AIABB,02,01,0,,1,,0,Ii`p41gO8jhUn7vjiL0202GHOs;5h0@09MQwddG00P0Un7vjiL020,0*12\r\n",
+		"!AIABB,02,02,0,,1,,0,2GHOs;5j0,4*35\r\n",
+		// 13bit中文短信
+		//"!AIABB,12,01,2,412999999,1,04,1,IlCDaDHVEk:roWPjt?vr`@LqrvTO?DaDHVEvnuBUAPdD9sOtIDdSHMTeVS@I,0*5B\r\n",
+		//"!AIABB,12,02,2,412999999,1,04,1,aVldS6EvdtUkjHvm7SUQN7ktM;<Ge02WebDb<5RQ?uA=BuDp:HviH@6@0i31,0*46\r\n",
+		//"!AIABB,12,03,2,412999999,1,04,1,kvawF@KrJWebAwCDueGQrJVOSaIRu`0DueBUAPdD9wb9bGbW1C7n;20j068H,0*19\r\n",
+		//"!AIABB,12,04,2,412999999,1,04,1,e?m?rj>G<c`tFMqUNOSaIRu`0Duc>tjddD9wb9bGbW1C7n;20j068Hd?m?eg,0*65\r\n",
+		//"!AIABB,12,05,2,412999999,1,04,1,B7l:S2@k>fFbrMG:jQRB0eM4Sv3=<no@wb97uC5RiLBG>v?rW45vdQ;L2uA>,0*61\r\n",
+		//"!AIABB,12,06,2,412999999,1,04,1,8;MabDb<5RQ>3=<nuehO9UNJ7OQRAt=LnIq?rk5smjT6C:t@C9ag1k>lN6Vt,0*02\r\n",
+		//"!AIABB,12,07,2,412999999,1,04,1,7<sflqdkjNnV>O7v5:0OKOTfNC7ng9AQ8IVr3hm?9lAs3V;:`1vdpVm8IG<1,0*40\r\n",
+		//"!AIABB,12,08,2,412999999,1,04,1,;6o2vWTknHTnR?no64QVG18J70faRF:4t27Vr5umjt6B?;PTPrwKL4wFHCbE,0*13\r\n",
+		//"!AIABB,12,09,2,412999999,1,04,1,W0f335@;20j068Heb?6r;W0F:4qbGbW1C7nI==p>InjEhHt4qi?KOC3`E:5d,0*5F\r\n",
+		//"!AIABB,12,10,2,412999999,1,04,1,prU<=WebtaC3Tf@ms;E5kF3:Db=DNLGMMSuIRudPDO=Elrdd8380HQRn`0Du,0*7A\r\n",
+		//"!AIABB,12,11,2,412999999,1,04,1,eBUAPdD9lG8HDLcDaDHWGqGM3MDki9gTT>l6UKQdeI<Uc9boH=V;5QsKtbod,0*3D\r\n",
+		//"!AIABB,12,12,2,412999999,1,04,1,aq>w20USKueP,5*07\r\n",
 		// 14 bit中文编码
 		//"!AIABB,12,01,1,412999999,1,03,1,Il>IdsTdAg4Kw6bkR9?VVeaJVeP=:anIdsTdAf:3VK>q8dD9kodOiN;CUDSs,0*35\r\n",
 		//"!AIABB,12,02,1,412999999,1,03,1,S;AA6<=N;Aw4lIFsrCeH1i8DbTBO;GDvDOGc:MR4kIo95RQ>J8jQ:wN<mc02,0*1C\r\n",
