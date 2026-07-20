@@ -772,7 +772,7 @@ namespace VDES
 
         uint64_t timestampTideHigh;
 
-        uint16_t tideLow = 503;
+        uint16_t tideLow = 1003;
 
         uint64_t timestampTideLow;
 
@@ -1257,6 +1257,33 @@ namespace VDES
         std::string portCode;
         uint16_t    crewNum = 0;
         std::string chineseName;
+    };
+
+    /**
+     * @brief : Nearshore Fine Hydrometeorology (近岸精细水文气象, DAC 412, FI 55)
+     */
+    struct NearshoreFineHydroMeteorology : ASMAttribute
+    {
+        uint8_t    hourPublish = 24;
+        uint8_t    minutePublish = 60;
+        uint8_t    forecastTimeOffset = 63;
+        uint16_t   elementFlags = 0;
+        uint8_t    baseReference = 0;
+        uint8_t    draftRequirement = 0;
+        uint8_t    infoSource = 0;
+
+        Coordinate coordinate;
+        uint16_t   currentSpeed = 1023;
+        uint16_t   currentDirection = 360;
+        uint8_t    windSpeed = 122;
+        uint8_t    gustWindSpeed = 122;
+        uint16_t   windDirection = 360;
+        uint8_t    visibility = 252;
+        uint16_t   waterLevel = 503;
+        uint8_t    waveHeight = 252;
+        uint16_t   waveDirection = 360;
+        uint16_t   waterDepth = 0;
+        uint8_t    swellHeight = 252;
     };
 
 }   // namespace VDES

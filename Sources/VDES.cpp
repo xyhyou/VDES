@@ -304,6 +304,10 @@ namespace VDES
         
         void LoadMarineEnvironmentFCSTAlongshoreFromQueryResult(MarineEnvironmentFCSTAlongshore &area, const SQLite::Statement &query);
 
+        void SaveNearshoreFineHydroMeteorology(const ASM_DAC_412_FI_55 &asmInfo);
+        void InitializeNearshoreFineHydroMeteorologyTable(void);
+        void LoadNearshoreFineHydroMeteorologyFromQueryResult(NearshoreFineHydroMeteorology &data, const SQLite::Statement &query);
+
         void ParseOneLineData(const std::string &sentence);
 
         void ParseVDOVDM(const std::string &sentence);
@@ -501,6 +505,7 @@ namespace VDES
         std::mutex              m_mutexMarineMeteorologyFCSTArea;
         std::mutex              m_mutexMarineEnvironmentFCSTArea;
         std::mutex              m_mutexMarineEnvironmentFCSTAlongshore;
+        std::mutex              m_mutexNearshoreFineHydroMeteorology;
         std::mutex              m_mutexPendingAMKAABs;
         std::unordered_map<uint32_t, uint32_t> m_pendingAMKAABs;
 
@@ -1597,6 +1602,8 @@ namespace VDES
     {
         try
         {
+            m_database->exec("DROP TABLE IF EXISTS MarineEnvironmentFCSTAlongshore");
+
             if (!m_database->tableExists("MarineEnvironmentFCSTAlongshore"))
             {
                 auto sql = fmt::format("CREATE TABLE MarineEnvironmentFCSTAlongshore("
@@ -1607,7 +1614,7 @@ namespace VDES
                     "[Wave Height High]   INT       NOT NULL DEFAULT 252,"
                     "[Tide High]          INT       NOT NULL DEFAULT 1003,"
                     "[Timestamp Tide High] INTEGER  NOT NULL DEFAULT 0,"
-                    "[Tide Low]           INT       NOT NULL DEFAULT 503,"
+                    "[Tide Low]           INT       NOT NULL DEFAULT 1003,"
                     "[Timestamp Tide Low]  INTEGER  NOT NULL DEFAULT 0,"
                     "[Info Source]        INT       NOT NULL DEFAULT 0,"
                     "[Timestamp Forecast] INTEGER   NOT NULL DEFAULT 0,"
@@ -1619,6 +1626,161 @@ namespace VDES
         {
             DatabaseErrorProcess(execption, "InitializeMarineEnvironmentFCSTAlongshoreTable");
         }
+    }
+
+    void VDESManager::Impl::InitializeNearshoreFineHydroMeteorologyTable(void)
+    {
+        try
+        {
+            if (!m_database->tableExists("NearshoreFineHydroMeteorology"))
+            {
+                auto sql = "CREATE TABLE NearshoreFineHydroMeteorology ("
+                           "ID INTEGER PRIMARY KEY AUTOINCREMENT, "
+                           "[Hour Publish]        INT NOT NULL DEFAULT 24, "
+                           "[Minute Publish]      INT NOT NULL DEFAULT 60, "
+                           "[Forecast Time Offset] INT NOT NULL DEFAULT 63, "
+                           "[Element Flags]       INT NOT NULL DEFAULT 0, "
+                           "[Base Reference]      INT NOT NULL DEFAULT 0, "
+                           "[Draft Requirement]   INT NOT NULL DEFAULT 0, "
+                           "[Info Source]         INT NOT NULL DEFAULT 0, "
+                           "Latitude              DOUBLE NOT NULL, "
+                           "Longitude             DOUBLE NOT NULL, "
+                           "[Current Speed]       INT NOT NULL DEFAULT 1023, "
+                           "[Current Direction]   INT NOT NULL DEFAULT 360, "
+                           "[Wind Speed]          INT NOT NULL DEFAULT 122, "
+                           "[Gust Wind Speed]     INT NOT NULL DEFAULT 122, "
+                           "[Wind Direction]      INT NOT NULL DEFAULT 360, "
+                           "Visibility            INT NOT NULL DEFAULT 252, "
+                           "[Water Level]         INT NOT NULL DEFAULT 503, "
+                           "[Wave Height]         INT NOT NULL DEFAULT 252, "
+                           "[Wave Direction]      INT NOT NULL DEFAULT 360, "
+                           "[Water Depth]         INT NOT NULL DEFAULT 0, "
+                           "[Swell Height]        INT NOT NULL DEFAULT 252, "
+                           "[Timestamp Receive]   INTEGER NOT NULL DEFAULT 0, "
+                           "Read                  INT NOT NULL DEFAULT 0"
+                           ")";
+                m_database->exec(sql);
+            }
+
+            if (!m_database->tableExists("NearshoreFineHydroMeteorologyBBox"))
+            {
+                m_database->exec("CREATE VIRTUAL TABLE NearshoreFineHydroMeteorologyBBox USING rtree(ID, Left, Right, Bottom, Top)");
+            }
+
+            if (!m_database->indexExists("NearshoreFineHydroMeteorologyCoordIndex", "NearshoreFineHydroMeteorology"))
+            {
+                m_database->exec("CREATE INDEX NearshoreFineHydroMeteorologyCoordIndex ON NearshoreFineHydroMeteorology (Latitude, Longitude)");
+            }
+        }
+        catch (const SQLite::Exception &execption)
+        {
+            DatabaseErrorProcess(execption, "InitializeNearshoreFineHydroMeteorologyTable");
+        }
+    }
+
+    void VDESManager::Impl::SaveNearshoreFineHydroMeteorology(const ASM_DAC_412_FI_55 &asmInfo)
+    {
+        if (m_database)
+        {
+            try
+            {
+                SQLite::Transaction transaction(*m_database.get());
+                auto timestampRcv = UtilityInterface::GetCurrentTimeStamp();
+
+                auto sql = "INSERT INTO NearshoreFineHydroMeteorology ("
+                           "[Hour Publish], [Minute Publish], [Forecast Time Offset], [Element Flags], "
+                           "[Base Reference], [Draft Requirement], [Info Source], Latitude, Longitude, "
+                           "[Current Speed], [Current Direction], [Wind Speed], [Gust Wind Speed], "
+                           "[Wind Direction], Visibility, [Water Level], [Wave Height], [Wave Direction], "
+                           "[Water Depth], [Swell Height], [Timestamp Receive], Read"
+                           ") VALUES ("
+                           "@HourPublish, @MinutePublish, @ForecastTimeOffset, @ElementFlags, "
+                           "@BaseReference, @DraftRequirement, @InfoSource, @Latitude, @Longitude, "
+                           "@CurrentSpeed, @CurrentDirection, @WindSpeed, @GustWindSpeed, "
+                           "@WindDirection, @Visibility, @WaterLevel, @WaveHeight, @WaveDirection, "
+                           "@WaterDepth, @SwellHeight, @TimestampRcv, 0"
+                           ")";
+
+                auto sqlBBox = "INSERT INTO NearshoreFineHydroMeteorologyBBox VALUES (@ID, @Left, @Right, @Bottom, @Top)";
+
+                for (const auto &group : asmInfo.groups)
+                {
+                    auto stmt = m_database->buildStatement(sql);
+                    stmt.bind("@HourPublish", asmInfo.hourPublish);
+                    stmt.bind("@MinutePublish", asmInfo.minutePublish);
+                    stmt.bind("@ForecastTimeOffset", asmInfo.forecastTimeOffset);
+                    stmt.bind("@ElementFlags", asmInfo.elementFlags);
+                    stmt.bind("@BaseReference", asmInfo.baseReference);
+                    stmt.bind("@DraftRequirement", asmInfo.draftRequirement);
+                    stmt.bind("@InfoSource", asmInfo.infoSource);
+
+                    stmt.bind("@Latitude", group.coordinate.GetLatitude());
+                    stmt.bind("@Longitude", group.coordinate.GetLongitude());
+
+                    stmt.bind("@CurrentSpeed", group.currentSpeed);
+                    stmt.bind("@CurrentDirection", group.currentDirection);
+                    stmt.bind("@WindSpeed", group.windSpeed);
+                    stmt.bind("@GustWindSpeed", group.gustWindSpeed);
+                    stmt.bind("@WindDirection", group.windDirection);
+                    stmt.bind("@Visibility", group.visibility);
+                    stmt.bind("@WaterLevel", group.waterLevel);
+                    stmt.bind("@WaveHeight", group.waveHeight);
+                    stmt.bind("@WaveDirection", group.waveDirection);
+                    stmt.bind("@WaterDepth", group.waterDepth);
+                    stmt.bind("@SwellHeight", group.swellHeight);
+                    stmt.bind("@TimestampRcv", static_cast<int64_t>(timestampRcv));
+
+                    stmt.exec();
+                    auto rowID = m_database->getLastInsertRowid();
+
+                    auto stmtBBox = m_database->buildStatement(sqlBBox);
+                    stmtBBox.bind("@ID", rowID);
+                    stmtBBox.bind("@Left", group.coordinate.GetLongitude());
+                    stmtBBox.bind("@Right", group.coordinate.GetLongitude());
+                    stmtBBox.bind("@Bottom", group.coordinate.GetLatitude());
+                    stmtBBox.bind("@Top", group.coordinate.GetLatitude());
+                    stmtBBox.exec();
+                }
+
+                transaction.commit();
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                DatabaseErrorProcess(execption, "SaveNearshoreFineHydroMeteorology");
+            }
+        }
+    }
+
+    void VDESManager::Impl::LoadNearshoreFineHydroMeteorologyFromQueryResult(NearshoreFineHydroMeteorology &data, const SQLite::Statement &query)
+    {
+        data.dataID = query.getColumn("ID").getUInt();
+        data.hourPublish = static_cast<uint8_t>(query.getColumn("Hour Publish").getInt());
+        data.minutePublish = static_cast<uint8_t>(query.getColumn("Minute Publish").getInt());
+        data.forecastTimeOffset = static_cast<uint8_t>(query.getColumn("Forecast Time Offset").getInt());
+        data.elementFlags = static_cast<uint16_t>(query.getColumn("Element Flags").getInt());
+        data.baseReference = static_cast<uint8_t>(query.getColumn("Base Reference").getInt());
+        data.draftRequirement = static_cast<uint8_t>(query.getColumn("Draft Requirement").getInt());
+        data.infoSource = static_cast<uint8_t>(query.getColumn("Info Source").getInt());
+
+        Coordinate coordinate;
+        coordinate.SetLatitude(query.getColumn("Latitude").getDouble());
+        coordinate.SetLongitude(query.getColumn("Longitude").getDouble());
+        data.coordinate = coordinate;
+
+        data.currentSpeed = static_cast<uint16_t>(query.getColumn("Current Speed").getInt());
+        data.currentDirection = static_cast<uint16_t>(query.getColumn("Current Direction").getInt());
+        data.windSpeed = static_cast<uint8_t>(query.getColumn("Wind Speed").getInt());
+        data.gustWindSpeed = static_cast<uint8_t>(query.getColumn("Gust Wind Speed").getInt());
+        data.windDirection = static_cast<uint16_t>(query.getColumn("Wind Direction").getInt());
+        data.visibility = static_cast<uint8_t>(query.getColumn("Visibility").getInt());
+        data.waterLevel = static_cast<uint16_t>(query.getColumn("Water Level").getInt());
+        data.waveHeight = static_cast<uint8_t>(query.getColumn("Wave Height").getInt());
+        data.waveDirection = static_cast<uint16_t>(query.getColumn("Wave Direction").getInt());
+        data.waterDepth = static_cast<uint16_t>(query.getColumn("Water Depth").getInt());
+        data.swellHeight = static_cast<uint8_t>(query.getColumn("Swell Height").getInt());
+
+        data.timestamp = query.getColumn("Timestamp Receive").getInt64();
+        data.read = query.getColumn("Read").getInt() == 1;
     }
 
     void VDESManager::Impl::InitializeMarineMeteorologyEWTable(void)
@@ -2122,6 +2284,7 @@ namespace VDES
             InitializeMarineMeteorologyFCSTAreaTable();
             InitializeMarineEnvironmentFCSTAreaTable();
             InitializeMarineEnvironmentFCSTAlongshoreTable();
+            InitializeNearshoreFineHydroMeteorologyTable();
         }
     }
 
@@ -6113,6 +6276,19 @@ namespace VDES
                     lock.unlock();
 
                     m_parent->notifyEvent(EventType::ASM_EXTENDED_VESSEL_B, info->mmsi);
+                }
+            }
+
+            if (asmData->DAC == 412 && asmData->FI == 55)
+            {
+                auto info = std::dynamic_pointer_cast<ASM_DAC_412_FI_55>(asmData);
+                if (info)
+                {
+                    std::unique_lock<std::mutex> lock(m_mutexNearshoreFineHydroMeteorology);
+                    SaveNearshoreFineHydroMeteorology(*info);
+                    lock.unlock();
+
+                    m_parent->notifyEvent(EventType::ASM_NEARSHORE_FINE_HYDROMETEOROLOGY, 0);
                 }
             }
 
@@ -11593,6 +11769,164 @@ namespace VDES
             }
         }
         return container;
+    }
+
+    VDESManager::NearshoreFineHydroMeteorologies VDESManager::GetNearshoreFineHydroMeteorologies(const uint32_t index, const size_t number)
+    {
+        NearshoreFineHydroMeteorologies container;
+
+        if (m_impl->m_database)
+        {
+            auto sqlCmd = fmt::format("SELECT * FROM NearshoreFineHydroMeteorology ORDER BY [Timestamp Receive] "
+                                      "DESC LIMIT {0} OFFSET {1}",
+                                      (number == -1) ? "-1" : fmt::format("{}", number), index);
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexNearshoreFineHydroMeteorology);
+
+                SQLite::Statement query(*m_impl->m_database.get(), sqlCmd);
+
+                while (query.executeStep())
+                {
+                    NearshoreFineHydroMeteorology data;
+                    m_impl->LoadNearshoreFineHydroMeteorologyFromQueryResult(data, query);
+                    container.emplace_back(data);
+                }
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "GetNearshoreFineHydroMeteorologies");
+            }
+        }
+        return container;
+    }
+
+    VDESManager::NearshoreFineHydroMeteorologies VDESManager::GetNearshoreFineHydroMeteorologies(const BoundingBox &boundingBox, const size_t number)
+    {
+        NearshoreFineHydroMeteorologies container;
+
+        if (m_impl->m_database)
+        {
+            try
+            {
+                auto sqlCmd = m_impl->BuildSQLCmd("NearshoreFineHydroMeteorology", "NearshoreFineHydroMeteorologyBBox", boundingBox);
+                if (number != -1)
+                {
+                    sqlCmd.append(fmt::format(" LIMIT {}", number));
+                }
+
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexNearshoreFineHydroMeteorology);
+
+                SQLite::Statement query(*m_impl->m_database.get(), sqlCmd);
+                while (query.executeStep())
+                {
+                    NearshoreFineHydroMeteorology data;
+                    m_impl->LoadNearshoreFineHydroMeteorologyFromQueryResult(data, query);
+                    container.emplace_back(data);
+                }
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "GetNearshoreFineHydroMeteorologiesWithBBox");
+            }
+        }
+        return container;
+    }
+
+    VDESManager::NearshoreFineHydroMeteorologies VDESManager::GetNearshoreFineHydroMeteorologies(const Coordinate &coordinate, const double radius)
+    {
+        NearshoreFineHydroMeteorologies container;
+
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexNearshoreFineHydroMeteorology);
+
+                auto bbox = BoundingBox::Build(coordinate.GetLatitude(), coordinate.GetLongitude(), radius);
+                auto sqlCmd = m_impl->BuildSQLCmd("NearshoreFineHydroMeteorology", "NearshoreFineHydroMeteorologyBBox", bbox);
+                sqlCmd += " ORDER BY [Timestamp Receive] DESC";
+                SQLite::Statement query(*m_impl->m_database.get(), sqlCmd);
+
+                while (query.executeStep())
+                {
+                    NearshoreFineHydroMeteorology data;
+                    m_impl->LoadNearshoreFineHydroMeteorologyFromQueryResult(data, query);
+                    container.emplace_back(data);
+                }
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "GetNearshoreFineHydroMeteorologiesWithRange");
+            }
+        }
+        return container;
+    }
+
+    bool VDESManager::DeleteNearshoreFineHydroMeteorologies(const uint32_t index, const size_t number)
+    {
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexNearshoreFineHydroMeteorology);
+
+                // Fetch IDs of the targeted records first to delete them from both tables.
+                std::vector<uint32_t> dataIDs;
+                auto sqlFetch = fmt::format("SELECT ID FROM NearshoreFineHydroMeteorology ORDER BY [Timestamp Receive] DESC LIMIT {0} OFFSET {1}",
+                                            (number == -1) ? "-1" : fmt::format("{}", number), index);
+                SQLite::Statement queryFetch(*m_impl->m_database.get(), sqlFetch);
+                while (queryFetch.executeStep())
+                {
+                    dataIDs.push_back(queryFetch.getColumn(0).getUInt());
+                }
+
+                if (!dataIDs.empty())
+                {
+                    auto sqlBBox = fmt::format("DELETE FROM NearshoreFineHydroMeteorologyBBox WHERE ID IN ({})", fmt::join(dataIDs, ", "));
+                    m_impl->m_database->exec(sqlBBox);
+
+                    auto sqlData = fmt::format("DELETE FROM NearshoreFineHydroMeteorology WHERE ID IN ({})", fmt::join(dataIDs, ", "));
+                    m_impl->m_database->exec(sqlData);
+                }
+
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteNearshoreFineHydroMeteorologies(index, number)");
+            }
+        }
+        return false;
+    }
+
+    bool VDESManager::DeleteNearshoreFineHydroMeteorologies(const std::vector<uint32_t> &dataIDs)
+    {
+        if (dataIDs.empty())
+        {
+            return true;
+        }
+
+        if (m_impl->m_database)
+        {
+            try
+            {
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexNearshoreFineHydroMeteorology);
+
+                auto sqlBBox = fmt::format("DELETE FROM NearshoreFineHydroMeteorologyBBox WHERE ID IN ({})", fmt::join(dataIDs, ", "));
+                m_impl->m_database->exec(sqlBBox);
+
+                auto sqlData = fmt::format("DELETE FROM NearshoreFineHydroMeteorology WHERE ID IN ({})", fmt::join(dataIDs, ", "));
+                m_impl->m_database->exec(sqlData);
+
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteNearshoreFineHydroMeteorologies(dataIDs)");
+            }
+        }
+        return false;
     }
 
     bool VDESManager::DeleteMarineMeteorologyFCSTs(const uint32_t index, const size_t number)

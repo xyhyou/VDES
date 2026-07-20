@@ -1117,6 +1117,21 @@ namespace VDES
         TideStationPtr GetTideStation(const double latitude, const double longitude, const double radius);
 
         /***********************************************************************
+        * ASM - Nearshore Fine Hydrometeorology (DAC 412, FI 55)
+        ***********************************************************************/
+        using NearshoreFineHydroMeteorologies = std::vector<NearshoreFineHydroMeteorology>;
+
+        NearshoreFineHydroMeteorologies GetNearshoreFineHydroMeteorologies(const uint32_t index = 0, const size_t number = -1);
+
+        NearshoreFineHydroMeteorologies GetNearshoreFineHydroMeteorologies(const BoundingBox &boundingBox, const size_t number = -1);
+
+        NearshoreFineHydroMeteorologies GetNearshoreFineHydroMeteorologies(const Coordinate &coordinate, const double radius);
+
+        bool DeleteNearshoreFineHydroMeteorologies(const uint32_t index = 0, const size_t number = -1);
+
+        bool DeleteNearshoreFineHydroMeteorologies(const std::vector<uint32_t> &dataIDs);
+
+        /***********************************************************************
         * ASM - AtoN Dynamics (non-AIS AtoN)
         ***********************************************************************/
         using AtoNDynamicsList = std::vector<AtoNDynamics>;
@@ -1318,6 +1333,8 @@ namespace VDES
             ASM_EXTENDED_VESSEL_A,
 
             ASM_EXTENDED_VESSEL_B,
+
+            ASM_NEARSHORE_FINE_HYDROMETEOROLOGY,
         };
 
         using NotifyEvent = eventpp::CallbackList<void(const EventType, const int retCode)>;

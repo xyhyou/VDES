@@ -173,7 +173,7 @@ namespace VDES
             uint8_t  waveHeightHigh = 252;
             uint16_t tideHigh = 1003;
             uint64_t timestampTideHigh;
-            uint16_t tideLow = 503;
+            uint16_t tideLow = 1003;
             uint64_t timestampTideLow;
         };
 
@@ -683,6 +683,37 @@ namespace VDES
         uint8_t  targetFI  = 0;
         uint32_t startMRN  = 0;
         uint32_t endMRN    = 0;
+    };
+
+    /**
+     * @brief : Nearshore Fine Hydrometeorology (DAC 412, FI 55)
+     */
+    struct ASM_DAC_412_FI_55 : ASM_DAC_FI
+    {
+        struct ElementGroup
+        {
+            Coordinate coordinate;
+            uint16_t   currentSpeed = 1023;
+            uint16_t   currentDirection = 360;
+            uint8_t    windSpeed = 122;
+            uint8_t    gustWindSpeed = 122;
+            uint16_t   windDirection = 360;
+            uint8_t    visibility = 252;
+            uint16_t   waterLevel = 503;
+            uint8_t    waveHeight = 252;
+            uint16_t   waveDirection = 360;
+            uint16_t   waterDepth = 0;
+            uint8_t    swellHeight = 252;
+        };
+
+        uint8_t                   hourPublish = 24;
+        uint8_t                   minutePublish = 60;
+        uint8_t                   forecastTimeOffset = 63;
+        uint16_t                  elementFlags = 0;
+        uint8_t                   baseReference = 0;
+        uint8_t                   draftRequirement = 0;
+        uint8_t                   infoSource = 0;
+        std::vector<ElementGroup> groups;
     };
 }
 

@@ -95,6 +95,8 @@ namespace VDES
 
         void ParseASMDAC412FI52(const AISBitsManager &manager);
 
+        void ParseASMDAC412FI55(const AISBitsManager &manager);
+
         double DecodeCoordinate(const AISBitsManager &manager, const uint32_t startBitPos, const uint32_t bitsNum);
 
     public:
@@ -174,6 +176,8 @@ namespace VDES
         m_asmParserMap.insert(std::make_pair(41251, std::bind(&Impl::ParseASMDAC412FI51, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41252, std::bind(&Impl::ParseASMDAC412FI52, this, std::placeholders::_1)));
+
+        m_asmParserMap.insert(std::make_pair(41255, std::bind(&Impl::ParseASMDAC412FI55, this, std::placeholders::_1)));
 
         m_asmParserMap.insert(std::make_pair(41303, std::bind(&Impl::ParseASMDAC413FI3, this, std::placeholders::_1)));
         
@@ -571,7 +575,7 @@ namespace VDES
 
         auto index = 28;
 
-        auto areaNum = (manager.GetBitsNumberToDecode() - index - 3) / 92;
+        auto areaNum = (manager.GetBitsNumberToDecode() - index - 3) / 93;
 
         for (auto i = 0U; i < areaNum; i++)
         {
@@ -585,9 +589,9 @@ namespace VDES
             areaInfo.tideHigh = static_cast<uint16_t>(manager.DecodeToNumerical(index + 57, 10));
             
             areaInfo.timestampTideLow = DecodeTime(manager, index + 67, 16);
-            areaInfo.tideLow = static_cast<uint16_t>(manager.DecodeToNumerical(index + 83, 9));
+            areaInfo.tideLow = static_cast<uint16_t>(manager.DecodeToNumerical(index + 83, 10));
             asmInfo.waterAreaInfos.push_back(areaInfo);
-            index += 92;
+            index += 93;
         }
 
         asmInfo.infoSource = static_cast<uint8_t>(manager.DecodeToNumerical(index, 3));
@@ -2182,9 +2186,189 @@ namespace VDES
                 gbkStr.push_back(b2);
             }
         }
-        
-        asmInfo.chineseName = UtilityInterface::GBKToUTF8(gbkStr);
+            asmInfo.chineseName = UtilityInterface::GBKToUTF8(gbkStr);
         m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_52>(asmInfo));
+    }
+
+    void ASMManager::Impl::ParseASMDAC412FI55(const AISBitsManager &manager)
+    {
+        auto totalBits = manager.GetBitsNumberToDecode();
+        if (totalBits < 104)
+        {
+            return;
+        }
+
+        ASM_DAC_412_FI_55 asmInfo;
+        asmInfo.DAC = 412;
+        asmInfo.FI = 55;
+        asmInfo.source = m_mmsiSource;
+        asmInfo.destination = m_mmsiDestination;
+
+        // hourPublish (5 bits): bit 16-20
+        asmInfo.hourPublish = static_cast<uint8_t>(manager.DecodeToNumerical(16, 5));
+        // minutePublish (6 bits): bit 21-26
+        asmInfo.minutePublish = static_cast<uint8_t>(manager.DecodeToNumerical(21, 6));
+        // forecastTimeOffset (6 bits): bit 27-32
+        asmInfo.forecastTimeOffset = static_cast<uint8_t>(manager.DecodeToNumerical(27, 6));
+        // elementFlags (16 bits): bit 33-48
+        asmInfo.elementFlags = static_cast<uint16_t>(manager.DecodeToNumerical(33, 16));
+        // baseReference (1 bit): bit 49
+        asmInfo.baseReference = static_cast<uint8_t>(manager.DecodeToNumerical(49, 1));
+
+        uint32_t currentBit = 50;
+        uint32_t D = 0;
+        if (asmInfo.baseReference == 1)
+        {
+            asmInfo.draftRequirement = static_cast<uint8_t>(manager.DecodeToNumerical(50, 8));
+            currentBit = 58;
+            D = 8;
+        }
+
+        // Calculate E (element bit sum)
+        uint32_t E = 0;
+        if (asmInfo.elementFlags & (1 << 0)) { E += 10; }
+        if (asmInfo.elementFlags & (1 << 1)) { E += 9; }
+        if (asmInfo.elementFlags & (1 << 2)) { E += 7; }
+        if (asmInfo.elementFlags & (1 << 3)) { E += 7; }
+        if (asmInfo.elementFlags & (1 << 4)) { E += 9; }
+        if (asmInfo.elementFlags & (1 << 5)) { E += 8; }
+        if (asmInfo.elementFlags & (1 << 6)) { E += 9; }
+        if (asmInfo.elementFlags & (1 << 7)) { E += 8; }
+        if (asmInfo.elementFlags & (1 << 8)) { E += 9; }
+        if (asmInfo.elementFlags & (1 << 9)) { E += 13; }
+        if (asmInfo.elementFlags & (1 << 10)) { E += 8; }
+
+        if (totalBits < 104 + D + E)
+        {
+            return;
+        }
+
+        // Calculate number of groups n
+        uint32_t n = 1 + (totalBits - 104 - D - E) / (29 + E);
+
+        // Helper lambda for signed conversions
+        auto ConvertToSigned = [](int64_t rawVal, uint32_t bitsNum) -> int64_t {
+            if (rawVal & ((int64_t)1 << (bitsNum - 1)))
+            {
+                rawVal = rawVal - ((int64_t)1 << bitsNum);
+            }
+            return rawVal;
+        };
+
+        // Decode N1 and E1
+        int64_t rawLat1 = manager.DecodeToNumerical(currentBit, 25);
+        int64_t signedLat1 = ConvertToSigned(rawLat1, 25);
+        double lat1 = 0.0;
+        if (rawLat1 != 10800000)
+        {
+            lat1 = signedLat1 / 60000.0;
+        }
+        currentBit += 25;
+
+        int64_t rawLon1 = manager.DecodeToNumerical(currentBit, 26);
+        int64_t signedLon1 = ConvertToSigned(rawLon1, 26);
+        double lon1 = 0.0;
+        if (rawLon1 != 21600000)
+        {
+            lon1 = signedLon1 / 60000.0;
+        }
+        currentBit += 26;
+
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            ASM_DAC_412_FI_55::ElementGroup group;
+            if (i == 0)
+            {
+                group.coordinate.SetLatitude(lat1);
+                group.coordinate.SetLongitude(lon1);
+            }
+            else
+            {
+                int64_t rawDeltaLat = manager.DecodeToNumerical(currentBit, 15);
+                int64_t signedDeltaLat = ConvertToSigned(rawDeltaLat, 15);
+                currentBit += 15;
+
+                int64_t rawDeltaLon = manager.DecodeToNumerical(currentBit, 14);
+                int64_t signedDeltaLon = ConvertToSigned(rawDeltaLon, 14);
+                currentBit += 14;
+
+                double latVal = 0.0;
+                double lonVal = 0.0;
+                if (rawLat1 != 10800000 && rawDeltaLat != -16384)
+                {
+                    latVal = lat1 + signedDeltaLat / 60000.0;
+                }
+                if (rawLon1 != 21600000 && rawDeltaLon != -8192)
+                {
+                    lonVal = lon1 + signedDeltaLon / 60000.0;
+                }
+                group.coordinate.SetLatitude(latVal);
+                group.coordinate.SetLongitude(lonVal);
+            }
+
+            // Decode elements of this group
+            if (asmInfo.elementFlags & (1 << 0))
+            {
+                group.currentSpeed = static_cast<uint16_t>(manager.DecodeToNumerical(currentBit, 10));
+                currentBit += 10;
+            }
+            if (asmInfo.elementFlags & (1 << 1))
+            {
+                group.currentDirection = static_cast<uint16_t>(manager.DecodeToNumerical(currentBit, 9));
+                currentBit += 9;
+            }
+            if (asmInfo.elementFlags & (1 << 2))
+            {
+                group.windSpeed = static_cast<uint8_t>(manager.DecodeToNumerical(currentBit, 7));
+                currentBit += 7;
+            }
+            if (asmInfo.elementFlags & (1 << 3))
+            {
+                group.gustWindSpeed = static_cast<uint8_t>(manager.DecodeToNumerical(currentBit, 7));
+                currentBit += 7;
+            }
+            if (asmInfo.elementFlags & (1 << 4))
+            {
+                group.windDirection = static_cast<uint16_t>(manager.DecodeToNumerical(currentBit, 9));
+                currentBit += 9;
+            }
+            if (asmInfo.elementFlags & (1 << 5))
+            {
+                group.visibility = static_cast<uint8_t>(manager.DecodeToNumerical(currentBit, 8));
+                currentBit += 8;
+            }
+            if (asmInfo.elementFlags & (1 << 6))
+            {
+                group.waterLevel = static_cast<uint16_t>(manager.DecodeToNumerical(currentBit, 9));
+                currentBit += 9;
+            }
+            if (asmInfo.elementFlags & (1 << 7))
+            {
+                group.waveHeight = static_cast<uint8_t>(manager.DecodeToNumerical(currentBit, 8));
+                currentBit += 8;
+            }
+            if (asmInfo.elementFlags & (1 << 8))
+            {
+                group.waveDirection = static_cast<uint16_t>(manager.DecodeToNumerical(currentBit, 9));
+                currentBit += 9;
+            }
+            if (asmInfo.elementFlags & (1 << 9))
+            {
+                group.waterDepth = static_cast<uint16_t>(manager.DecodeToNumerical(currentBit, 13));
+                currentBit += 13;
+            }
+            if (asmInfo.elementFlags & (1 << 10))
+            {
+                group.swellHeight = static_cast<uint8_t>(manager.DecodeToNumerical(currentBit, 8));
+                currentBit += 8;
+            }
+
+            asmInfo.groups.push_back(group);
+        }
+
+        asmInfo.infoSource = static_cast<uint8_t>(manager.DecodeToNumerical(currentBit, 3));
+
+        m_parent->asmNotify(std::make_shared<ASM_DAC_412_FI_55>(asmInfo));
     }
 
     ASMManager::ASMManager()

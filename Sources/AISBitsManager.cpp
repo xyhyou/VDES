@@ -1,4 +1,4 @@
-#include "AISBitsManager.h"
+﻿#include "AISBitsManager.h"
 #include "UtilityInterface.h"
 
 #include <map>

@@ -574,8 +574,8 @@ static std::vector<std::string> GenerateDAC_412_FI_30(void)
 	bitsManager.Encode(11, 5);
 	bitsManager.Encode(8, 5);
 	bitsManager.Encode(38, 6);
-	// 低潮潮高 (9 bits, raw 200cm tide height with -100cm base is 300)
-	bitsManager.Encode(300, 9);
+	// 低潮潮高 (10 bits, raw 200cm tide height with -800cm base is 1000)
+	bitsManager.Encode(1000, 10);
 
 	// 信息来源
 	bitsManager.Encode(3, 3);
@@ -2569,6 +2569,683 @@ static void NotifyHandle(const VDES::VDESManager::EventType eventType, const int
 	}
 }
 
+static std::vector<std::string> GenerateDAC_412_FI_30_MultiArea(void)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID
+	bitsManager.Encode(8, 6);
+	// Repeat indicator
+	bitsManager.Encode(0, 2);
+	// Source ID
+	bitsManager.Encode(4123001, 30);
+	// Spare
+	bitsManager.Encode(0, 2);
+	// DAC
+	bitsManager.Encode(412, 10);
+	// FI	
+	bitsManager.Encode(30, 6);
+
+	// hourPublish (5 bits): 10
+	bitsManager.Encode(10, 5);
+	// hoursOffsetFCST (7 bits): 24
+	bitsManager.Encode(24, 7);
+
+	// Group 1 (Area 1):
+	bitsManager.Encode(12, 8);    // areaCode
+	bitsManager.Encode(300, 9);   // temperatureLow (20.0 C)
+	bitsManager.Encode(50, 8);    // temperatureHigh (+5.0 C)
+	bitsManager.Encode(15, 8);    // waveHeightLow (1.5 m)
+	bitsManager.Encode(25, 8);    // waveHeightHigh (2.5 m)
+	// high tide time: day=20, hour=14, minute=30
+	bitsManager.Encode(20, 5);
+	bitsManager.Encode(14, 5);
+	bitsManager.Encode(30, 6);
+	bitsManager.Encode(600, 10);  // tideHigh (500 cm)
+	// low tide time: day=20, hour=20, minute=45
+	bitsManager.Encode(20, 5);
+	bitsManager.Encode(20, 5);
+	bitsManager.Encode(45, 6);
+	bitsManager.Encode(300, 10);  // tideLow (-500 cm, 10 bits!)
+
+	// Group 2 (Area 2):
+	bitsManager.Encode(15, 8);    // areaCode
+	bitsManager.Encode(320, 9);   // temperatureLow (22.0 C)
+	bitsManager.Encode(40, 8);    // temperatureHigh (+4.0 C)
+	bitsManager.Encode(10, 8);    // waveHeightLow (1.0 m)
+	bitsManager.Encode(20, 8);    // waveHeightHigh (2.0 m)
+	// high tide time: day=20, hour=15, minute=0
+	bitsManager.Encode(20, 5);
+	bitsManager.Encode(15, 5);
+	bitsManager.Encode(0, 6);
+	bitsManager.Encode(550, 10);  // tideHigh (450 cm)
+	// low tide time: day=20, hour=21, minute=15
+	bitsManager.Encode(20, 5);
+	bitsManager.Encode(21, 5);
+	bitsManager.Encode(15, 6);
+	bitsManager.Encode(350, 10);  // tideLow (-450 cm, 10 bits!)
+
+	// infoSource (3 bits): 2
+	bitsManager.Encode(2, 3);
+
+	return bitsManager.BuildPacket();
+}
+
+static void TestMarineEnvironmentFCSTAlongshore()
+{
+	std::cout << "\n=== Testing DAC=412, FI=30 (Marine Environment Forecast Alongshore) ===" << std::endl;
+	auto &vdesManager = VDES::VDESManager::GetInstance();
+
+	// 1. Listen for event
+	bool receivedEvent = false;
+	auto token = vdesManager.notifyEvent.append([&receivedEvent](const VDES::VDESManager::EventType eventType, const int retCode) {
+		if (eventType == VDES::VDESManager::EventType::ASM_MARINE_ENVIRONMENT_FCST_ALONGSHORE)
+		{
+			receivedEvent = true;
+			std::cout << "Received notifyEvent for MarineEnvironmentFCSTAlongshore!" << std::endl;
+		}
+	});
+
+	// 2. Generate and parse message
+	auto sentences = GenerateDAC_412_FI_30_MultiArea();
+	for (const auto &sentence : sentences)
+	{
+		vdesManager.Parse(sentence.c_str(), sentence.length());
+	}
+
+	// 3. Query from DB and verify
+	auto list = vdesManager.GetMarineEnvironmentFCSTAlongshores(0, 100);
+	std::cout << "Successfully retrieved " << list.size() << " alongshore records from DB." << std::endl;
+
+	if (list.size() < 2)
+	{
+		std::cerr << "FAIL: Expected at least 2 alongshore records, got " << list.size() << std::endl;
+		exit(1);
+	}
+
+	// Identify each record dynamically
+	const VDES::MarineEnvironmentFCSTAlongshore *pArea1 = nullptr;
+	const VDES::MarineEnvironmentFCSTAlongshore *pArea2 = nullptr;
+	for (const auto &item : list)
+	{
+		if (item.areaCode == 12)
+		{
+			pArea1 = &item;
+		}
+		else if (item.areaCode == 15)
+		{
+			pArea2 = &item;
+		}
+	}
+
+	if (!pArea1 || !pArea2)
+	{
+		std::cerr << "FAIL: Could not locate both test alongshore records in DB!" << std::endl;
+		exit(1);
+	}
+
+	// Verify Area 1 (Group 1)
+	std::cout << "Verifying Alongshore Area 1..." << std::endl;
+	if (pArea1->temperatureLow != 300 || pArea1->temperatureHigh != 50 || pArea1->waveHeightLow != 15 || pArea1->waveHeightHigh != 25 || pArea1->tideHigh != 600 || pArea1->tideLow != 300 || pArea1->infoSource != 2)
+	{
+		std::cerr << "FAIL: Alongshore Area 1 values mismatch!" << std::endl;
+		std::cerr << "  tideLow parsed = " << pArea1->tideLow << " (expected 300)" << std::endl;
+		exit(1);
+	}
+
+	// Verify Area 2 (Group 2 - checks stride alignment!)
+	std::cout << "Verifying Alongshore Area 2..." << std::endl;
+	if (pArea2->temperatureLow != 320 || pArea2->temperatureHigh != 40 || pArea2->waveHeightLow != 10 || pArea2->waveHeightHigh != 20 || pArea2->tideHigh != 550 || pArea2->tideLow != 350 || pArea2->infoSource != 2)
+	{
+		std::cerr << "FAIL: Alongshore Area 2 values mismatch! Stride offset detected!" << std::endl;
+		std::cerr << "  temperatureLow = " << pArea2->temperatureLow << " (expected 320)" << std::endl;
+		std::cerr << "  temperatureHigh = " << (int)pArea2->temperatureHigh << " (expected 40)" << std::endl;
+		std::cerr << "  tideLow parsed = " << pArea2->tideLow << " (expected 350)" << std::endl;
+		exit(1);
+	}
+
+	// 4. Test delete operation
+	std::vector<uint32_t> ids = { pArea1->areaCode, pArea2->areaCode };
+	bool delSuccess = vdesManager.DeleteMarineEnvironmentFCSTAlongshores(ids);
+	if (!delSuccess)
+	{
+		std::cerr << "FAIL: Alongshore Delete operation failed!" << std::endl;
+		exit(1);
+	}
+	auto postDeleteList = vdesManager.GetMarineEnvironmentFCSTAlongshores(0, 100);
+	std::cout << "Post-delete Alongshore count in DB: " << postDeleteList.size() << std::endl;
+
+	vdesManager.notifyEvent.remove(token);
+	std::cout << "MarineEnvironmentFCSTAlongshore verification tests PASSED!" << std::endl;
+	std::cout << "========================================" << std::endl;
+}
+
+static std::vector<std::string> GenerateDAC_412_FI_55_Case2(void)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID
+	bitsManager.Encode(8, 6);
+	// Repeat indicator
+	bitsManager.Encode(0, 2);
+	// Source ID
+	bitsManager.Encode(4123002, 30);
+	// Spare
+	bitsManager.Encode(0, 2);
+	// DAC
+	bitsManager.Encode(412, 10);
+	// FI	
+	bitsManager.Encode(55, 6);
+
+	// hourPublish (5 bits): 12
+	bitsManager.Encode(12, 5);
+	// minutePublish (6 bits): 45
+	bitsManager.Encode(45, 6);
+	// forecastTimeOffset (6 bits): 60
+	bitsManager.Encode(60, 6);
+	// elementFlags (16 bits): 0x07FF (bits 0-10 enabled) = 2047
+	bitsManager.Encode(2047, 16);
+	// baseReference (1 bit): 1
+	bitsManager.Encode(1, 1);
+	// draftRequirement (8 bits): 128
+	bitsManager.Encode(128, 8);
+
+	// N1 (25 bits): 31.2345 degrees -> 1874070
+	bitsManager.Encode(1874070, 25);
+	// E1 (26 bits): 121.4567 degrees -> 7287402
+	bitsManager.Encode(7287402, 26);
+
+	// Group 1 elements (all defaults):
+	bitsManager.Encode(1023, 10); // currentSpeed
+	bitsManager.Encode(360, 9);   // currentDirection
+	bitsManager.Encode(122, 7);   // windSpeed
+	bitsManager.Encode(122, 7);   // gustWindSpeed
+	bitsManager.Encode(360, 9);   // windDirection
+	bitsManager.Encode(252, 8);   // visibility
+	bitsManager.Encode(503, 9);   // waterLevel
+	bitsManager.Encode(252, 8);   // waveHeight
+	bitsManager.Encode(360, 9);   // waveDirection
+	bitsManager.Encode(0, 13);    // waterDepth
+	bitsManager.Encode(252, 8);   // swellHeight
+
+	// Group 2 delta lat (15 bits): -0.1 degrees -> -6000
+	bitsManager.Encode(VDES::UtilityInterface::ConvertIntegerToComplementCode(-6000, 15), 15);
+	// Group 2 delta lon (14 bits): +0.2 degrees -> 12000
+	bitsManager.Encode(VDES::UtilityInterface::ConvertIntegerToComplementCode(12000, 14), 14);
+
+	// Group 2 elements (actual values):
+	bitsManager.Encode(100, 10); // currentSpeed = 100
+	bitsManager.Encode(180, 9);  // currentDirection = 180
+	bitsManager.Encode(12, 7);   // windSpeed = 12
+	bitsManager.Encode(18, 7);   // gustWindSpeed = 18
+	bitsManager.Encode(270, 9);  // windDirection = 270
+	bitsManager.Encode(50, 8);   // visibility = 50
+	bitsManager.Encode(350, 9);  // waterLevel = 350
+	bitsManager.Encode(20, 8);   // waveHeight = 20
+	bitsManager.Encode(90, 9);   // waveDirection = 90
+	bitsManager.Encode(300, 13); // waterDepth = 300
+	bitsManager.Encode(15, 8);   // swellHeight = 15
+
+	// infoSource (3 bits): 5
+	bitsManager.Encode(5, 3);
+
+	return bitsManager.BuildPacket();
+}
+
+static std::vector<std::string> GenerateDAC_412_FI_55_Case3(void)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID
+	bitsManager.Encode(8, 6);
+	// Repeat indicator
+	bitsManager.Encode(0, 2);
+	// Source ID
+	bitsManager.Encode(4123003, 30);
+	// Spare
+	bitsManager.Encode(0, 2);
+	// DAC
+	bitsManager.Encode(412, 10);
+	// FI	
+	bitsManager.Encode(55, 6);
+
+	// hourPublish (5 bits): 0
+	bitsManager.Encode(0, 5);
+	// minutePublish (6 bits): 0
+	bitsManager.Encode(0, 6);
+	// forecastTimeOffset (6 bits): 0
+	bitsManager.Encode(0, 6);
+	// elementFlags (16 bits): 0
+	bitsManager.Encode(0, 16);
+	// baseReference (1 bit): 0
+	bitsManager.Encode(0, 1);
+
+	// N1 (25 bits): -34.5678 degrees -> -2074068
+	bitsManager.Encode(VDES::UtilityInterface::ConvertIntegerToComplementCode(-2074068, 25), 25);
+	// E1 (26 bits): -58.3816 degrees -> -3502896
+	bitsManager.Encode(VDES::UtilityInterface::ConvertIntegerToComplementCode(-3502896, 26), 26);
+
+	// Group 2 delta lat (15 bits): -0.01 degrees -> -600
+	bitsManager.Encode(VDES::UtilityInterface::ConvertIntegerToComplementCode(-600, 15), 15);
+	// Group 2 delta lon (14 bits): -0.02 degrees -> -1200
+	bitsManager.Encode(VDES::UtilityInterface::ConvertIntegerToComplementCode(-1200, 14), 14);
+
+	// infoSource (3 bits): 1
+	bitsManager.Encode(1, 3);
+
+	return bitsManager.BuildPacket();
+}
+
+static std::vector<std::string> GenerateDAC_412_FI_55_Case4(void)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID
+	bitsManager.Encode(8, 6);
+	// Repeat indicator
+	bitsManager.Encode(0, 2);
+	// Source ID
+	bitsManager.Encode(4123004, 30);
+	// Spare
+	bitsManager.Encode(0, 2);
+	// DAC
+	bitsManager.Encode(412, 10);
+	// FI	
+	bitsManager.Encode(55, 6);
+
+	// hourPublish (5 bits): 24
+	bitsManager.Encode(24, 5);
+	// minutePublish (6 bits): 60
+	bitsManager.Encode(60, 6);
+	// forecastTimeOffset (6 bits): 63
+	bitsManager.Encode(63, 6);
+	// elementFlags (16 bits): 0x0001
+	bitsManager.Encode(1, 16);
+	// baseReference (1 bit): 0
+	bitsManager.Encode(0, 1);
+
+	// N1 (25 bits): 10800000
+	bitsManager.Encode(10800000, 25);
+	// E1 (26 bits): 21600000
+	bitsManager.Encode(21600000, 26);
+
+	// Group 1 elements:
+	bitsManager.Encode(150, 10); // currentSpeed = 150
+
+	// infoSource (3 bits): 0
+	bitsManager.Encode(0, 3);
+
+	return bitsManager.BuildPacket();
+}
+
+static std::vector<std::string> GenerateDAC_412_FI_55_Case5_Normal(void)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID
+	bitsManager.Encode(8, 6);
+	// Repeat indicator
+	bitsManager.Encode(0, 2);
+	// Source ID
+	bitsManager.Encode(4123005, 30);
+	// Spare
+	bitsManager.Encode(0, 2);
+	// DAC
+	bitsManager.Encode(412, 10);
+	// FI	
+	bitsManager.Encode(55, 6);
+
+	// hourPublish (5 bits): 9
+	bitsManager.Encode(9, 5);
+	// minutePublish (6 bits): 15
+	bitsManager.Encode(15, 6);
+	// forecastTimeOffset (6 bits): 24
+	bitsManager.Encode(24, 6);
+	// elementFlags (16 bits): 0x07FF (bits 0-10 enabled) = 2047
+	bitsManager.Encode(2047, 16);
+	// baseReference (1 bit): 0
+	bitsManager.Encode(0, 1);
+
+	// N1 (25 bits): 29.8765 degrees -> 1792590
+	bitsManager.Encode(1792590, 25);
+	// E1 (26 bits): 122.1234 degrees -> 7327404
+	bitsManager.Encode(7327404, 26);
+
+	// Group 1 elements:
+	bitsManager.Encode(120, 10); // currentSpeed = 1.20 m/s
+	bitsManager.Encode(145, 9);  // currentDirection = 145 degrees
+	bitsManager.Encode(15, 7);   // windSpeed = 15 kn
+	bitsManager.Encode(22, 7);   // gustWindSpeed = 22 kn
+	bitsManager.Encode(45, 9);   // windDirection = 45 degrees
+	bitsManager.Encode(120, 8);  // visibility = 12.0 km
+	bitsManager.Encode(250, 9);  // waterLevel = 2.50 m
+	bitsManager.Encode(12, 8);   // waveHeight = 1.2 m
+	bitsManager.Encode(50, 9);   // waveDirection = 50 degrees
+	bitsManager.Encode(185, 13); // waterDepth = 18.5 m
+	bitsManager.Encode(5, 8);    // swellHeight = 0.5 m
+
+	// Group 2 delta lat (15 bits): +0.02 degrees -> 1200
+	bitsManager.Encode(VDES::UtilityInterface::ConvertIntegerToComplementCode(1200, 15), 15);
+	// Group 2 delta lon (14 bits): +0.03 degrees -> 1800
+	bitsManager.Encode(VDES::UtilityInterface::ConvertIntegerToComplementCode(1800, 14), 14);
+
+	// Group 2 elements:
+	bitsManager.Encode(90, 10);  // currentSpeed = 0.90 m/s
+	bitsManager.Encode(150, 9);  // currentDirection = 150 degrees
+	bitsManager.Encode(14, 7);   // windSpeed = 14 kn
+	bitsManager.Encode(20, 7);   // gustWindSpeed = 20 kn
+	bitsManager.Encode(40, 9);   // windDirection = 40 degrees
+	bitsManager.Encode(115, 8);  // visibility = 11.5 km
+	bitsManager.Encode(245, 9);  // waterLevel = 2.45 m
+	bitsManager.Encode(10, 8);   // waveHeight = 1.0 m
+	bitsManager.Encode(45, 9);   // waveDirection = 45 degrees
+	bitsManager.Encode(180, 13); // waterDepth = 18.0 m
+	bitsManager.Encode(4, 8);    // swellHeight = 0.4 m
+
+	// infoSource (3 bits): 4
+	bitsManager.Encode(4, 3);
+
+	return bitsManager.BuildPacket();
+}
+
+static std::vector<std::string> GenerateDAC_412_FI_55(void)
+{
+	VDES::AISBitsManager bitsManager;
+
+	// Message ID
+	bitsManager.Encode(8, 6);
+	// Repeat indicator
+	bitsManager.Encode(0, 2);
+	// Source ID
+	bitsManager.Encode(4123001, 30);
+	// Spare
+	bitsManager.Encode(0, 2);
+	// DAC
+	bitsManager.Encode(412, 10);
+	// FI	
+	bitsManager.Encode(55, 6);
+
+	// hourPublish (5 bits): 15
+	bitsManager.Encode(15, 5);
+	// minutePublish (6 bits): 30
+	bitsManager.Encode(30, 6);
+	// forecastTimeOffset (6 bits): 12
+	bitsManager.Encode(12, 6);
+	// elementFlags (16 bits): (1<<0) | (1<<2) | (1<<4) | (1<<9) = 533
+	bitsManager.Encode(533, 16);
+	// baseReference (1 bit): 0
+	bitsManager.Encode(0, 1);
+
+	// N1 (25 bits): 24.35 degrees -> 24.35 * 60000 = 1461000
+	bitsManager.Encode(1461000, 25);
+	// E1 (26 bits): 119.1 degrees -> 119.1 * 60000 = 7146000
+	bitsManager.Encode(7146000, 26);
+
+	// Group 1 elements:
+	// currentSpeed (10 bits): 350
+	bitsManager.Encode(350, 10);
+	// windSpeed (7 bits): 25
+	bitsManager.Encode(25, 7);
+	// windDirection (9 bits): 361
+	bitsManager.Encode(361, 9);
+	// waterDepth (13 bits): 150
+	bitsManager.Encode(150, 13);
+
+	// Group 2 delta lat (15 bits): +0.05 degrees -> 3000
+	bitsManager.Encode(VDES::UtilityInterface::ConvertIntegerToComplementCode(3000, 15), 15);
+	// Group 2 delta lon (14 bits): -0.04 degrees -> -2400
+	bitsManager.Encode(VDES::UtilityInterface::ConvertIntegerToComplementCode(-2400, 14), 14);
+
+	// Group 2 elements:
+	// currentSpeed: 500
+	bitsManager.Encode(500, 10);
+	// windSpeed: 30
+	bitsManager.Encode(30, 7);
+	// windDirection: 180
+	bitsManager.Encode(180, 9);
+	// waterDepth: 200
+	bitsManager.Encode(200, 13);
+
+	// infoSource (3 bits): 3
+	bitsManager.Encode(3, 3);
+
+	return bitsManager.BuildPacket();
+}
+
+static void TestNearshoreFineHydroMeteorology()
+{
+	std::cout << "\n=== Testing DAC=412, FI=55 (Nearshore Fine Hydrometeorology) ===" << std::endl;
+	auto &vdesManager = VDES::VDESManager::GetInstance();
+
+	// 1. Listen for event
+	int eventCount = 0;
+	auto token = vdesManager.notifyEvent.append([&eventCount](const VDES::VDESManager::EventType eventType, const int retCode) {
+		if (eventType == VDES::VDESManager::EventType::ASM_NEARSHORE_FINE_HYDROMETEOROLOGY)
+		{
+			eventCount++;
+			std::cout << "Received notifyEvent for NearshoreFineHydroMeteorology! Total event calls: " << eventCount << std::endl;
+		}
+	});
+
+	// 2. Generate and parse messages for Case 1, 2, 3, 4, and 5
+	std::cout << "Feeding Case 1 (Standard 2 groups)..." << std::endl;
+	for (const auto &sentence : GenerateDAC_412_FI_55())
+	{
+		vdesManager.Parse(sentence.c_str(), sentence.length());
+	}
+
+	std::cout << "Feeding Case 2 (Draft requirement baseRef=1, all elements enabled)..." << std::endl;
+	for (const auto &sentence : GenerateDAC_412_FI_55_Case2())
+	{
+		vdesManager.Parse(sentence.c_str(), sentence.length());
+	}
+
+	std::cout << "Feeding Case 3 (Zero element flags, negative coordinates)..." << std::endl;
+	for (const auto &sentence : GenerateDAC_412_FI_55_Case3())
+	{
+		vdesManager.Parse(sentence.c_str(), sentence.length());
+	}
+
+	std::cout << "Feeding Case 4 (Default/invalid coordinates, single element)..." << std::endl;
+	for (const auto &sentence : GenerateDAC_412_FI_55_Case4())
+	{
+		vdesManager.Parse(sentence.c_str(), sentence.length());
+	}
+
+	std::cout << "Feeding Case 5 (Typical normal observations, 2 groups)..." << std::endl;
+	for (const auto &sentence : GenerateDAC_412_FI_55_Case5_Normal())
+	{
+		vdesManager.Parse(sentence.c_str(), sentence.length());
+	}
+
+	// 3. Query from DB and verify
+	auto list = vdesManager.GetNearshoreFineHydroMeteorologies(0, 100);
+	std::cout << "Successfully retrieved " << list.size() << " records from DB." << std::endl;
+	
+	if (list.size() < 9)
+	{
+		std::cerr << "FAIL: Expected 9 records in total (2 from Case1, 2 from Case2, 2 from Case3, 1 from Case4, 2 from Case5), got " << list.size() << std::endl;
+		exit(1);
+	}
+
+	// Identify each record dynamically
+	const VDES::NearshoreFineHydroMeteorology *pC1_G1 = nullptr;
+	const VDES::NearshoreFineHydroMeteorology *pC1_G2 = nullptr;
+	const VDES::NearshoreFineHydroMeteorology *pC2_G1 = nullptr;
+	const VDES::NearshoreFineHydroMeteorology *pC2_G2 = nullptr;
+	const VDES::NearshoreFineHydroMeteorology *pC3_G1 = nullptr;
+	const VDES::NearshoreFineHydroMeteorology *pC3_G2 = nullptr;
+	const VDES::NearshoreFineHydroMeteorology *pC4_G1 = nullptr;
+	const VDES::NearshoreFineHydroMeteorology *pC5_G1 = nullptr;
+	const VDES::NearshoreFineHydroMeteorology *pC5_G2 = nullptr;
+
+	for (const auto &item : list)
+	{
+		// Identify by unique speed and coordinates combos
+		if (item.currentSpeed == 350 && std::abs(item.coordinate.GetLatitude() - 24.35) < 0.001)
+		{
+			pC1_G1 = &item;
+		}
+		else if (item.currentSpeed == 500 && std::abs(item.coordinate.GetLatitude() - 24.40) < 0.001)
+		{
+			pC1_G2 = &item;
+		}
+		else if (item.draftRequirement == 128 && item.currentSpeed == 1023)
+		{
+			pC2_G1 = &item;
+		}
+		else if (item.currentSpeed == 100 && item.windSpeed == 12)
+		{
+			pC2_G2 = &item;
+		}
+		else if (item.elementFlags == 0 && std::abs(item.coordinate.GetLatitude() - (-34.5678)) < 0.001)
+		{
+			pC3_G1 = &item;
+		}
+		else if (item.elementFlags == 0 && std::abs(item.coordinate.GetLatitude() - (-34.5778)) < 0.001)
+		{
+			pC3_G2 = &item;
+		}
+		else if (item.coordinate.GetLatitude() == 0.0 && item.currentSpeed == 150)
+		{
+			pC4_G1 = &item;
+		}
+		else if (item.currentSpeed == 120 && std::abs(item.coordinate.GetLatitude() - 29.8765) < 0.001)
+		{
+			pC5_G1 = &item;
+		}
+		else if (item.currentSpeed == 90 && std::abs(item.coordinate.GetLatitude() - 29.8965) < 0.001)
+		{
+			pC5_G2 = &item;
+		}
+	}
+
+	if (!pC1_G1 || !pC1_G2 || !pC2_G1 || !pC2_G2 || !pC3_G1 || !pC3_G2 || !pC4_G1 || !pC5_G1 || !pC5_G2)
+	{
+		std::cerr << "FAIL: Could not locate all 9 distinct test records in DB!" << std::endl;
+		exit(1);
+	}
+
+	// Verify Case 1 Group 1 (Custom Raw Wind Direction 361)
+	std::cout << "Verifying Case 1 Group 1..." << std::endl;
+	if (pC1_G1->windDirection != 361 || pC1_G1->currentSpeed != 350 || pC1_G1->waterDepth != 150)
+	{
+		std::cerr << "FAIL: Case 1 Group 1 assertions failed!" << std::endl;
+		exit(1);
+	}
+
+	// Verify Case 2 Group 1 (Base reference 1, Draft Requirement 128, All other fields default)
+	std::cout << "Verifying Case 2 Group 1..." << std::endl;
+	if (pC2_G1->baseReference != 1 || pC2_G1->draftRequirement != 128 || pC2_G1->currentSpeed != 1023 || pC2_G1->windDirection != 360 || pC2_G1->waterLevel != 503)
+	{
+		std::cerr << "FAIL: Case 2 Group 1 assertions failed!" << std::endl;
+		exit(1);
+	}
+
+	// Verify Case 2 Group 2 (Custom elements decoded correctly)
+	std::cout << "Verifying Case 2 Group 2..." << std::endl;
+	if (pC2_G2->currentSpeed != 100 || pC2_G2->currentDirection != 180 || pC2_G2->windSpeed != 12 || pC2_G2->gustWindSpeed != 18 || pC2_G2->windDirection != 270 || pC2_G2->visibility != 50 || pC2_G2->waterLevel != 350 || pC2_G2->waveHeight != 20 || pC2_G2->waveDirection != 90 || pC2_G2->waterDepth != 300 || pC2_G2->swellHeight != 15)
+	{
+		std::cerr << "FAIL: Case 2 Group 2 elements mismatch!" << std::endl;
+		exit(1);
+	}
+
+	// Verify Case 3 (Negative offset complement coords in Southern/Western Hemisphere)
+	std::cout << "Verifying Case 3 Coordinates..." << std::endl;
+	if (std::abs(pC3_G1->coordinate.GetLatitude() - (-34.5678)) > 0.0001 || std::abs(pC3_G1->coordinate.GetLongitude() - (-58.3816)) > 0.0001)
+	{
+		std::cerr << "FAIL: Case 3 Group 1 coordinate mismatch!" << std::endl;
+		exit(1);
+	}
+	if (std::abs(pC3_G2->coordinate.GetLatitude() - (-34.5778)) > 0.0001 || std::abs(pC3_G2->coordinate.GetLongitude() - (-58.4016)) > 0.0001)
+	{
+		std::cerr << "FAIL: Case 3 Group 2 coordinate mismatch!" << std::endl;
+		exit(1);
+	}
+
+	// Verify Case 4 (Default/Invalid Coordinates mapped to 0.0)
+	std::cout << "Verifying Case 4 Unavailable Coords..." << std::endl;
+	if (pC4_G1->coordinate.GetLatitude() != 0.0 || pC4_G1->coordinate.GetLongitude() != 0.0 || pC4_G1->currentSpeed != 150 || pC4_G1->currentDirection != 360)
+	{
+		std::cerr << "FAIL: Case 4 default values failed!" << std::endl;
+		exit(1);
+	}
+
+	// Verify Case 5 Group 1 (Normal values)
+	std::cout << "Verifying Case 5 Group 1 (Typical Normal)..." << std::endl;
+	if (pC5_G1->hourPublish != 9 || pC5_G1->minutePublish != 15 || pC5_G1->forecastTimeOffset != 24 || pC5_G1->infoSource != 4)
+	{
+		std::cerr << "FAIL: Case 5 Group 1 metadata mismatch!" << std::endl;
+		exit(1);
+	}
+	if (std::abs(pC5_G1->coordinate.GetLatitude() - 29.8765) > 0.0001 || std::abs(pC5_G1->coordinate.GetLongitude() - 122.1234) > 0.0001)
+	{
+		std::cerr << "FAIL: Case 5 Group 1 coordinate mismatch!" << std::endl;
+		exit(1);
+	}
+	if (pC5_G1->currentSpeed != 120 || pC5_G1->currentDirection != 145 || pC5_G1->windSpeed != 15 || pC5_G1->gustWindSpeed != 22 || pC5_G1->windDirection != 45 || pC5_G1->visibility != 120 || pC5_G1->waterLevel != 250 || pC5_G1->waveHeight != 12 || pC5_G1->waveDirection != 50 || pC5_G1->waterDepth != 185 || pC5_G1->swellHeight != 5)
+	{
+		std::cerr << "FAIL: Case 5 Group 1 element values mismatch!" << std::endl;
+		exit(1);
+	}
+
+	// Verify Case 5 Group 2 (Relative Offset Coordinates: 29.8765 + 0.02 = 29.8965; 122.1234 + 0.03 = 122.1534)
+	std::cout << "Verifying Case 5 Group 2 (Typical Normal)..." << std::endl;
+	if (std::abs(pC5_G2->coordinate.GetLatitude() - 29.8965) > 0.0001 || std::abs(pC5_G2->coordinate.GetLongitude() - 122.1534) > 0.0001)
+	{
+		std::cerr << "FAIL: Case 5 Group 2 coordinate mismatch!" << std::endl;
+		exit(1);
+	}
+	if (pC5_G2->currentSpeed != 90 || pC5_G2->currentDirection != 150 || pC5_G2->windSpeed != 14 || pC5_G2->gustWindSpeed != 20 || pC5_G2->windDirection != 40 || pC5_G2->visibility != 115 || pC5_G2->waterLevel != 245 || pC5_G2->waveHeight != 10 || pC5_G2->waveDirection != 45 || pC5_G2->waterDepth != 180 || pC5_G2->swellHeight != 4)
+	{
+		std::cerr << "FAIL: Case 5 Group 2 element values mismatch!" << std::endl;
+		exit(1);
+	}
+
+	// 4. Test spatial query around Case 1 Group 1
+	VDES::BoundingBox bbox = VDES::BoundingBox::Build(24.35, 119.1, 10.0);
+	auto bboxList = vdesManager.GetNearshoreFineHydroMeteorologies(bbox, 100);
+	std::cout << "BBox query (10nm around Case 1 Group 1) returned: " << bboxList.size() << " records." << std::endl;
+	if (bboxList.size() != 2) // only Case 1 Group 1 & Group 2 coordinates are in this range
+	{
+		std::cerr << "FAIL: BBox query returned unexpected count: " << bboxList.size() << std::endl;
+		exit(1);
+	}
+
+	// 5. Test radius query around Case 2 Group 1
+	VDES::Coordinate center;
+	center.SetLatitude(31.2345);
+	center.SetLongitude(121.4567);
+	auto rangeList = vdesManager.GetNearshoreFineHydroMeteorologies(center, 20.0); // 20nm range
+	std::cout << "Range query (20nm around Case 2 Group 1) returned: " << rangeList.size() << " records." << std::endl;
+	if (rangeList.size() != 2) // Case 2 Group 1 and Group 2 are in range
+	{
+		std::cerr << "FAIL: Range query returned unexpected count: " << rangeList.size() << std::endl;
+		exit(1);
+	}
+
+	// 6. Test delete all generated records
+	std::vector<uint32_t> ids = {
+		pC1_G1->dataID, pC1_G2->dataID,
+		pC2_G1->dataID, pC2_G2->dataID,
+		pC3_G1->dataID, pC3_G2->dataID,
+		pC4_G1->dataID,
+		pC5_G1->dataID, pC5_G2->dataID
+	};
+	bool delSuccess = vdesManager.DeleteNearshoreFineHydroMeteorologies(ids);
+	if (!delSuccess)
+	{
+		std::cerr << "FAIL: Delete operation failed!" << std::endl;
+		exit(1);
+	}
+	auto postDeleteList = vdesManager.GetNearshoreFineHydroMeteorologies(0, 100);
+	std::cout << "Post-delete total count of NearshoreFineHydroMeteorology in DB: " << postDeleteList.size() << std::endl;
+
+	vdesManager.notifyEvent.remove(token);
+	std::cout << "All comprehensive NearshoreFineHydroMeteorology verification tests PASSED!" << std::endl;
+	std::cout << "========================================" << std::endl;
+}
+
 static void TestABBTextMessages()
 {
 	std::cout << "\n=== Testing ABB Text Messages (FI=3 and FI=4) ===" << std::endl;
@@ -3084,9 +3761,17 @@ int main(void)
 #endif
 
 	std::vector<std::string> senteces{
+		"$AIASM,1784501838,1,1,,1,2,0,500500500,,IjT9k8;DS>h026eKuUTw5mMhBkaP,0*5B\r\n",
+		"$AIASM,1784501892,1,1,,2,2,0,500500500,,Iidpe6>pS8HP,0*19\r\n",
+		"$AIASM,1784502027,1,1,,2,2,0,500500500,,Iilpd<bMsEMh452@q0,4*28\r\n",
+		"$AIASM,1784502157,1,1,,1,2,0,500500500,,Iidpe6>pS8HP,0*19\r\n",
+		"$AIASM,1784502173,1,1,,1,2,0,500500500,,Iilpd<bMsEMh452@q0,4*2B\r\n",
+		"$AIASM,1784502202,1,1,,2,2,0,500500500,,Ij0qfK98p7>kshCRLvT0,0*4B\r\n",
+		//"$AIASM,1783156663,1,1,,1,2,0,666666666,,Iidpe6>pS8HP,0*18\r\n",
+		//"!AIABB,1,1,0,,0,,1,Iidpe6>pS8HP,0*3E\r\n",
 		// FI = 26
-		"!AIABB,02,01,0,,1,,0,Ii`p41gO8jhUn7vjiL0202GHOs;5h0@09MQwddG00P0Un7vjiL020,0*12\r\n",
-		"!AIABB,02,02,0,,1,,0,2GHOs;5j0,4*35\r\n",
+		//"!AIABB,02,01,0,,1,,0,Ii`p41gO8jhUn7vjiL0202GHOs;5h0@09MQwddG00P0Un7vjiL020,0*12\r\n",
+		//"!AIABB,02,02,0,,1,,0,2GHOs;5j0,4*35\r\n",
 		// 13bit中文短信
 		//"!AIABB,12,01,2,412999999,1,04,1,IlCDaDHVEk:roWPjt?vr`@LqrvTO?DaDHVEvnuBUAPdD9sOtIDdSHMTeVS@I,0*5B\r\n",
 		//"!AIABB,12,02,2,412999999,1,04,1,aVldS6EvdtUkjHvm7SUQN7ktM;<Ge02WebDb<5RQ?uA=BuDp:HviH@6@0i31,0*46\r\n",
@@ -5790,6 +6475,12 @@ int main(void)
 
 	// Execute VDES ABB message test case
 	TestABBTextMessages();
+
+	// Execute VDES Nearshore Fine Hydrometeorology test case
+	TestNearshoreFineHydroMeteorology();
+
+	// Execute VDES Marine Environment Forecast Alongshore test case
+	TestMarineEnvironmentFCSTAlongshore();
 
 	std::cout << "================================================================================" << std::endl;
 
