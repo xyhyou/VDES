@@ -3173,7 +3173,7 @@ static void TestNearshoreFineHydroMeteorology()
 
 	// Verify Case 5 Group 1 (Normal values)
 	std::cout << "Verifying Case 5 Group 1 (Typical Normal)..." << std::endl;
-	if (pC5_G1->hourPublish != 9 || pC5_G1->minutePublish != 15 || pC5_G1->forecastTimeOffset != 24 || pC5_G1->infoSource != 4)
+	if (pC5_G1->timestampPublished == 0 || pC5_G1->timestampForecast != pC5_G1->timestampPublished + 24 * 10 * 60 || pC5_G1->infoSource != 4)
 	{
 		std::cerr << "FAIL: Case 5 Group 1 metadata mismatch!" << std::endl;
 		exit(1);
@@ -3315,6 +3315,53 @@ static void TestABBTextMessages()
 		}
 	}
 	std::cout << "=================================================" << std::endl;
+}
+
+static void TestDeleteDesignatedAreas()
+{
+	std::cout << "\n=== Testing DeleteDesignatedAreas (Batch Deletion) ===" << std::endl;
+	auto &vdesManager = VDES::VDESManager::GetInstance();
+
+	for (uint8_t tc : {0, 1, 2})
+	{
+		auto sentences = GenerateDAC_412_FI_40(tc);
+		for (const auto &sentence : sentences)
+		{
+			vdesManager.Parse(sentence.c_str(), sentence.length());
+		}
+	}
+
+	auto areas = vdesManager.GetDesignatedAreas(0, 100);
+	std::cout << "DesignatedAreas count before batch delete: " << areas.size() << std::endl;
+	if (areas.empty())
+	{
+		std::cerr << "FAIL: Expected designated areas in DB before delete!" << std::endl;
+		exit(1);
+	}
+
+	std::vector<uint32_t> dataIDs;
+	for (const auto &area : areas)
+	{
+		dataIDs.push_back(area.dataID);
+	}
+
+	bool ret = vdesManager.DeleteDesignatedAreas(dataIDs);
+	if (!ret)
+	{
+		std::cerr << "FAIL: DeleteDesignatedAreas returned false!" << std::endl;
+		exit(1);
+	}
+
+	auto postDeleteAreas = vdesManager.GetDesignatedAreas(0, 100);
+	std::cout << "DesignatedAreas count after batch delete: " << postDeleteAreas.size() << std::endl;
+	if (!postDeleteAreas.empty())
+	{
+		std::cerr << "FAIL: Expected 0 designated areas in DB after batch delete, got " << postDeleteAreas.size() << std::endl;
+		exit(1);
+	}
+
+	std::cout << "DeleteDesignatedAreas (Batch Deletion) test PASSED!" << std::endl;
+	std::cout << "========================================" << std::endl;
 }
 
 int main(void)
@@ -6481,6 +6528,9 @@ int main(void)
 
 	// Execute VDES Marine Environment Forecast Alongshore test case
 	TestMarineEnvironmentFCSTAlongshore();
+
+	// Execute VDES DesignatedAreas batch delete test case
+	TestDeleteDesignatedAreas();
 
 	std::cout << "================================================================================" << std::endl;
 

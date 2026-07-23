@@ -2199,9 +2199,9 @@ namespace VDES
         }
 
         ASM_DAC_412_FI_55 asmInfo;
-        asmInfo.DAC = 412;
-        asmInfo.FI = 55;
-        asmInfo.source = m_mmsiSource;
+        asmInfo.DAC         = 412;
+        asmInfo.FI          = 55;
+        asmInfo.source      = m_mmsiSource;
         asmInfo.destination = m_mmsiDestination;
 
         // hourPublish (5 bits): bit 16-20

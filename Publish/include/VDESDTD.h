@@ -981,15 +981,14 @@ namespace VDES
      */
     struct MewSeaIce : ASMAttribute
     {
-        uint32_t MRN          = 0;
-        uint8_t  regionCode   = 0;
-        uint8_t  warningLevel = 0;
-
-        uint64_t timestampPublished = 0;
-        uint64_t timestampStart     = 0;
-        uint64_t timestampEnd       = 0;
-        uint8_t  warningDuration    = 0;
-        uint8_t  infoSource         = 0;
+        uint32_t    MRN                = 0;
+        uint8_t     regionCode         = 0;
+        uint8_t     warningLevel       = 0;
+        uint64_t    timestampPublished = 0;
+        uint64_t    timestampStart     = 0;
+        uint64_t    timestampEnd       = 0;
+        uint8_t     warningDuration    = 0;
+        uint8_t     infoSource         = 0;
         std::string description;
     };
 
@@ -1020,10 +1019,10 @@ namespace VDES
     {
         struct Element
         {
-            uint32_t   MRN  = 0;
-            uint8_t    fragmentDesc = 0;
-            uint8_t    type = 0;
-            Coordinate coordinate;
+            uint32_t    MRN          = 0;
+            uint8_t     fragmentDesc = 0;
+            uint8_t     type         = 0;
+            Coordinate  coordinate;
             std::string description;
 
             // Newly established & light character changed specifics
@@ -1264,9 +1263,8 @@ namespace VDES
      */
     struct NearshoreFineHydroMeteorology : ASMAttribute
     {
-        uint8_t    hourPublish = 24;
-        uint8_t    minutePublish = 60;
-        uint8_t    forecastTimeOffset = 63;
+        uint64_t   timestampPublished = 0;
+        uint64_t   timestampForecast = 0;
         uint16_t   elementFlags = 0;
         uint8_t    baseReference = 0;
         uint8_t    draftRequirement = 0;

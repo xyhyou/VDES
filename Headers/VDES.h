@@ -569,10 +569,22 @@ namespace VDES
         bool DeleteMaritimeDistresses(const std::vector<uint32_t> &dataIDs);
 
         DesignatedAreas GetDesignatedAreas(const uint32_t index = 0, const size_t number = -1);
+        
         DesignatedAreas GetDesignatedAreas(const BoundingBox &bbox, const size_t number = -1);
+        
         DesignatedAreaPtr GetDesignatedArea(const double latitude, const double longitude, const double radius);
+        
         DesignatedAreaPtr GetDesignatedArea(const uint32_t dataID);
+        
         bool DeleteDesignatedArea(const uint32_t dataID);
+
+        /*
+        * @brief      Delete MSI designated areas
+        * @param[in]  dataIDs
+        * @param[out] none
+        * @return     return true if invoke successfully
+        */
+        bool DeleteDesignatedAreas(const std::vector<uint32_t> &dataIDs);
 
         /***********************************************************************
         * Hydrological and meteorological Information

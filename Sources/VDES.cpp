@@ -305,7 +305,9 @@ namespace VDES
         void LoadMarineEnvironmentFCSTAlongshoreFromQueryResult(MarineEnvironmentFCSTAlongshore &area, const SQLite::Statement &query);
 
         void SaveNearshoreFineHydroMeteorology(const ASM_DAC_412_FI_55 &asmInfo);
+        
         void InitializeNearshoreFineHydroMeteorologyTable(void);
+        
         void LoadNearshoreFineHydroMeteorologyFromQueryResult(NearshoreFineHydroMeteorology &data, const SQLite::Statement &query);
 
         void ParseOneLineData(const std::string &sentence);
@@ -1632,13 +1634,18 @@ namespace VDES
     {
         try
         {
+            if (m_database->tableExists("NearshoreFineHydroMeteorology") && !m_database->fieldExists("Timestamp Publish", "NearshoreFineHydroMeteorology"))
+            {
+                m_database->exec("DROP TABLE IF EXISTS NearshoreFineHydroMeteorology");
+                m_database->exec("DROP TABLE IF EXISTS NearshoreFineHydroMeteorologyBBox");
+            }
+
             if (!m_database->tableExists("NearshoreFineHydroMeteorology"))
             {
                 auto sql = "CREATE TABLE NearshoreFineHydroMeteorology ("
                            "ID INTEGER PRIMARY KEY AUTOINCREMENT, "
-                           "[Hour Publish]        INT NOT NULL DEFAULT 24, "
-                           "[Minute Publish]      INT NOT NULL DEFAULT 60, "
-                           "[Forecast Time Offset] INT NOT NULL DEFAULT 63, "
+                           "[Timestamp Publish]   INTEGER NOT NULL DEFAULT 0, "
+                           "[Timestamp Forecast]  INTEGER NOT NULL DEFAULT 0, "
                            "[Element Flags]       INT NOT NULL DEFAULT 0, "
                            "[Base Reference]      INT NOT NULL DEFAULT 0, "
                            "[Draft Requirement]   INT NOT NULL DEFAULT 0, "
@@ -1686,15 +1693,45 @@ namespace VDES
             {
                 SQLite::Transaction transaction(*m_database.get());
                 auto timestampRcv = UtilityInterface::GetCurrentTimeStamp();
+                auto timeZone = UtilityInterface::GetTimeZone();
+
+                uint64_t timestampPublished = 0;
+                uint64_t timestampForecast = 0;
+
+                if (asmInfo.hourPublish < 24)
+                {
+                    int64_t timestampDayBegin = static_cast<int64_t>(timestampRcv) - static_cast<int64_t>(timestampRcv % 86400) - timeZone;
+                    int currentHour = static_cast<int>(((timestampRcv + timeZone) % 86400) / 3600);
+
+                    if (asmInfo.hourPublish > currentHour)
+                    {
+                        timestampDayBegin -= 86400;
+                    }
+
+                    timestampPublished = static_cast<uint64_t>(timestampDayBegin + asmInfo.hourPublish * 3600);
+                    if (asmInfo.minutePublish < 60)
+                    {
+                        timestampPublished += asmInfo.minutePublish * 60;
+                    }
+
+                    if (asmInfo.forecastTimeOffset == 0)
+                    {
+                        timestampForecast = timestampPublished;
+                    }
+                    else if (asmInfo.forecastTimeOffset <= 60)
+                    {
+                        timestampForecast = timestampPublished + static_cast<uint64_t>(asmInfo.forecastTimeOffset) * 10 * 60;
+                    }
+                }
 
                 auto sql = "INSERT INTO NearshoreFineHydroMeteorology ("
-                           "[Hour Publish], [Minute Publish], [Forecast Time Offset], [Element Flags], "
+                           "[Timestamp Publish], [Timestamp Forecast], [Element Flags], "
                            "[Base Reference], [Draft Requirement], [Info Source], Latitude, Longitude, "
                            "[Current Speed], [Current Direction], [Wind Speed], [Gust Wind Speed], "
                            "[Wind Direction], Visibility, [Water Level], [Wave Height], [Wave Direction], "
                            "[Water Depth], [Swell Height], [Timestamp Receive], Read"
                            ") VALUES ("
-                           "@HourPublish, @MinutePublish, @ForecastTimeOffset, @ElementFlags, "
+                           "@TimestampPublish, @TimestampForecast, @ElementFlags, "
                            "@BaseReference, @DraftRequirement, @InfoSource, @Latitude, @Longitude, "
                            "@CurrentSpeed, @CurrentDirection, @WindSpeed, @GustWindSpeed, "
                            "@WindDirection, @Visibility, @WaterLevel, @WaveHeight, @WaveDirection, "
@@ -1706,9 +1743,8 @@ namespace VDES
                 for (const auto &group : asmInfo.groups)
                 {
                     auto stmt = m_database->buildStatement(sql);
-                    stmt.bind("@HourPublish", asmInfo.hourPublish);
-                    stmt.bind("@MinutePublish", asmInfo.minutePublish);
-                    stmt.bind("@ForecastTimeOffset", asmInfo.forecastTimeOffset);
+                    stmt.bind("@TimestampPublish", static_cast<int64_t>(timestampPublished));
+                    stmt.bind("@TimestampForecast", static_cast<int64_t>(timestampForecast));
                     stmt.bind("@ElementFlags", asmInfo.elementFlags);
                     stmt.bind("@BaseReference", asmInfo.baseReference);
                     stmt.bind("@DraftRequirement", asmInfo.draftRequirement);
@@ -1754,9 +1790,9 @@ namespace VDES
     void VDESManager::Impl::LoadNearshoreFineHydroMeteorologyFromQueryResult(NearshoreFineHydroMeteorology &data, const SQLite::Statement &query)
     {
         data.dataID = query.getColumn("ID").getUInt();
-        data.hourPublish = static_cast<uint8_t>(query.getColumn("Hour Publish").getInt());
-        data.minutePublish = static_cast<uint8_t>(query.getColumn("Minute Publish").getInt());
-        data.forecastTimeOffset = static_cast<uint8_t>(query.getColumn("Forecast Time Offset").getInt());
+        data.timestampPublished = static_cast<uint64_t>(query.getColumn("Timestamp Publish").getInt64());
+        data.timestampForecast = static_cast<uint64_t>(query.getColumn("Timestamp Forecast").getInt64());
+
         data.elementFlags = static_cast<uint16_t>(query.getColumn("Element Flags").getInt());
         data.baseReference = static_cast<uint8_t>(query.getColumn("Base Reference").getInt());
         data.draftRequirement = static_cast<uint8_t>(query.getColumn("Draft Requirement").getInt());
@@ -11031,6 +11067,46 @@ namespace VDES
             catch (const SQLite::Exception &execption)
             {
                 m_impl->DatabaseErrorProcess(execption, "DeleteDesignatedArea");
+            }
+        }
+        return false;
+    }
+
+    bool VDESManager::DeleteDesignatedAreas(const std::vector<uint32_t> &dataIDs)
+    {
+        if (dataIDs.empty())
+        {
+            return true;
+        }
+
+        if (m_impl->m_database)
+        {
+            try
+            {
+                SQLite::Transaction transaction(*m_impl->m_database);
+
+                std::lock_guard<std::mutex> lock(m_impl->m_mutexMSIDesignatedArea);
+
+                auto sql = fmt::format("DELETE FROM MSIDesignatedArea WHERE ID IN ({})", fmt::join(dataIDs, ", "));
+                m_impl->m_database->exec(sql);
+
+                std::vector<int64_t> bboxIDs;
+                bboxIDs.reserve(dataIDs.size() * 2);
+                for (auto id : dataIDs)
+                {
+                    bboxIDs.push_back(static_cast<int64_t>(id));
+                    bboxIDs.push_back(-static_cast<int64_t>(id));
+                }
+
+                auto sqlBBox = fmt::format("DELETE FROM MSIDesignatedAreaBBox WHERE id IN ({})", fmt::join(bboxIDs, ", "));
+                m_impl->m_database->exec(sqlBBox);
+
+                transaction.commit();
+                return true;
+            }
+            catch (const SQLite::Exception &execption)
+            {
+                m_impl->DatabaseErrorProcess(execption, "DeleteDesignatedAreas");
             }
         }
         return false;
